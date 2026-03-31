@@ -1,59 +1,31 @@
-"""
-MCP tools for RAGAnything.
+"""MCP tools for RAGAnything.
+
 These tools are registered with FastMCP for Claude Desktop integration.
 """
 
-from dependencies import get_lightrag_proxy_use_case
-from domain.entities.lightrag_proxy_entities import LightRAGProxyRequest
 from fastmcp import FastMCP
 
+from dependencies import get_query_use_case
 
-# MCP instance will be configured in dependencies.py
 mcp = FastMCP("RAGAnything")
 
 
 @mcp.tool()
 async def query_knowledge_base(
-    query: str, mode: str = "naive", top_k: int = 10, only_need_context: bool = True
-) -> str:
-    """
-    Search the RAGAnything knowledge base for relevant document chunks.
-
-    Default Strategy (use this first):
-    - mode="naive" with top_k=10 for fast, focused results
-    - This works well for most queries
-
-    Fallback Strategy (if no relevant results):
-    - Ask user if they want a broader search
-    - Use mode="hybrid" with top_k=20 for comprehensive search
-    - This casts a wider net and combines multiple search strategies
+    working_dir: str, query: str, mode: str = "naive", top_k: int = 10
+) -> dict:
+    """Search the RAGAnything knowledge base for relevant document chunks.
 
     Args:
-        query: The user's question or search query (e.g., "What are the main findings?")
-        mode: Search mode - "naive" (default, recommended), "local" (context-aware),
-              "global" (document-level), or "hybrid" (comprehensive)
-        top_k: Number of chunks to retrieve (default 10, use 20 for broader search)
-        only_need_context: If True, returns only context chunks without LLM answer (default True)
+        working_dir: RAG workspace directory for this project
+        query: The user's question or search query
+        mode: Search mode - "naive" (default), "local", "global", "hybrid", "mix"
+        top_k: Number of chunks to retrieve (default 10)
 
     Returns:
-        JSON string containing the query response from LightRAG
+        Query response from LightRAG
     """
-    use_case = await get_lightrag_proxy_use_case()
-
-    # Build request body for LightRAG /query endpoint
-    request_body = {
-        "query": query,
-        "mode": mode,
-        "top_k": top_k,
-        "only_need_context": only_need_context,
-    }
-
-    proxy_request = LightRAGProxyRequest(
-        method="POST",
-        path="query",
-        body=request_body,
+    use_case = get_query_use_case()
+    return await use_case.execute(
+        working_dir=working_dir, query=query, mode=mode, top_k=top_k
     )
-
-    response = await use_case.execute(proxy_request)
-
-    return response.content.decode("utf-8")

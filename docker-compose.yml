@@ -18,11 +18,43 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - raganything-network
+
+  # MinIO object storage
+  minio:
+    image: minio/minio:latest
+    container_name: raganything-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # MinIO init — creates the bucket then exits
+  minio-init:
+    image: minio/mc:latest
+    container_name: raganything-minio-init
+    entrypoint: >
+      sh -c "
+        until mc alias set local http://minio:9000 minioadmin minioadmin 2>/dev/null; do sleep 1; done;
+        mc mb --ignore-existing local/raganything;
+        echo 'MinIO init done: bucket raganything created.';
+      "
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
 
   # RAG-Anything API application
-  api:
+  raganything-api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -34,35 +66,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - raganything-network
-    restart: unless-stopped
-
-  # LightRAG Server with Web UI
-  lightrag-server:
-    build:
-      context: .
-      dockerfile: Dockerfile.lightrag
-    container_name: raganything-lightrag
-    ports:
-      - "9621:9621"
-    env_file:
-      - .env.lightrag.server.docker
-    depends_on:
-      postgres:
+      minio:
         condition: service_healthy
-    networks:
-      - raganything-network
     restart: unless-stopped
 
 volumes:
   postgres_data:
     driver: local
-  rag_storage:
+  minio_data:
     driver: local
-  output_data:
-    driver: local
-
-networks:
-  raganything-network:
-    driver: bridge

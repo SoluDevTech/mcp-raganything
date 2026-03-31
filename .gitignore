@@ -8,3 +8,10 @@ output
 __pycache__
 __init__.py
 .mypy_cache
+.coverage
+.scannerwork
+trivy-report.json
+trivy-report-fixed.json
+coverage.xml
+.ruff_cache
+.pytest_cache

@@ -1,6 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from enum import Enum
+
+from pydantic import BaseModel, Field
+
+ERROR_MESSAGE_IF_FAILED = "Error message if failed"
 
 
 class IndexingStatus(str, Enum):
@@ -18,10 +20,10 @@ class FileIndexingResult(BaseModel):
     message: str = Field(description="Status message")
     file_path: str = Field(description="Path to the indexed file")
     file_name: str = Field(description="Name of the indexed file")
-    processing_time_ms: Optional[float] = Field(
+    processing_time_ms: float | None = Field(
         default=None, description="Processing time in milliseconds"
     )
-    error: Optional[str] = Field(default=None, description="Error message if failed")
+    error: str | None = Field(default=None, description=ERROR_MESSAGE_IF_FAILED)
 
 
 class FileProcessingDetail(BaseModel):
@@ -30,7 +32,7 @@ class FileProcessingDetail(BaseModel):
     file_path: str = Field(description="Path to the file")
     file_name: str = Field(description="Name of the file")
     status: IndexingStatus = Field(description="Processing status")
-    error: Optional[str] = Field(default=None, description="Error message if failed")
+    error: str | None = Field(default=None, description=ERROR_MESSAGE_IF_FAILED)
 
 
 class FolderIndexingStats(BaseModel):
@@ -54,10 +56,10 @@ class FolderIndexingResult(BaseModel):
     stats: FolderIndexingStats = Field(
         default_factory=FolderIndexingStats, description="Processing statistics"
     )
-    processing_time_ms: Optional[float] = Field(
+    processing_time_ms: float | None = Field(
         default=None, description="Total processing time in milliseconds"
     )
-    file_results: Optional[List[FileProcessingDetail]] = Field(
+    file_results: list[FileProcessingDetail] | None = Field(
         default=None, description="Individual file results"
     )
-    error: Optional[str] = Field(default=None, description="Error message if failed")
+    error: str | None = Field(default=None, description="Error message if failed")

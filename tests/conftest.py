@@ -1,24 +1,24 @@
-import sys
+import importlib.util
 from pathlib import Path
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import pytest
 
-from tests.doubles.double_rag_engine import DoubleRAGEngine
 from domain.entities.indexing_result import (
     FileIndexingResult,
     FolderIndexingResult,
-    IndexingStatus,
     FolderIndexingStats,
+    IndexingStatus,
 )
 
+# Load external fixtures from tests/fixtures/external.py without __init__.py
+_fixtures_path = Path(__file__).parent / "fixtures" / "external.py"
+_spec = importlib.util.spec_from_file_location("external_fixtures", _fixtures_path)
+_external = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_external)
 
-@pytest.fixture
-def double_rag_engine() -> DoubleRAGEngine:
-    """Provide a fresh DoubleRAGEngine instance."""
-    return DoubleRAGEngine()
+# Re-export fixtures so pytest discovers them
+mock_rag_engine = _external.mock_rag_engine
+mock_storage = _external.mock_storage
 
 
 @pytest.fixture

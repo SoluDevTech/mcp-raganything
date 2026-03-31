@@ -14,10 +14,14 @@ RUN uv sync --frozen --no-dev
 # Stage 2: Runtime image
 FROM python:3.13-slim-bookworm
 
-# Install system dependencies required by docling and other packages
+# Install system dependencies required by docling
+# tesseract-ocr: required by docling PDF pipeline init
+# libgl1: required by cv2 (used by docling table structure model)
 RUN apt-get update && apt-get install -y \
     libgomp1 \
+    libgl1 \
     git \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

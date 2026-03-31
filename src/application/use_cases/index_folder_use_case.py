@@ -1,48 +1,65 @@
-import os
+import asyncio
 import logging
-from domain.ports.rag_engine import RAGEnginePort
-from domain.entities.indexing_result import FolderIndexingResult
+import os
+
+import aiofiles
+
 from application.requests.indexing_request import IndexFolderRequest
+from domain.entities.indexing_result import FolderIndexingResult
+from domain.ports.rag_engine import RAGEnginePort
+from domain.ports.storage_port import StoragePort
 
 logger = logging.getLogger(__name__)
 
 
 class IndexFolderUseCase:
-    """
-    Use case for indexing a folder of documents.
-    Orchestrates the folder indexing process.
-    """
+    """Use case for indexing a folder of documents downloaded from MinIO."""
 
-    def __init__(self, rag_engine: RAGEnginePort, output_dir: str) -> None:
-        """
-        Initialize the use case.
-
-        Args:
-            rag_engine: Port for RAG engine operations.
-            output_dir: Output directory for processing.
-        """
+    def __init__(
+        self,
+        rag_engine: RAGEnginePort,
+        storage: StoragePort,
+        bucket: str,
+        output_dir: str,
+    ) -> None:
         self.rag_engine = rag_engine
+        self.storage = storage
+        self.bucket = bucket
         self.output_dir = output_dir
 
     async def execute(self, request: IndexFolderRequest) -> FolderIndexingResult:
-        """
-        Execute the folder indexing process.
+        local_folder = os.path.join(self.output_dir, request.working_dir)
+        
+        os.makedirs(local_folder, exist_ok=True)
 
-        Args:
-            request: The indexing request containing folder parameters.
+        files = await self.storage.list_objects(
+            self.bucket, prefix=request.working_dir, recursive=request.recursive
+        )
 
-        Returns:
-            FolderIndexingResult: Structured result with statistics and file details.
-        """
-        os.makedirs(self.output_dir, exist_ok=True)
+        if request.file_extensions:
+            exts = set(request.file_extensions)
+            files = [f for f in files if any(f.endswith(ext) for ext in exts)]
 
+        semaphore = asyncio.Semaphore(10)
+
+        async def _download(file_name: str) -> None:
+            async with semaphore:
+                data = await self.storage.get_object(self.bucket, file_name)
+                local_name = os.path.basename(file_name)
+                async with aiofiles.open(os.path.join(local_folder, local_name), "wb") as f:
+                    await f.write(data)
+
+        await asyncio.gather(*[_download(f) for f in files])
+
+        self.rag_engine.init_project(request.working_dir)
+        
         result = await self.rag_engine.index_folder(
-            folder_path=request.folder_path,
+            folder_path=local_folder,
             output_dir=self.output_dir,
             recursive=request.recursive,
             file_extensions=request.file_extensions,
+            working_dir=request.working_dir,
         )
 
-        logger.info(f"Indexation finished with result: {result.model_dump()}")
-
+        logger.info(f"Folder indexation finished: {result.model_dump()}")
         return result

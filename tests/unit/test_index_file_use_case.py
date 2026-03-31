@@ -1,107 +1,158 @@
 import os
-import pytest
 from pathlib import Path
+from unittest.mock import AsyncMock
+
+import pytest
 
 from application.use_cases.index_file_use_case import IndexFileUseCase
-from domain.entities.indexing_result import IndexingStatus, FileIndexingResult
-from tests.doubles.double_rag_engine import DoubleRAGEngine
+from domain.entities.indexing_result import FileIndexingResult, IndexingStatus
 
 
 class TestIndexFileUseCase:
-    """Unit tests for IndexFileUseCase."""
+    """Tests for IndexFileUseCase — storage and rag_engine are external, both mocked."""
 
-    async def test_execute_returns_result_from_rag_engine(
+    async def test_execute_downloads_file_from_storage(
         self,
-        double_rag_engine: DoubleRAGEngine,
+        mock_rag_engine: AsyncMock,
+        mock_storage: AsyncMock,
         tmp_path: Path,
     ) -> None:
-        """Test that execute returns the result from rag_engine.index_document."""
-        output_dir = str(tmp_path / "output")
+        """Should call storage.get_object with the bucket and file_name."""
         use_case = IndexFileUseCase(
-            rag_engine=double_rag_engine,
+            rag_engine=mock_rag_engine,
+            storage=mock_storage,
+            bucket="my-bucket",
+            output_dir=str(tmp_path),
+        )
+
+        await use_case.execute(
+            file_name="reports/report.pdf", working_dir="/tmp/rag/p1"
+        )
+
+        mock_storage.get_object.assert_called_once_with(
+            "my-bucket", "reports/report.pdf"
+        )
+
+    async def test_execute_writes_file_to_output_dir(
+        self,
+        mock_rag_engine: AsyncMock,
+        mock_storage: AsyncMock,
+        tmp_path: Path,
+    ) -> None:
+        """Should write the downloaded bytes to output_dir/<file_name>."""
+        mock_storage.get_object.return_value = b"pdf binary data"
+        use_case = IndexFileUseCase(
+            rag_engine=mock_rag_engine,
+            storage=mock_storage,
+            bucket="my-bucket",
+            output_dir=str(tmp_path),
+        )
+
+        await use_case.execute(file_name="docs/report.pdf", working_dir="/tmp/rag/p1")
+
+        written_file = tmp_path / "docs" / "report.pdf"
+        assert written_file.exists()
+        assert written_file.read_bytes() == b"pdf binary data"
+
+    async def test_execute_calls_init_project(
+        self,
+        mock_rag_engine: AsyncMock,
+        mock_storage: AsyncMock,
+        tmp_path: Path,
+    ) -> None:
+        """Should call rag_engine.init_project with the working_dir."""
+        use_case = IndexFileUseCase(
+            rag_engine=mock_rag_engine,
+            storage=mock_storage,
+            bucket="my-bucket",
+            output_dir=str(tmp_path),
+        )
+
+        await use_case.execute(
+            file_name="report.pdf", working_dir="/tmp/rag/project_42"
+        )
+
+        mock_rag_engine.init_project.assert_called_once_with("/tmp/rag/project_42")
+
+    async def test_execute_calls_index_document(
+        self,
+        mock_rag_engine: AsyncMock,
+        mock_storage: AsyncMock,
+        tmp_path: Path,
+    ) -> None:
+        """Should call rag_engine.index_document with the local file path, name, and output_dir."""
+        output_dir = str(tmp_path)
+        use_case = IndexFileUseCase(
+            rag_engine=mock_rag_engine,
+            storage=mock_storage,
+            bucket="my-bucket",
             output_dir=output_dir,
         )
 
-        result = await use_case.execute(
-            file_path="/tmp/documents/report.pdf",
+        await use_case.execute(
+            file_name="nested/dir/report.pdf", working_dir="/tmp/rag/p1"
+        )
+
+        expected_file_path = os.path.join(output_dir, "nested/dir/report.pdf")
+        mock_rag_engine.index_document.assert_called_once_with(
+            file_path=expected_file_path,
+            file_name="nested/dir/report.pdf",
+            output_dir=output_dir,
+            working_dir="/tmp/rag/p1",
+        )
+
+    async def test_execute_returns_result(
+        self,
+        mock_rag_engine: AsyncMock,
+        mock_storage: AsyncMock,
+        tmp_path: Path,
+    ) -> None:
+        """Should return the FileIndexingResult from rag_engine."""
+        expected_result = FileIndexingResult(
+            status=IndexingStatus.SUCCESS,
+            message="Indexed",
+            file_path="/tmp/report.pdf",
             file_name="report.pdf",
+            processing_time_ms=42.0,
+        )
+        mock_rag_engine.index_document.return_value = expected_result
+        use_case = IndexFileUseCase(
+            rag_engine=mock_rag_engine,
+            storage=mock_storage,
+            bucket="my-bucket",
+            output_dir=str(tmp_path),
+        )
+
+        result = await use_case.execute(
+            file_name="report.pdf", working_dir="/tmp/rag/p1"
         )
 
         assert result.status == IndexingStatus.SUCCESS
-        assert result.file_path == "/tmp/documents/report.pdf"
         assert result.file_name == "report.pdf"
+        assert result.processing_time_ms == pytest.approx(42.0)
 
-    async def test_execute_passes_correct_arguments_to_rag_engine(
+    async def test_execute_with_failure(
         self,
-        double_rag_engine: DoubleRAGEngine,
+        mock_rag_engine: AsyncMock,
+        mock_storage: AsyncMock,
         tmp_path: Path,
     ) -> None:
-        """Test that execute passes correct arguments to rag_engine.index_document."""
-        output_dir = str(tmp_path / "output")
-        use_case = IndexFileUseCase(
-            rag_engine=double_rag_engine,
-            output_dir=output_dir,
-        )
-
-        await use_case.execute(
-            file_path="/tmp/documents/report.pdf",
-            file_name="report.pdf",
-        )
-
-        assert len(double_rag_engine.index_document_calls) == 1
-        call = double_rag_engine.index_document_calls[0]
-        assert call.file_path == "/tmp/documents/report.pdf"
-        assert call.file_name == "report.pdf"
-        assert call.output_dir == output_dir
-
-    async def test_execute_creates_output_directory(
-        self,
-        double_rag_engine: DoubleRAGEngine,
-        tmp_path: Path,
-    ) -> None:
-        """Test that execute creates the output directory if it doesn't exist."""
-        output_dir = str(tmp_path / "new_output_dir")
-        use_case = IndexFileUseCase(
-            rag_engine=double_rag_engine,
-            output_dir=output_dir,
-        )
-
-        assert not os.path.exists(output_dir)
-
-        await use_case.execute(
-            file_path="/tmp/documents/report.pdf",
-            file_name="report.pdf",
-        )
-
-        assert os.path.exists(output_dir)
-        assert os.path.isdir(output_dir)
-
-    async def test_execute_with_configured_result(
-        self,
-        double_rag_engine: DoubleRAGEngine,
-        tmp_path: Path,
-    ) -> None:
-        """Test that execute returns configured result from double."""
-        output_dir = str(tmp_path / "output")
-        expected_result = FileIndexingResult(
+        """Should return a FAILED result when rag_engine reports failure."""
+        mock_rag_engine.index_document.return_value = FileIndexingResult(
             status=IndexingStatus.FAILED,
-            message="Custom error message",
-            file_path="/custom/path.pdf",
-            file_name="path.pdf",
-            error="Parsing failed",
+            message="Parsing error",
+            file_path="/tmp/bad.pdf",
+            file_name="bad.pdf",
+            error="Corrupt PDF",
         )
-        double_rag_engine.set_index_document_result(expected_result)
-
         use_case = IndexFileUseCase(
-            rag_engine=double_rag_engine,
-            output_dir=output_dir,
+            rag_engine=mock_rag_engine,
+            storage=mock_storage,
+            bucket="my-bucket",
+            output_dir=str(tmp_path),
         )
 
-        result = await use_case.execute(
-            file_path="/tmp/documents/report.pdf",
-            file_name="report.pdf",
-        )
+        result = await use_case.execute(file_name="bad.pdf", working_dir="/tmp/rag/p1")
 
         assert result.status == IndexingStatus.FAILED
-        assert result.message == "Custom error message"
-        assert result.error == "Parsing failed"
+        assert result.error == "Corrupt PDF"

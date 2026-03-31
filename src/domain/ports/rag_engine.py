@@ -1,29 +1,20 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+
 from domain.entities.indexing_result import FileIndexingResult, FolderIndexingResult
 
 
 class RAGEnginePort(ABC):
-    """
-    Port interface for RAG engine operations.
-    Defines the contract for RAG indexing and querying functionality.
-    """
+    """Port interface for RAG engine operations."""
+
+    @abstractmethod
+    def init_project(self, working_dir: str) -> None:
+        """Initialize the RAG engine for a specific project/workspace."""
+        pass
 
     @abstractmethod
     async def index_document(
-        self, file_path: str, file_name: str, output_dir: str
+        self, file_path: str, file_name: str, output_dir: str, working_dir: str = ""
     ) -> FileIndexingResult:
-        """
-        Index a single document into the RAG system.
-
-        Args:
-            file_path: Absolute path to the document to index.
-            file_name: Name of the file being indexed.
-            output_dir: Directory for processing outputs.
-
-        Returns:
-            FileIndexingResult: Structured result of the indexing operation.
-        """
         pass
 
     @abstractmethod
@@ -32,28 +23,11 @@ class RAGEnginePort(ABC):
         folder_path: str,
         output_dir: str,
         recursive: bool = True,
-        file_extensions: Optional[List[str]] = None,
+        file_extensions: list[str] | None = None,
+        working_dir: str = "",
     ) -> FolderIndexingResult:
-        """
-        Index all documents in a folder.
-
-        Args:
-            folder_path: Absolute path to the folder containing documents.
-            output_dir: Directory for processing outputs.
-            recursive: Whether to process subdirectories recursively.
-            file_extensions: Optional list of file extensions to filter.
-
-        Returns:
-            FolderIndexingResult: Structured result with statistics and file details.
-        """
         pass
 
     @abstractmethod
-    async def initialize(self) -> bool:
-        """
-        Initialize the RAG engine.
-
-        Returns:
-            bool: True if initialization was successful, False otherwise.
-        """
+    async def query(self, query: str, mode: str = "naive", top_k: int = 10, working_dir: str = "") -> dict:
         pass

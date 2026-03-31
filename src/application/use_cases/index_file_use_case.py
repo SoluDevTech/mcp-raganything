@@ -1,44 +1,48 @@
 import logging
 import os
-from domain.ports.rag_engine import RAGEnginePort
+
+import aiofiles
+
 from domain.entities.indexing_result import FileIndexingResult
+from domain.ports.rag_engine import RAGEnginePort
+from domain.ports.storage_port import StoragePort
 
 logger = logging.getLogger(__name__)
 
 
 class IndexFileUseCase:
-    """
-    Use case for indexing a single file.
-    Orchestrates the file indexing process.
-    """
+    """Use case for indexing a single file downloaded from MinIO."""
 
-    def __init__(self, rag_engine: RAGEnginePort, output_dir: str) -> None:
-        """
-        Initialize the use case.
-
-        Args:
-            rag_engine: Port for RAG engine operations.
-            output_dir: Output directory for processing.
-        """
+    def __init__(
+        self,
+        rag_engine: RAGEnginePort,
+        storage: StoragePort,
+        bucket: str,
+        output_dir: str,
+    ) -> None:
         self.rag_engine = rag_engine
+        self.storage = storage
+        self.bucket = bucket
         self.output_dir = output_dir
 
-    async def execute(self, file_path: str, file_name: str) -> FileIndexingResult:
-        """
-        Execute the file indexing process.
-
-        Args:
-            file_path: Path to the file to index.
-            file_name: Name of the file.
-
-        Returns:
-            FileIndexingResult: Structured result of the indexing operation.
-        """
+    async def execute(self, file_name: str, working_dir: str) -> FileIndexingResult:
         os.makedirs(self.output_dir, exist_ok=True)
 
+        data = await self.storage.get_object(self.bucket, file_name)
+        file_path = os.path.join(self.output_dir, file_name)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(data)
+
+        self.rag_engine.init_project(working_dir)
+
         result = await self.rag_engine.index_document(
-            file_path=file_path, file_name=file_name, output_dir=self.output_dir
+            file_path=file_path,
+            file_name=file_name,
+            output_dir=self.output_dir,
+            working_dir=working_dir,
         )
 
-        logger.info(f"Indexation finished with result: {result.model_dump()}")
+        logger.info(f"Indexation finished: {result.model_dump()}")
+        
         return result

@@ -1,17 +1,15 @@
+import os
+import tempfile
+
+from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
-from dotenv import load_dotenv
-from typing import List, Optional
 
 load_dotenv()
 
 
 class AppConfig(BaseSettings):
-    """
-    Application configuration settings.
-    """
-
-    ALLOWED_ORIGINS: List[str] = Field(
+    ALLOWED_ORIGINS: list[str] = Field(
         default=["*"], description="CORS allowed origins"
     )
     MCP_TRANSPORT: str = Field(
@@ -19,8 +17,10 @@ class AppConfig(BaseSettings):
     )
     HOST: str = Field(default="0.0.0.0", description="Server host")
     PORT: int = Field(default=8000, description="Server port")
-    UVICORN_LOG_LEVEL: str = Field(
-        default="critical", description="Uvicorn log level when running with MCP stdio"
+    UVICORN_LOG_LEVEL: str = Field(default="critical", description="Uvicorn log level")
+    OUTPUT_DIR: str = Field(
+        default=os.path.join(tempfile.gettempdir(), "output"),
+        description="Directory for temporary output file storage",
     )
 
 
@@ -46,10 +46,10 @@ class LLMConfig(BaseSettings):
     Large Language Model configuration.
     """
 
-    OPEN_ROUTER_API_KEY: Optional[str] = Field(default=None)
-    OPENROUTER_API_KEY: Optional[str] = Field(default=None)
+    OPEN_ROUTER_API_KEY: str | None = Field(default=None)
+    OPENROUTER_API_KEY: str | None = Field(default=None)
     OPEN_ROUTER_API_URL: str = Field(default="https://openrouter.ai/api/v1")
-    BASE_URL: Optional[str] = Field(default=None)
+    BASE_URL: str | None = Field(default=None)
 
     CHAT_MODEL: str = Field(
         default="openai/gpt-4o-mini", description="Model name for chat completions"
@@ -109,17 +109,11 @@ class RAGConfig(BaseSettings):
     )
 
 
-class ProxyConfig(BaseSettings):
-    """
-    Configuration for the LightRAG API proxy.
-    """
+class MinioConfig(BaseSettings):
+    """MinIO object storage configuration."""
 
-    LIGHTRAG_API_URL: str = Field(
-        default="http://localhost:9621", description="LightRAG API base URL"
-    )
-    LIGHTRAG_TIMEOUT: int = Field(
-        default=60, description="Default timeout for proxy requests in seconds"
-    )
-    LIGHTRAG_STREAM_TIMEOUT: int = Field(
-        default=300, description="Timeout for streaming proxy requests in seconds"
-    )
+    MINIO_HOST: str = Field(default="localhost:9000")
+    MINIO_ACCESS: str = Field(default="minioadmin")
+    MINIO_SECRET: str = Field(default="minioadmin")
+    MINIO_BUCKET: str = Field(default="raganything")
+    MINIO_SECURE: bool = Field(default=False)
