@@ -23,13 +23,13 @@ MCP_PATH = "/mcp"
 
 if app_config.MCP_TRANSPORT == "streamable":
     mcp_app = mcp.http_app(path="/")
-
-app = FastAPI(
-    title="RAG Anything API",
-    lifespan=mcp_app.lifespan,
-)
-
-app.mount(MCP_PATH, mcp_app)
+    app = FastAPI(
+        title="RAG Anything API",
+        lifespan=mcp_app.lifespan,
+    )
+    app.mount(MCP_PATH, mcp_app)
+else:
+    app = FastAPI(title="RAG Anything API")
 
 app.add_middleware(
     CORSMiddleware,
