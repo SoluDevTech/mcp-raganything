@@ -9,6 +9,7 @@ dependencies = [
     "asyncpg>=0.31.0",
     "docling>=2.64.0",
     "fastapi>=0.124.0",
+    "authlib>=1.6.9",
     "fastmcp>=2.14.3",
     "httpx>=0.27.0",
     "lightrag-hku>=1.4.9.8",
