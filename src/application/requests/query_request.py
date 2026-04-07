@@ -2,7 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-QueryMode = Literal["local", "global", "hybrid", "naive", "mix", "bypass"]
+QueryMode = Literal[
+    "local", "global", "hybrid", "hybrid+", "naive", "mix", "bypass", "bm25"
+]
 
 
 class QueryRequest(BaseModel):
@@ -16,8 +18,10 @@ class QueryRequest(BaseModel):
     mode: QueryMode = Field(
         default="naive",
         description=(
-            "Search mode - 'naive' (default, recommended), 'local' (context-aware), "
-            "'global' (document-level), or 'hybrid' (comprehensive) or 'mix' (automatic strategy). "
+            "Search mode - 'naive' (default, vector only), 'local' (context-aware), "
+            "'global' (document-level), 'hybrid' (local+global KG), "
+            "'hybrid+' (BM25+vector parallel), 'mix' (automatic strategy), "
+            "'bm25' (full-text only)."
         ),
     )
     top_k: int = Field(

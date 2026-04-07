@@ -109,6 +109,16 @@ class RAGConfig(BaseSettings):
     )
 
 
+class BM25Config(BaseSettings):
+    """BM25 search configuration."""
+
+    BM25_ENABLED: bool = Field(default=True, description="Enable BM25 full-text search")
+    BM25_TEXT_CONFIG: str = Field(
+        default="english", description="PostgreSQL text search configuration"
+    )
+    BM25_RRF_K: int = Field(default=60, description="RRF constant K for hybrid search")
+
+
 class MinioConfig(BaseSettings):
     """MinIO object storage configuration."""
 
