@@ -101,16 +101,30 @@ class TestQueryUseCase:
             working_dir="/tmp/rag/test",
         )
 
-    async def test_execute_hybrid_plus_with_bm25(self, mock_rag_engine: AsyncMock) -> None:
+    async def test_execute_hybrid_plus_with_bm25(
+        self, mock_rag_engine: AsyncMock
+    ) -> None:
         """hybrid+ mode should execute parallel BM25 + vector search."""
         mock_bm25 = AsyncMock()
         mock_bm25.search.return_value = [
             BM25SearchResult(
-                chunk_id="1", content="bm25 result", file_path="/a.pdf", score=5.0, metadata={}
+                chunk_id="1",
+                content="bm25 result",
+                file_path="/a.pdf",
+                score=5.0,
+                metadata={},
             )
         ]
         mock_rag_engine.query.return_value = {
-            "data": {"chunks": [{"reference_id": "2", "content": "vector result", "file_path": "/b.pdf"}]}
+            "data": {
+                "chunks": [
+                    {
+                        "reference_id": "2",
+                        "content": "vector result",
+                        "file_path": "/b.pdf",
+                    }
+                ]
+            }
         }
         use_case = QueryUseCase(rag_engine=mock_rag_engine, bm25_engine=mock_bm25)
 
@@ -123,7 +137,9 @@ class TestQueryUseCase:
         assert result["status"] == "success"
         assert result["metadata"]["query_mode"] == "hybrid+"
 
-    async def test_execute_hybrid_plus_without_bm25_falls_back(self, mock_rag_engine: AsyncMock) -> None:
+    async def test_execute_hybrid_plus_without_bm25_falls_back(
+        self, mock_rag_engine: AsyncMock
+    ) -> None:
         """hybrid+ mode without BM25 should fall back to naive vector search."""
         mock_rag_engine.query.return_value = {"status": "success", "data": {}}
         use_case = QueryUseCase(rag_engine=mock_rag_engine, bm25_engine=None)
@@ -155,7 +171,9 @@ class TestQueryUseCase:
         assert result["status"] == "success"
         assert result["metadata"]["query_mode"] == "bm25"
 
-    async def test_execute_bm25_mode_without_bm25_returns_error(self, mock_rag_engine: AsyncMock) -> None:
+    async def test_execute_bm25_mode_without_bm25_returns_error(
+        self, mock_rag_engine: AsyncMock
+    ) -> None:
         """bm25 mode without BM25 engine should return error."""
         use_case = QueryUseCase(rag_engine=mock_rag_engine, bm25_engine=None)
 

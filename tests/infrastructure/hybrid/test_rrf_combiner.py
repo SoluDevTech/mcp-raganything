@@ -1,6 +1,5 @@
 """Tests for Reciprocal Rank Fusion combiner."""
 
-
 from domain.ports.bm25_engine import BM25SearchResult
 from infrastructure.hybrid.rrf_combiner import RRFCombiner
 

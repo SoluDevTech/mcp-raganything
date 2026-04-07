@@ -1,6 +1,5 @@
 """Tests for BM25EnginePort interface."""
 
-
 import pytest
 
 from domain.ports.bm25_engine import BM25EnginePort, BM25SearchResult

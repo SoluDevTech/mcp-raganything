@@ -158,7 +158,9 @@ class PostgresBM25Adapter(BM25EnginePort):
                     metadata or {},
                 )
         except Exception as e:
-            logger.error(f"BM25 document indexing failed: {e}", extra={"chunk_id": chunk_id})
+            logger.error(
+                f"BM25 document indexing failed: {e}", extra={"chunk_id": chunk_id}
+            )
             raise
 
     async def create_index(self, working_dir: str) -> None:
@@ -186,7 +188,9 @@ class PostgresBM25Adapter(BM25EnginePort):
                     working_dir,
                 )
         except Exception as e:
-            logger.error(f"BM25 index creation failed: {e}", extra={"working_dir": working_dir})
+            logger.error(
+                f"BM25 index creation failed: {e}", extra={"working_dir": working_dir}
+            )
             raise
 
     async def drop_index(self, working_dir: str) -> None:
@@ -205,5 +209,7 @@ class PostgresBM25Adapter(BM25EnginePort):
                     working_dir,
                 )
         except Exception as e:
-            logger.error(f"BM25 index drop failed: {e}", extra={"working_dir": working_dir})
+            logger.error(
+                f"BM25 index drop failed: {e}", extra={"working_dir": working_dir}
+            )
             raise

@@ -1,10 +1,11 @@
 """Add BM25 support via pg_textsearch
 
 Revision ID: 001
-Revises: 
+Revises:
 Create Date: 2026-04-07
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op

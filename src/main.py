@@ -9,11 +9,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from alembic import command
 from application.api.health_routes import health_router
 from application.api.indexing_routes import indexing_router
 from application.api.mcp_tools import mcp
@@ -73,9 +73,8 @@ if app_config.MCP_TRANSPORT == "streamable":
     @asynccontextmanager
     async def combined_lifespan(app: FastAPI):
         """Combine database lifecycle with MCP lifecycle for streamable transport."""
-        async with db_lifespan(app):
-            async with mcp_app.lifespan(app):
-                yield
+        async with db_lifespan(app), mcp_app.lifespan(app):
+            yield
 
     app = FastAPI(
         title="RAG Anything API",

@@ -3,8 +3,6 @@
 import importlib.util
 from pathlib import Path
 
-import pytest
-
 ALEMBIC_DIR = Path(__file__).parent.parent.parent / "src" / "alembic"
 SRC_DIR = Path(__file__).parent.parent.parent / "src"
 
@@ -23,7 +21,10 @@ class TestAlembicConfig:
     def test_get_url_converts_asyncpg_to_sync(self):
         """Should convert postgresql+asyncpg:// to postgresql://."""
         test_cases = [
-            ("postgresql+asyncpg://user:pass@host/db", "postgresql://user:pass@host/db"),
+            (
+                "postgresql+asyncpg://user:pass@host/db",
+                "postgresql://user:pass@host/db",
+            ),
             ("postgresql://user:pass@host/db", "postgresql://user:pass@host/db"),
         ]
         for input_url, expected in test_cases:
