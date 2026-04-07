@@ -75,3 +75,11 @@ class BM25EnginePort(ABC):
             working_dir: Project/workspace directory
         """
         pass
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Close connection pool and cleanup resources.
+
+        Called during application shutdown.
+        """
+        pass
