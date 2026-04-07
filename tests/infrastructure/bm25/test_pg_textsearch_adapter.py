@@ -133,7 +133,7 @@ async def test_drop_index_clears_tsvector(mock_pool, mock_connection):
     adapter = PostgresBM25Adapter(db_url="postgresql://test")
     adapter._pool = mock_pool
     mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_connection)
-    mock_pool.acquire.return_value.__exit__ = AsyncMock(return_value=None)
+    mock_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
 
     await adapter.drop_index("workspace1")
 
@@ -142,3 +142,26 @@ async def test_drop_index_clears_tsvector(mock_pool, mock_connection):
     call_args = mock_connection.execute.call_args[0]
     assert "UPDATE chunks" in call_args[0]
     assert "content_tsv = NULL" in call_args[0]
+
+
+@pytest.mark.asyncio
+async def test_close_closes_pool(mock_pool):
+    """Close should close connection pool."""
+    adapter = PostgresBM25Adapter(db_url="postgresql://test")
+    adapter._pool = mock_pool
+
+    await adapter.close()
+
+    mock_pool.close.assert_called_once()
+    assert adapter._pool is None
+
+
+@pytest.mark.asyncio
+async def test_close_with_no_pool():
+    """Close should handle None pool gracefully."""
+    adapter = PostgresBM25Adapter(db_url="postgresql://test")
+    adapter._pool = None
+
+    await adapter.close()
+
+    assert adapter._pool is None
