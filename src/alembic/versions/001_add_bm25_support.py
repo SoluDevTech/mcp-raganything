@@ -63,7 +63,8 @@ def upgrade() -> None:
     """
     )
 
-    # Backfill existing documents
+    # WARNING: This UPDATE scans the entire table. For tables with >100K rows,
+    # consider running this as a separate manual batch operation instead.
     op.execute(
         "UPDATE chunks SET content_tsv = to_tsvector('english', COALESCE(content, '')) WHERE content_tsv IS NULL"
     )

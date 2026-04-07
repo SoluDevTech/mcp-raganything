@@ -116,7 +116,9 @@ class BM25Config(BaseSettings):
     BM25_TEXT_CONFIG: str = Field(
         default="english", description="PostgreSQL text search configuration"
     )
-    BM25_RRF_K: int = Field(default=60, description="RRF constant K for hybrid search")
+    BM25_RRF_K: int = Field(
+        default=60, ge=1, description="RRF constant K for hybrid search"
+    )
 
 
 class MinioConfig(BaseSettings):

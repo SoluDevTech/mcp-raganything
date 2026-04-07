@@ -45,13 +45,13 @@ async def db_lifespan(_app: FastAPI):
     """
     logger.info("Application startup initiated")
 
-    # Run database migrations
     try:
         logger.info("Running database migrations...")
         await asyncio.to_thread(_run_alembic_upgrade)
         logger.info("Database migrations completed")
     except Exception:
-        logger.exception("Failed to run migrations")
+        logger.exception("Failed to run migrations — refusing to start")
+        raise
 
     yield
 

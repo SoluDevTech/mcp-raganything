@@ -1,5 +1,6 @@
 """PostgreSQL BM25 adapter using pg_textsearch extension."""
 
+import asyncio
 import logging
 from typing import Any
 
@@ -28,13 +29,17 @@ class PostgresBM25Adapter(BM25EnginePort):
         """
         self.db_url = db_url
         self._pool: asyncpg.Pool | None = None
+        self._pool_lock = asyncio.Lock()
 
     async def _get_pool(self) -> asyncpg.Pool:
-        """Get or create database connection pool."""
-        if self._pool is None:
+        """Get or create database connection pool with double-checked locking."""
+        if self._pool is not None:
+            return self._pool
+        async with self._pool_lock:
+            if self._pool is not None:
+                return self._pool
             self._pool = await asyncpg.create_pool(self.db_url)
 
-            # Validate pg_textsearch extension
             async with self._pool.acquire() as conn:
                 try:
                     result = await conn.fetchval(

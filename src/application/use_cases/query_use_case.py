@@ -1,11 +1,14 @@
 """Query use case with hybrid+ mode support."""
 
 import asyncio
+import logging
 from typing import Literal
 
-from domain.ports.bm25_engine import BM25EnginePort
+from domain.ports.bm25_engine import BM25EnginePort, BM25SearchResult
 from domain.ports.rag_engine import RAGEnginePort
 from infrastructure.hybrid.rrf_combiner import RRFCombiner
+
+logger = logging.getLogger(__name__)
 
 
 class QueryUseCase:
@@ -56,10 +59,8 @@ class QueryUseCase:
         Returns:
             Search results
         """
-        # Initialize RAG engine
         self.rag_engine.init_project(working_dir)
 
-        # Handle BM25-only mode
         if mode == "bm25":
             if self.bm25_engine is None:
                 return {
@@ -71,15 +72,12 @@ class QueryUseCase:
             results = await self.bm25_engine.search(query, working_dir, top_k)
             return self._format_bm25_results(results)
 
-        # Handle hybrid+ mode (parallel BM25 + vector)
         if mode == "hybrid+":
             if self.bm25_engine is None:
-                # Fall back to regular vector search
                 return await self.rag_engine.query(
                     query=query, mode="naive", top_k=top_k, working_dir=working_dir
                 )
 
-            # Execute BM25 and vector search in parallel
             bm25_task = asyncio.create_task(
                 self.bm25_engine.search(query, working_dir, top_k=top_k * 2)
             )
@@ -89,12 +87,24 @@ class QueryUseCase:
                 )
             )
 
-            # Wait for both to complete
-            bm25_results, vector_results = await asyncio.gather(
-                bm25_task, vector_task, return_exceptions=False
+            bm25_results_raw, vector_results_raw = await asyncio.gather(
+                bm25_task, vector_task, return_exceptions=True
             )
 
-            # Combine using RRF
+            bm25_results: list[BM25SearchResult] = (
+                bm25_results_raw if isinstance(bm25_results_raw, list) else []
+            )
+            if isinstance(bm25_results_raw, Exception):
+                logger.error("BM25 search failed in hybrid+ mode: %s", bm25_results_raw)
+
+            if isinstance(vector_results_raw, Exception):
+                logger.error(
+                    "Vector search failed in hybrid+ mode: %s", vector_results_raw
+                )
+                raise vector_results_raw
+
+            vector_results: dict = vector_results_raw
+
             combined_results = self.rrf_combiner.combine(
                 bm25_results=bm25_results,
                 vector_results=vector_results,
@@ -103,7 +113,6 @@ class QueryUseCase:
 
             return self._format_hybrid_results(combined_results)
 
-        # Default: use RAG engine
         return await self.rag_engine.query(
             query=query, mode=mode, top_k=top_k, working_dir=working_dir
         )

@@ -15,7 +15,10 @@ class TestLifespan:
 
         mock_app = MagicMock()
 
-        with patch("main.bm25_adapter", None), patch("main.asyncio.to_thread") as mock_to_thread:
+        with (
+            patch("main.bm25_adapter", None),
+            patch("main.asyncio.to_thread") as mock_to_thread,
+        ):
             mock_to_thread.return_value = None
             async with db_lifespan(mock_app):
                 pass
@@ -46,16 +49,20 @@ class TestLifespan:
                 pass
 
     @pytest.mark.asyncio
-    async def test_db_lifespan_handles_migration_failure(self):
-        """Should not crash if migrations fail."""
+    async def test_db_lifespan_raises_on_migration_failure(self):
+        """Should raise if migrations fail — refusing to start with broken schema."""
         from main import db_lifespan
 
         mock_app = MagicMock()
 
-        with patch("main.bm25_adapter", None), patch("main.asyncio.to_thread") as mock_to_thread:
+        with (
+            patch("main.bm25_adapter", None),
+            patch("main.asyncio.to_thread") as mock_to_thread,
+        ):
             mock_to_thread.side_effect = Exception("Migration failed")
-            async with db_lifespan(mock_app):
-                pass
+            with pytest.raises(Exception, match="Migration failed"):
+                async with db_lifespan(mock_app):
+                    pass
             mock_to_thread.assert_called_once()
 
     @pytest.mark.asyncio
@@ -75,7 +82,10 @@ class TestLifespan:
     @pytest.mark.asyncio
     async def test_run_alembic_upgrade_calls_command(self):
         """Should call alembic command.upgrade with head."""
-        with patch("main.command.upgrade") as mock_upgrade, patch("main.Config") as mock_config_cls:
+        with (
+            patch("main.command.upgrade") as mock_upgrade,
+            patch("main.Config") as mock_config_cls,
+        ):
             mock_cfg = MagicMock()
             mock_config_cls.return_value = mock_cfg
             from main import _run_alembic_upgrade

@@ -17,6 +17,7 @@ def test_bm25_engine_port_has_required_methods():
     assert hasattr(BM25EnginePort, "index_document")
     assert hasattr(BM25EnginePort, "create_index")
     assert hasattr(BM25EnginePort, "drop_index")
+    assert hasattr(BM25EnginePort, "close")
 
 
 def test_bm25_search_result_dataclass():
