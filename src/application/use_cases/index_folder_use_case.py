@@ -46,7 +46,9 @@ class IndexFolderUseCase:
             async with semaphore:
                 data = await self.storage.get_object(self.bucket, file_name)
                 local_name = os.path.basename(file_name)
-                async with aiofiles.open(os.path.join(local_folder, local_name), "wb") as f:
+                async with aiofiles.open(
+                    os.path.join(local_folder, local_name), "wb"
+                ) as f:
                     await f.write(data)
 
         await asyncio.gather(*[_download(f) for f in files])

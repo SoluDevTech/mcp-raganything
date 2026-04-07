@@ -83,10 +83,14 @@ class LightRAGAdapter(RAGEnginePort):
                 **kwargs,
             )
 
-        async def vision_call(prompt, system_prompt=None, history_messages=None, image_data=None, **kwargs):
+        async def vision_call(
+            prompt, system_prompt=None, history_messages=None, image_data=None, **kwargs
+        ):
             if history_messages is None:
                 history_messages = []
-            messages = _build_vision_messages(system_prompt, history_messages, prompt, image_data)
+            messages = _build_vision_messages(
+                system_prompt, history_messages, prompt, image_data
+            )
             return await openai_complete_if_cache(
                 llm_config.VISION_MODEL,
                 "Image Description Task",
@@ -98,7 +102,9 @@ class LightRAGAdapter(RAGEnginePort):
                 **kwargs,
             )
 
-        safe_working_dir = os.path.join(tempfile.gettempdir(), "raganything", working_dir.strip("/"))
+        safe_working_dir = os.path.join(
+            tempfile.gettempdir(), "raganything", working_dir.strip("/")
+        )
         self.rag[working_dir] = RAGAnything(
             config=RAGAnythingConfig(
                 working_dir=safe_working_dir,
@@ -183,7 +189,9 @@ class LightRAGAdapter(RAGEnginePort):
     def _ensure_initialized(self, working_dir: str) -> RAGAnything:
         rag = self.rag.get(working_dir)
         if rag is None:
-            raise RuntimeError(f"RAG engine not initialized for '{working_dir}'. Call init_project() first.")
+            raise RuntimeError(
+                f"RAG engine not initialized for '{working_dir}'. Call init_project() first."
+            )
         return rag
 
     async def index_document(
@@ -263,7 +271,9 @@ class LightRAGAdapter(RAGEnginePort):
                         status=IndexingStatus.SUCCESS,
                     )
                 )
-                logger.info(f"Indexed {file_path_obj.name} ({succeeded}/{len(all_files)})")
+                logger.info(
+                    f"Indexed {file_path_obj.name} ({succeeded}/{len(all_files)})"
+                )
             except Exception as e:
                 failed += 1
                 logger.error(f"Failed to index {file_path_obj.name}: {e}")

@@ -1,11 +1,11 @@
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 ERROR_MESSAGE_IF_FAILED = "Error message if failed"
 
 
-class IndexingStatus(str, Enum):
+class IndexingStatus(StrEnum):
     """Status of an indexing operation."""
 
     SUCCESS = "success"

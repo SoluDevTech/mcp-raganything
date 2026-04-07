@@ -28,9 +28,11 @@ async def query_knowledge_base(
         Query response from LightRAG
     """
     use_case = get_query_use_case()
-    response = QueryResponse(**await use_case.execute(
-        working_dir=working_dir, query=query, mode=mode, top_k=top_k
-    ))
+    response = QueryResponse(
+        **await use_case.execute(
+            working_dir=working_dir, query=query, mode=mode, top_k=top_k
+        )
+    )
     return response.data.chunks
 
 

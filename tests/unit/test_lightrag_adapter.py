@@ -57,7 +57,9 @@ class TestLightRAGAdapter:
         adapter = LightRAGAdapter(llm_config, rag_config_postgres)
         adapter.init_project("/tmp/test_project")
 
-        expected_dir = os.path.join(tempfile.gettempdir(), "raganything", "tmp/test_project")
+        expected_dir = os.path.join(
+            tempfile.gettempdir(), "raganything", "tmp/test_project"
+        )
         mock_rag_cls.assert_called_once()
         call_kwargs = mock_rag_cls.call_args[1]
         assert call_kwargs["config"].working_dir == expected_dir
@@ -352,7 +354,7 @@ class TestLightRAGAdapter:
 
         call_count = 0
 
-        async def side_effect(**kwargs):
+        async def side_effect(**_kwargs):
             nonlocal call_count
             call_count += 1
             if call_count <= 2:
@@ -375,3 +377,185 @@ class TestLightRAGAdapter:
         assert result.status == IndexingStatus.PARTIAL
         assert result.stats.files_processed == 2
         assert result.stats.files_failed == 1
+
+    # ------------------------------------------------------------------
+    # TXT File Support Tests
+    # ------------------------------------------------------------------
+
+    async def test_index_txt_file_success(
+        self,
+        llm_config: LLMConfig,
+        rag_config_postgres: RAGConfig,
+        tmp_path,
+    ) -> None:
+        """Should successfully index .txt file with parse_method='txt'."""
+        adapter = LightRAGAdapter(llm_config, rag_config_postgres)
+        mock_rag = MagicMock()
+        mock_rag.process_document_complete = AsyncMock()
+        mock_rag._ensure_lightrag_initialized = AsyncMock()
+        adapter.rag["test_dir"] = mock_rag
+
+        # Create a temporary .txt file
+        txt_file = tmp_path / "sample.txt"
+        txt_file.write_text("This is sample text content for testing.")
+
+        result = await adapter.index_document(
+            file_path=str(txt_file),
+            file_name="sample.txt",
+            output_dir=str(tmp_path),
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.file_name == "sample.txt"
+        assert result.file_path == str(txt_file)
+        assert result.processing_time_ms is not None
+        assert result.error is None
+        mock_rag.process_document_complete.assert_awaited_once_with(
+            file_path=str(txt_file),
+            output_dir=str(tmp_path),
+            parse_method="txt",
+        )
+
+    async def test_index_text_extension_success(
+        self,
+        llm_config: LLMConfig,
+        rag_config_postgres: RAGConfig,
+        tmp_path,
+    ) -> None:
+        """Should successfully index .text extension files."""
+        adapter = LightRAGAdapter(llm_config, rag_config_postgres)
+        mock_rag = MagicMock()
+        mock_rag.process_document_complete = AsyncMock()
+        mock_rag._ensure_lightrag_initialized = AsyncMock()
+        adapter.rag["test_dir"] = mock_rag
+
+        # Create a .text file (another TXT format)
+        text_file = tmp_path / "notes.text"
+        text_file.write_text("Notes in .text extension format.")
+
+        result = await adapter.index_document(
+            file_path=str(text_file),
+            file_name="notes.text",
+            output_dir=str(tmp_path),
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.file_name == "notes.text"
+        assert result.processing_time_ms is not None
+        mock_rag.process_document_complete.assert_awaited_once()
+
+    async def test_index_empty_txt_file(
+        self,
+        llm_config: LLMConfig,
+        rag_config_postgres: RAGConfig,
+        tmp_path,
+    ) -> None:
+        """Should handle empty .txt files correctly."""
+        adapter = LightRAGAdapter(llm_config, rag_config_postgres)
+        mock_rag = MagicMock()
+        mock_rag.process_document_complete = AsyncMock()
+        mock_rag._ensure_lightrag_initialized = AsyncMock()
+        adapter.rag["test_dir"] = mock_rag
+
+        # Create an empty .txt file
+        empty_file = tmp_path / "empty.txt"
+        empty_file.write_text("")
+
+        result = await adapter.index_document(
+            file_path=str(empty_file),
+            file_name="empty.txt",
+            output_dir=str(tmp_path),
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.file_name == "empty.txt"
+        assert result.processing_time_ms is not None
+        # Verify it was called even with empty file
+        mock_rag.process_document_complete.assert_awaited_once()
+
+    async def test_index_large_txt_file(
+        self,
+        llm_config: LLMConfig,
+        rag_config_postgres: RAGConfig,
+        tmp_path,
+    ) -> None:
+        """Should handle large text files efficiently."""
+        adapter = LightRAGAdapter(llm_config, rag_config_postgres)
+        mock_rag = MagicMock()
+        mock_rag.process_document_complete = AsyncMock()
+        mock_rag._ensure_lightrag_initialized = AsyncMock()
+        adapter.rag["test_dir"] = mock_rag
+
+        # Create a large text file (1MB content)
+        large_file = tmp_path / "large.txt"
+        large_content = "Line of text.\n" * 50000  # ~500KB
+        large_file.write_text(large_content)
+
+        result = await adapter.index_document(
+            file_path=str(large_file),
+            file_name="large.txt",
+            output_dir=str(tmp_path),
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.file_name == "large.txt"
+        assert result.processing_time_ms is not None
+        # Verify the file path was passed correctly
+        call_args = mock_rag.process_document_complete.call_args
+        assert call_args[1]["file_path"] == str(large_file)
+
+    async def test_index_txt_with_various_encodings(
+        self,
+        llm_config: LLMConfig,
+        rag_config_postgres: RAGConfig,
+        tmp_path,
+    ) -> None:
+        """Should handle txt files with different encodings (UTF-8, UTF-16, ASCII)."""
+        adapter = LightRAGAdapter(llm_config, rag_config_postgres)
+        mock_rag = MagicMock()
+        mock_rag.process_document_complete = AsyncMock()
+        mock_rag._ensure_lightrag_initialized = AsyncMock()
+        adapter.rag["test_dir"] = mock_rag
+
+        # Test UTF-8
+        utf8_file = tmp_path / "utf8.txt"
+        utf8_file.write_text("ASCII and UTF-8: café ñ 北京", encoding="utf-8")
+
+        result_utf8 = await adapter.index_document(
+            file_path=str(utf8_file),
+            file_name="utf8.txt",
+            output_dir=str(tmp_path),
+            working_dir="test_dir",
+        )
+        assert result_utf8.status == IndexingStatus.SUCCESS
+
+        # Test UTF-16
+        utf16_file = tmp_path / "utf16.txt"
+        utf16_file.write_text("UTF-16 content: 你好", encoding="utf-16")
+
+        result_utf16 = await adapter.index_document(
+            file_path=str(utf16_file),
+            file_name="utf16.txt",
+            output_dir=str(tmp_path),
+            working_dir="test_dir",
+        )
+        assert result_utf16.status == IndexingStatus.SUCCESS
+
+        # Test ASCII
+        ascii_file = tmp_path / "ascii.txt"
+        ascii_file.write_text("Simple ASCII content only", encoding="ascii")
+
+        result_ascii = await adapter.index_document(
+            file_path=str(ascii_file),
+            file_name="ascii.txt",
+            output_dir=str(tmp_path),
+            working_dir="test_dir",
+        )
+        assert result_ascii.status == IndexingStatus.SUCCESS
+
+        # All three should be processed
+        assert mock_rag.process_document_complete.call_count == 3

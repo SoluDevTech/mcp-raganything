@@ -56,8 +56,8 @@ class TestIndexFileRoute:
         mock_index_file_use_case: AsyncMock,
     ) -> None:
         """POST JSON with file_name and working_dir should return 202."""
-        app.dependency_overrides[get_index_file_use_case] = (
-            lambda: mock_index_file_use_case
+        app.dependency_overrides[get_index_file_use_case] = lambda: (
+            mock_index_file_use_case
         )
 
         async with httpx.AsyncClient(
@@ -113,8 +113,8 @@ class TestIndexFolderRoute:
         mock_index_folder_use_case: AsyncMock,
     ) -> None:
         """POST JSON with working_dir should return 202."""
-        app.dependency_overrides[get_index_folder_use_case] = (
-            lambda: mock_index_folder_use_case
+        app.dependency_overrides[get_index_folder_use_case] = lambda: (
+            mock_index_folder_use_case
         )
 
         async with httpx.AsyncClient(
@@ -135,8 +135,8 @@ class TestIndexFolderRoute:
         mock_index_folder_use_case: AsyncMock,
     ) -> None:
         """Optional recursive and file_extensions should be accepted."""
-        app.dependency_overrides[get_index_folder_use_case] = (
-            lambda: mock_index_folder_use_case
+        app.dependency_overrides[get_index_folder_use_case] = lambda: (
+            mock_index_folder_use_case
         )
 
         async with httpx.AsyncClient(
@@ -186,9 +186,7 @@ class TestQueryRoute:
         self,
         mock_query_use_case: AsyncMock,
     ) -> None:
-        app.dependency_overrides[get_query_use_case] = (
-            lambda: mock_query_use_case
-        )
+        app.dependency_overrides[get_query_use_case] = lambda: mock_query_use_case
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -207,9 +205,7 @@ class TestQueryRoute:
         self,
         mock_query_use_case: AsyncMock,
     ) -> None:
-        app.dependency_overrides[get_query_use_case] = (
-            lambda: mock_query_use_case
-        )
+        app.dependency_overrides[get_query_use_case] = lambda: mock_query_use_case
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -236,9 +232,7 @@ class TestQueryRoute:
         mock_query_use_case: AsyncMock,
     ) -> None:
         """Route now returns list[ChunkResponse] (data.chunks), not the full dict."""
-        app.dependency_overrides[get_query_use_case] = (
-            lambda: mock_query_use_case
-        )
+        app.dependency_overrides[get_query_use_case] = lambda: mock_query_use_case
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -259,9 +253,7 @@ class TestQueryRoute:
         self,
         mock_query_use_case: AsyncMock,
     ) -> None:
-        app.dependency_overrides[get_query_use_case] = (
-            lambda: mock_query_use_case
-        )
+        app.dependency_overrides[get_query_use_case] = lambda: mock_query_use_case
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -333,8 +325,8 @@ class TestMultimodalQueryRoute:
         self,
         mock_multimodal_query_use_case: AsyncMock,
     ) -> None:
-        app.dependency_overrides[get_multimodal_query_use_case] = (
-            lambda: mock_multimodal_query_use_case
+        app.dependency_overrides[get_multimodal_query_use_case] = lambda: (
+            mock_multimodal_query_use_case
         )
 
         async with httpx.AsyncClient(
@@ -357,8 +349,8 @@ class TestMultimodalQueryRoute:
         self,
         mock_multimodal_query_use_case: AsyncMock,
     ) -> None:
-        app.dependency_overrides[get_multimodal_query_use_case] = (
-            lambda: mock_multimodal_query_use_case
+        app.dependency_overrides[get_multimodal_query_use_case] = lambda: (
+            mock_multimodal_query_use_case
         )
 
         async with httpx.AsyncClient(
@@ -370,7 +362,11 @@ class TestMultimodalQueryRoute:
                     "working_dir": "/tmp/rag/project_42",
                     "query": "Analyze this table",
                     "multimodal_content": [
-                        {"type": "table", "table_data": "A,B\n1,2", "table_caption": "Test"},
+                        {
+                            "type": "table",
+                            "table_data": "A,B\n1,2",
+                            "table_caption": "Test",
+                        },
                     ],
                     "mode": "global",
                     "top_k": 20,
@@ -381,7 +377,9 @@ class TestMultimodalQueryRoute:
             working_dir="/tmp/rag/project_42",
             query="Analyze this table",
             multimodal_content=[
-                MultimodalContentItem(type="table", table_data="A,B\n1,2", table_caption="Test"),
+                MultimodalContentItem(
+                    type="table", table_data="A,B\n1,2", table_caption="Test"
+                ),
             ],
             mode="global",
             top_k=20,
@@ -391,8 +389,8 @@ class TestMultimodalQueryRoute:
         self,
         mock_multimodal_query_use_case: AsyncMock,
     ) -> None:
-        app.dependency_overrides[get_multimodal_query_use_case] = (
-            lambda: mock_multimodal_query_use_case
+        app.dependency_overrides[get_multimodal_query_use_case] = lambda: (
+            mock_multimodal_query_use_case
         )
 
         async with httpx.AsyncClient(

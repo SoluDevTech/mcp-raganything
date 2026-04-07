@@ -31,7 +31,9 @@ async def index_file(
 ):
     task = asyncio.create_task(
         _run_in_background(
-            use_case.execute(file_name=request.file_name, working_dir=request.working_dir),
+            use_case.execute(
+                file_name=request.file_name, working_dir=request.working_dir
+            ),
             label=f"file indexing {request.file_name}",
         )
     )

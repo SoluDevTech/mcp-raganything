@@ -140,7 +140,7 @@ curl -X POST http://localhost:8000/api/v1/folder/index \
   -d '{
     "working_dir": "project-alpha",
     "recursive": true,
-    "file_extensions": [".pdf", ".docx"]
+    "file_extensions": [".pdf", ".docx", ".txt"]
   }'
 ```
 
@@ -154,7 +154,25 @@ Response (`202 Accepted`):
 |-------|------|----------|---------|-------------|
 | `working_dir` | string | yes | -- | RAG workspace directory, also used as the MinIO prefix |
 | `recursive` | boolean | no | `true` | Process subdirectories recursively |
-| `file_extensions` | list[string] | no | `null` (all files) | Filter by extensions, e.g. `[".pdf", ".docx"]` |
+| `file_extensions` | list[string] | no | `null` (all files) | Filter by extensions, e.g. `[".pdf", ".docx", ".txt"]` |
+
+## Supported Document Formats
+
+The service automatically detects and processes the following document formats through the RAGAnything parser:
+
+| Format | Extensions | Notes |
+|--------|------------|-------|
+| PDF | `.pdf` | Includes OCR support |
+| Microsoft Word | `.docx` | |
+| Microsoft PowerPoint | `.pptx` | |
+| Microsoft Excel | `.xlsx` | |
+| HTML | `.html`, `.htm` | |
+| Plain Text | `.txt`, `.text`, `.md` | UTF-8, UTF-16, ASCII supported; converted to PDF via ReportLab |
+| Quarto Markdown | `.qmd` | Quarto documents |
+| R Markdown | `.Rmd`, `.rmd` | R Markdown files |
+| Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.tiff`, `.tif` | Vision model processing (if enabled) |
+
+**Note:** File format detection is automatic. No configuration is required to specify the document type. The service will process any supported format when indexed. All document and image formats are supported out-of-the-box when installed with `raganything[all]`.
 
 ### Query
 
