@@ -127,8 +127,4 @@ class RRFCombiner:
         # Sort by combined score (descending)
         results.sort(key=lambda x: x.combined_score, reverse=True)
 
-        # Return top_k results (handle edge case)
-        if top_k < 1:
-            return []
-        
         return results[:top_k]

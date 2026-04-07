@@ -34,10 +34,6 @@ COPY --from=builder /app/.venv /app/.venv
 COPY src/ /app/src/
 COPY .env.example /app/.env
 
-# Patch docling to fix TXT file format detection (PR #3161 incomplete)
-COPY patch_docling_txt.py /tmp/patch_docling_txt.py
-RUN /app/.venv/bin/python /tmp/patch_docling_txt.py && rm /tmp/patch_docling_txt.py
-
 # Set Python path to include src directory
 ENV PYTHONPATH=/app/src:$PYTHONPATH
 ENV PATH="/app/.venv/bin:$PATH"

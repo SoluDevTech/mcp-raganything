@@ -111,14 +111,11 @@ class PostgresBM25Adapter(BM25EnginePort):
                     )
                     for row in results
                 ]
-        except asyncpg.PostgresError as e:
+        except Exception as e:
             logger.error(
                 f"BM25 search failed: {e}",
                 extra={"query": query, "working_dir": working_dir},
             )
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error in BM25 search: {e}")
             raise
 
     async def index_document(
@@ -160,11 +157,8 @@ class PostgresBM25Adapter(BM25EnginePort):
                     working_dir,
                     metadata or {},
                 )
-        except asyncpg.PostgresError as e:
-            logger.error(f"BM25 document indexing failed: {e}", extra={"chunk_id": chunk_id})
-            raise
         except Exception as e:
-            logger.error(f"Unexpected error in BM25 indexing: {e}")
+            logger.error(f"BM25 document indexing failed: {e}", extra={"chunk_id": chunk_id})
             raise
 
     async def create_index(self, working_dir: str) -> None:
@@ -191,11 +185,8 @@ class PostgresBM25Adapter(BM25EnginePort):
                     """,
                     working_dir,
                 )
-        except asyncpg.PostgresError as e:
-            logger.error(f"BM25 index creation failed: {e}", extra={"working_dir": working_dir})
-            raise
         except Exception as e:
-            logger.error(f"Unexpected error in BM25 index creation: {e}")
+            logger.error(f"BM25 index creation failed: {e}", extra={"working_dir": working_dir})
             raise
 
     async def drop_index(self, working_dir: str) -> None:
@@ -213,9 +204,6 @@ class PostgresBM25Adapter(BM25EnginePort):
                     "UPDATE chunks SET content_tsv = NULL WHERE working_dir = $1",
                     working_dir,
                 )
-        except asyncpg.PostgresError as e:
-            logger.error(f"BM25 index drop failed: {e}", extra={"working_dir": working_dir})
-            raise
         except Exception as e:
-            logger.error(f"Unexpected error in BM25 index drop: {e}")
+            logger.error(f"BM25 index drop failed: {e}", extra={"working_dir": working_dir})
             raise

@@ -149,10 +149,8 @@ class QueryUseCase:
                         "content": r.content,
                         "file_path": r.file_path,
                         "score": r.combined_score,
-                        "bm25_rank": r.bm25_rank if hasattr(r, "bm25_rank") else None,
-                        "vector_rank": r.vector_rank
-                        if hasattr(r, "vector_rank")
-                        else None,
+                        "bm25_rank": r.bm25_rank,
+                        "vector_rank": r.vector_rank,
                         "combined_score": r.combined_score,
                         "metadata": r.metadata,
                     }
