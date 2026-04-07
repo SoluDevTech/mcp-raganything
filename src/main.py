@@ -1,6 +1,4 @@
-"""Main entry point for the RAGAnything API.
-Simplified following hexagonal architecture pattern from pickpro_indexing_api.
-"""
+"""Main entry point for the RAGAnything API."""
 
 import asyncio
 import logging
@@ -26,10 +24,7 @@ MCP_PATH = "/mcp"
 
 
 def _run_alembic_upgrade() -> None:
-    """Run Alembic migrations to head synchronously.
-
-    Designed to be called via asyncio.to_thread() during startup.
-    """
+    """Run Alembic migrations to head (called via asyncio.to_thread)."""
     alembic_dir = Path(__file__).parent
     cfg = Config(str(alembic_dir / "alembic.ini"))
     cfg.set_main_option("script_location", str(alembic_dir / "alembic"))
@@ -60,7 +55,6 @@ async def db_lifespan(_app: FastAPI):
     if bm25_adapter is not None:
         try:
             await bm25_adapter.close()
-            logger.info("BM25 connection pool closed")
         except Exception:
             logger.exception("Failed to close BM25 adapter")
     logger.info("Application shutdown complete")
@@ -95,15 +89,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============= REST API ROUTES =============
-
 REST_PATH = "/api/v1"
-
 app.include_router(indexing_router, prefix=REST_PATH)
 app.include_router(health_router, prefix=REST_PATH)
 app.include_router(query_router, prefix=REST_PATH)
-
-# ============= MAIN =============
 
 
 def run_fastapi():

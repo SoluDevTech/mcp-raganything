@@ -19,8 +19,6 @@ from infrastructure.bm25.pg_textsearch_adapter import PostgresBM25Adapter
 from infrastructure.rag.lightrag_adapter import LightRAGAdapter
 from infrastructure.storage.minio_adapter import MinioAdapter
 
-# ============= CONFIG =============
-
 app_config = AppConfig()  # type: ignore
 llm_config = LLMConfig()  # type: ignore
 rag_config = RAGConfig()  # type: ignore
@@ -30,8 +28,6 @@ db_config = DatabaseConfig()  # type: ignore
 
 os.makedirs(app_config.OUTPUT_DIR, exist_ok=True)
 
-# ============= ADAPTERS =============
-
 rag_adapter = LightRAGAdapter(llm_config, rag_config)
 minio_adapter = MinioAdapter(
     host=minio_config.MINIO_HOST,
@@ -40,7 +36,6 @@ minio_adapter = MinioAdapter(
     secure=minio_config.MINIO_SECURE,
 )
 
-# BM25 adapter (optional)
 bm25_adapter: BM25EnginePort | None = None
 if bm25_config.BM25_ENABLED:
     try:
@@ -50,8 +45,6 @@ if bm25_config.BM25_ENABLED:
     except Exception as e:
         print(f"WARNING: BM25 adapter initialization failed: {e}")
         bm25_adapter = None
-
-# ============= USE CASE PROVIDERS =============
 
 
 def get_index_file_use_case() -> IndexFileUseCase:

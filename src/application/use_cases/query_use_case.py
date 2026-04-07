@@ -78,35 +78,26 @@ class QueryUseCase:
                     query=query, mode="naive", top_k=top_k, working_dir=working_dir
                 )
 
-            bm25_task = asyncio.create_task(
-                self.bm25_engine.search(query, working_dir, top_k=top_k * 2)
-            )
-            vector_task = asyncio.create_task(
+            bm25_results, vector_results = await asyncio.gather(
+                self.bm25_engine.search(query, working_dir, top_k=top_k * 2),
                 self.rag_engine.query(
                     query=query, mode="naive", top_k=top_k * 2, working_dir=working_dir
-                )
+                ),
+                return_exceptions=True,
             )
 
-            bm25_results_raw, vector_results_raw = await asyncio.gather(
-                bm25_task, vector_task, return_exceptions=True
+            bm25_hits: list[BM25SearchResult] = (
+                bm25_results if isinstance(bm25_results, list) else []
             )
+            if isinstance(bm25_results, Exception):
+                logger.error("BM25 search failed in hybrid+ mode: %s", bm25_results)
 
-            bm25_results: list[BM25SearchResult] = (
-                bm25_results_raw if isinstance(bm25_results_raw, list) else []
-            )
-            if isinstance(bm25_results_raw, Exception):
-                logger.error("BM25 search failed in hybrid+ mode: %s", bm25_results_raw)
-
-            if isinstance(vector_results_raw, Exception):
-                logger.error(
-                    "Vector search failed in hybrid+ mode: %s", vector_results_raw
-                )
-                raise vector_results_raw
-
-            vector_results: dict = vector_results_raw
+            if isinstance(vector_results, Exception):
+                logger.error("Vector search failed in hybrid+ mode: %s", vector_results)
+                raise vector_results
 
             combined_results = self.rrf_combiner.combine(
-                bm25_results=bm25_results,
+                bm25_results=bm25_hits,
                 vector_results=vector_results,
                 top_k=top_k,
             )
@@ -145,7 +136,6 @@ class QueryUseCase:
 
     def _format_hybrid_results(self, results: list) -> dict:
         """Format hybrid results to match API response format."""
-
         return {
             "status": "success",
             "message": "",

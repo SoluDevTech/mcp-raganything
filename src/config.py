@@ -25,9 +25,7 @@ class AppConfig(BaseSettings):
 
 
 class DatabaseConfig(BaseSettings):
-    """
-    Database connection configuration.
-    """
+    """Database connection configuration."""
 
     POSTGRES_USER: str = Field(default="raganything")
     POSTGRES_PASSWORD: str = Field(default="raganything")
@@ -42,9 +40,7 @@ class DatabaseConfig(BaseSettings):
 
 
 class LLMConfig(BaseSettings):
-    """
-    Large Language Model configuration.
-    """
+    """Large Language Model configuration."""
 
     OPEN_ROUTER_API_KEY: str | None = Field(default=None)
     OPENROUTER_API_KEY: str | None = Field(default=None)
@@ -82,9 +78,7 @@ class LLMConfig(BaseSettings):
 
 
 class RAGConfig(BaseSettings):
-    """
-    RAG-specific configuration for LightRAG.
-    """
+    """RAG-specific configuration for LightRAG."""
 
     COSINE_THRESHOLD: float = Field(
         default=0.2, description="Similarity threshold for vector search (0.0-1.0)"

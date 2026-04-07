@@ -22,11 +22,6 @@ class PostgresBM25Adapter(BM25EnginePort):
     """
 
     def __init__(self, db_url: str):
-        """Initialize adapter with database URL.
-
-        Args:
-            db_url: PostgreSQL connection string
-        """
         self.db_url = db_url
         self._pool: asyncpg.Pool | None = None
         self._pool_lock = asyncio.Lock()
@@ -39,22 +34,24 @@ class PostgresBM25Adapter(BM25EnginePort):
             if self._pool is not None:
                 return self._pool
             self._pool = await asyncpg.create_pool(self.db_url)
-
-            async with self._pool.acquire() as conn:
-                try:
-                    result = await conn.fetchval(
-                        "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='pg_textsearch')"
-                    )
-                    if not result:
-                        logger.warning(
-                            "pg_textsearch extension not installed. "
-                            "BM25 ranking <@> operator will not work. "
-                            "Run: CREATE EXTENSION pg_textsearch;"
-                        )
-                except Exception as e:
-                    logger.warning(f"Could not check pg_textsearch extension: {e}")
-
+            await self._check_extension()
         return self._pool
+
+    async def _check_extension(self) -> None:
+        """Warn if pg_textsearch extension is not installed."""
+        async with self._pool.acquire() as conn:
+            try:
+                result = await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='pg_textsearch')"
+                )
+                if not result:
+                    logger.warning(
+                        "pg_textsearch extension not installed. "
+                        "BM25 ranking <@> operator will not work. "
+                        "Run: CREATE EXTENSION pg_textsearch;"
+                    )
+            except Exception as e:
+                logger.warning("Could not check pg_textsearch extension: %s", e)
 
     async def close(self) -> None:
         """Close connection pool on shutdown."""
@@ -85,10 +82,6 @@ class PostgresBM25Adapter(BM25EnginePort):
 
         try:
             async with pool.acquire() as conn:
-                # Use websearch_to_tsquery for user-friendly query syntax
-                # and <@> operator for BM25 ranking
-                # Note: <@> returns negative scores (lower is better)
-                # We convert to positive and sort ASC
                 sql = """
                     SELECT
                         chunk_id,
@@ -102,25 +95,20 @@ class PostgresBM25Adapter(BM25EnginePort):
                     ORDER BY score
                     LIMIT $3
                 """
-
                 results = await conn.fetch(sql, query, working_dir, top_k)
 
-                # Convert negative scores to positive (lower negative -> higher relevance)
                 return [
                     BM25SearchResult(
                         chunk_id=row["chunk_id"],
                         content=row["content"],
                         file_path=row["file_path"],
-                        score=abs(row["score"]),  # Convert to positive
+                        score=abs(row["score"]),
                         metadata=row["metadata"] or {},
                     )
                     for row in results
                 ]
         except Exception as e:
-            logger.error(
-                f"BM25 search failed: {e}",
-                extra={"query": query, "working_dir": working_dir},
-            )
+            logger.error("BM25 search failed: %s", e, extra={"query": query, "working_dir": working_dir})
             raise
 
     async def index_document(
@@ -163,17 +151,13 @@ class PostgresBM25Adapter(BM25EnginePort):
                     metadata or {},
                 )
         except Exception as e:
-            logger.error(
-                f"BM25 document indexing failed: {e}", extra={"chunk_id": chunk_id}
-            )
+            logger.error("BM25 document indexing failed: %s", e, extra={"chunk_id": chunk_id})
             raise
 
     async def create_index(self, working_dir: str) -> None:
         """Create BM25 index for workspace.
 
-        Note: The index is created automatically via the trigger
-        defined in the migration. This method is for explicit
-        re-indexing if needed.
+        The index is auto-updated via trigger; this method is for explicit re-indexing.
 
         Args:
             working_dir: Project/workspace directory
@@ -182,8 +166,6 @@ class PostgresBM25Adapter(BM25EnginePort):
 
         try:
             async with pool.acquire() as conn:
-                # Index is created automatically via trigger
-                # This is just for explicit re-indexing
                 await conn.execute(
                     """
                     UPDATE chunks
@@ -193,28 +175,19 @@ class PostgresBM25Adapter(BM25EnginePort):
                     working_dir,
                 )
         except Exception as e:
-            logger.error(
-                f"BM25 index creation failed: {e}", extra={"working_dir": working_dir}
-            )
+            logger.error("BM25 index creation failed: %s", e, extra={"working_dir": working_dir})
             raise
 
     async def drop_index(self, working_dir: str) -> None:
-        """Drop BM25 index for workspace.
-
-        Args:
-            working_dir: Project/workspace directory
-        """
+        """Drop BM25 index for workspace."""
         pool = await self._get_pool()
 
         try:
             async with pool.acquire() as conn:
-                # Clear tsvector for this workspace
                 await conn.execute(
                     "UPDATE chunks SET content_tsv = NULL WHERE working_dir = $1",
                     working_dir,
                 )
         except Exception as e:
-            logger.error(
-                f"BM25 index drop failed: {e}", extra={"working_dir": working_dir}
-            )
+            logger.error("BM25 index drop failed: %s", e, extra={"working_dir": working_dir})
             raise

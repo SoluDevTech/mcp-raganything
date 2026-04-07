@@ -71,12 +71,9 @@ class RRFCombiner:
                     "vector_rank": None,
                 }
             else:
-                # If chunk already exists, keep the best rank (smallest number)
                 scores[chunk_id]["bm25_rank"] = min(scores[chunk_id]["bm25_rank"], rank)
 
-            # Calculate BM25 RRF score
-            actual_rank = scores[chunk_id]["bm25_rank"]
-            scores[chunk_id]["bm25_score"] = 1.0 / (self.k + actual_rank)
+            scores[chunk_id]["bm25_score"] = 1.0 / (self.k + scores[chunk_id]["bm25_rank"])
 
         # Process vector results
         chunks = vector_results.get("data", {}).get("chunks", [])
@@ -96,14 +93,9 @@ class RRFCombiner:
                     "vector_rank": rank,
                 }
             else:
-                # If chunk already exists, keep the best rank (smallest number)
-                existing_rank = scores[chunk_id]["vector_rank"]
-                if existing_rank is not None:
-                    scores[chunk_id]["vector_rank"] = min(existing_rank, rank)
-                else:
-                    scores[chunk_id]["vector_rank"] = rank
+                existing = scores[chunk_id]["vector_rank"]
+                scores[chunk_id]["vector_rank"] = min(existing, rank) if existing is not None else rank
 
-            # Calculate vector RRF score
             actual_rank = scores[chunk_id]["vector_rank"]
             if actual_rank is not None:
                 scores[chunk_id]["vector_score"] = 1.0 / (self.k + actual_rank)
