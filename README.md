@@ -7,42 +7,47 @@ Multi-modal RAG service exposing a REST API and MCP server for document indexing
 ```
                         Clients
                  (REST / MCP / Claude)
-                          |
-               +-----------------------+
-               |      FastAPI App      |
-               +-----------+-----------+
                            |
-           +---------------+---------------+
-           |                               |
-  Application Layer                  MCP Tools
-  +------------------------------+   (FastMCP)
-  | api/                         |       |
-  |   indexing_routes.py         |       |
-  |   query_routes.py           |       |
-  |   health_routes.py          |       |
-  | use_cases/                   |       |
-  |   IndexFileUseCase           |       |
-  |   IndexFolderUseCase         |       |
-  | requests/ responses/         |       |
-  +------------------------------+       |
-           |              |              |
-           v              v              v
-  Domain Layer (ports)
-  +--------------------------------------+
-  | RAGEnginePort        StoragePort     |
-  +--------------------------------------+
-           |              |
-           v              v
-  Infrastructure Layer (adapters)
-  +--------------------------------------+
-  | LightRAGAdapter      MinioAdapter    |
-  | (RAGAnything)        (minio-py)      |
-  +--------------------------------------+
-           |              |
-           v              v
-     PostgreSQL        MinIO
-     (pgvector +     (object
-      Apache AGE)    storage)
+                +-----------------------+
+                |      FastAPI App      |
+                +-----------+-----------+
+                            |
+            +---------------+---------------+
+            |                               |
+   Application Layer                  MCP Tools
+   +------------------------------+   (FastMCP)
+   | api/                         |       |
+   |   indexing_routes.py         |       |
+   |   query_routes.py           |       |
+   |   health_routes.py          |       |
+   | use_cases/                   |       |
+   |   IndexFileUseCase           |       |
+   |   IndexFolderUseCase         |       |
+   |   QueryUseCase               |       |
+   | requests/ responses/         |       |
+   +------------------------------+       |
+            |         |          |        |
+            v         v          v        v
+   Domain Layer (ports)
+   +------------------------------------------+
+   | RAGEnginePort  StoragePort  BM25EnginePort|
+   +------------------------------------------+
+            |         |          |
+            v         v          v
+   Infrastructure Layer (adapters)
+   +------------------------------------------+
+   | LightRAGAdapter  MinioAdapter            |
+   | (RAGAnything)    (minio-py)              |
+   |                                              |
+   | PostgresBM25Adapter    RRFCombiner          |
+   | (pg_textsearch)         (hybrid+ fusion)   |
+   +------------------------------------------+
+            |         |          |
+            v         v          v
+      PostgreSQL        MinIO
+      (pgvector +     (object
+       Apache AGE     storage)
+       pg_textsearch)
 ```
 
 ## Prerequisites
@@ -220,8 +225,97 @@ Response (`200 OK`):
 |-------|------|----------|---------|-------------|
 | `working_dir` | string | yes | -- | RAG workspace directory for this project |
 | `query` | string | yes | -- | The search query |
-| `mode` | string | no | `"naive"` | Search mode (see Query Modes below) |
-| `top_k` | integer | no | `10` | Number of chunks to retrieve |
+| `mode` | string | no | `"naive"` | Search mode: `naive`, `local`, `global`, `hybrid`, `hybrid+`, `mix`, `bm25`, `bypass` |
+
+#### BM25 query mode
+
+Returns results ranked by PostgreSQL full-text search using `pg_textsearch`. Each chunk includes a `score` field with the BM25 relevance score.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "working_dir": "project-alpha",
+    "query": "quarterly revenue growth",
+    "mode": "bm25",
+    "top_k": 10
+  }'
+```
+
+Response (`200 OK`):
+
+```json
+{
+  "status": "success",
+  "message": "",
+  "data": {
+    "entities": [],
+    "relationships": [],
+    "chunks": [
+      {
+        "chunk_id": "abc123",
+        "content": "Quarterly revenue grew 12% year-over-year...",
+        "file_path": "reports/financials-q4.pdf",
+        "score": 3.456,
+        "metadata": {}
+      }
+    ],
+    "references": []
+  },
+  "metadata": {
+    "query_mode": "bm25",
+    "total_results": 10
+  }
+}
+```
+
+#### Hybrid+ query mode
+
+Runs BM25 and vector search in parallel, then merges results using Reciprocal Rank Fusion (RRF). Each chunk includes `bm25_rank`, `vector_rank`, and `combined_score` fields.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "working_dir": "project-alpha",
+    "query": "quarterly revenue growth",
+    "mode": "hybrid+",
+    "top_k": 10
+  }'
+```
+
+Response (`200 OK`):
+
+```json
+{
+  "status": "success",
+  "message": "",
+  "data": {
+    "entities": [],
+    "relationships": [],
+    "chunks": [
+      {
+        "chunk_id": "abc123",
+        "content": "Quarterly revenue grew 12% year-over-year...",
+        "file_path": "reports/financials-q4.pdf",
+        "score": 0.0328,
+        "bm25_rank": 1,
+        "vector_rank": 3,
+        "combined_score": 0.0328,
+        "metadata": {}
+      }
+    ],
+    "references": []
+  },
+  "metadata": {
+    "query_mode": "hybrid+",
+    "total_results": 10,
+    "rrf_k": 60
+  }
+}
+```
+
+The `combined_score` is the sum of `bm25_score` and `vector_score`, each computed as `1 / (k + rank)`. Results are sorted by `combined_score` descending. A chunk that appears in both result sets will have a higher combined score than one that appears in only one.
 
 ## MCP Server
 
@@ -233,7 +327,7 @@ The MCP server is mounted at `/mcp` and exposes a single tool: `query_knowledge_
 |-----------|------|---------|-------------|
 | `working_dir` | string | required | RAG workspace directory for this project |
 | `query` | string | required | The search query |
-| `mode` | string | `"naive"` | Search mode: `naive`, `local`, `global`, `hybrid`, `mix`, `bypass` |
+| `mode` | string | `"naive"` | Search mode: `naive`, `local`, `global`, `hybrid`, `hybrid+`, `mix`, `bm25`, `bypass` |
 | `top_k` | integer | `10` | Number of chunks to retrieve |
 
 ### Transport modes
@@ -321,6 +415,16 @@ All configuration is via environment variables, loaded through Pydantic Settings
 | `ENABLE_TABLE_PROCESSING` | `true` | Process tables during indexing |
 | `ENABLE_EQUATION_PROCESSING` | `true` | Process equations during indexing |
 
+### BM25 (`BM25Config`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BM25_ENABLED` | `true` | Enable BM25 full-text search |
+| `BM25_TEXT_CONFIG` | `english` | PostgreSQL text search configuration |
+| `BM25_RRF_K` | `60` | RRF constant K for hybrid search (must be >= 1) |
+
+When `BM25_ENABLED` is `false` or the pg_textsearch extension is not available, `hybrid+` mode falls back to `naive` (vector-only) and `bm25` mode returns an error.
+
 ### MinIO (`MinioConfig`)
 
 | Variable | Default | Description |
@@ -339,7 +443,9 @@ All configuration is via environment variables, loaded through Pydantic Settings
 | `local` | Entity-focused search using the knowledge graph |
 | `global` | Relationship-focused search across the knowledge graph |
 | `hybrid` | Combines local + global strategies |
+| `hybrid+` | Parallel BM25 + vector search using Reciprocal Rank Fusion (RRF). Best of both worlds |
 | `mix` | Knowledge graph + vector chunks combined |
+| `bm25` | BM25 full-text search only. PostgreSQL pg_textsearch |
 | `bypass` | Direct LLM query without retrieval |
 
 ## Development
@@ -361,6 +467,22 @@ docker compose logs -f raganything-api   # Follow API logs
 docker compose down -v           # Stop and remove volumes
 ```
 
+## Database Migrations
+
+Alembic migrations run automatically at startup via the `db_lifespan` context manager in `main.py`. The migration state is tracked in the `raganything_alembic_version` table, which is separate from the `composable-agents` Alembic table to avoid conflicts.
+
+The initial migration (`001_add_bm25_support`) creates the `chunks` table with a `tsvector` column for full-text search, GIN and BM25 indexes, and an auto-update trigger.
+
+### Production requirements
+
+The PostgreSQL server must have the `pg_textsearch` extension installed and loaded. In production, this requires:
+
+1. **Dockerfile.db** builds a custom PostgreSQL image that compiles `pg_textsearch` from source (along with `pgvector` and `Apache AGE`).
+
+2. **docker-compose.yml** must configure `shared_preload_libraries=pg_textsearch` for the `bricks-db` service. The local dev `docker-compose.yml` in this repository includes this by default.
+
+3. The Alembic migration `001_add_bm25_support` will fail if `pg_textsearch` is not available. Ensure the database image is built from `Dockerfile.db` and the shared library is preloaded.
+
 ## Project Structure
 
 ```
@@ -374,25 +496,35 @@ src/
     ports/
       rag_engine.py                  -- RAGEnginePort (abstract)
       storage_port.py                -- StoragePort (abstract)
+      bm25_engine.py                 -- BM25EnginePort (abstract)
   application/
     api/
       health_routes.py               -- GET /health
       indexing_routes.py              -- POST /file/index, /folder/index
-      query_routes.py                -- POST /query
-      mcp_tools.py                   -- MCP tool: query_knowledge_base
+      query_routes.py                 -- POST /query
+      mcp_tools.py                    -- MCP tool: query_knowledge_base
     requests/
       indexing_request.py            -- IndexFileRequest, IndexFolderRequest
-      query_request.py               -- QueryRequest
+      query_request.py                -- QueryRequest, QueryMode
     responses/
       query_response.py              -- QueryResponse, QueryDataResponse
     use_cases/
       index_file_use_case.py         -- Downloads from MinIO, indexes single file
       index_folder_use_case.py       -- Downloads from MinIO, indexes folder
+      query_use_case.py              -- Query with bm25/hybrid+ support
   infrastructure/
     rag/
       lightrag_adapter.py            -- LightRAGAdapter (RAGAnything/LightRAG)
     storage/
       minio_adapter.py               -- MinioAdapter (minio-py client)
+    bm25/
+      pg_textsearch_adapter.py        -- PostgresBM25Adapter (pg_textsearch)
+    hybrid/
+      rrf_combiner.py                 -- RRFCombiner (Reciprocal Rank Fusion)
+  alembic/
+    env.py                            -- Alembic migration environment (async)
+    versions/
+      001_add_bm25_support.py          -- BM25 table, indexes, triggers
 ```
 
 ## License
