@@ -18,6 +18,9 @@ if config.config_file_name is not None:
 target_metadata = None
 
 
+VERSION_TABLE = "raganything_alembic_version"
+
+
 def get_url() -> str:
     """Build the async database URL from application settings.
 
@@ -42,6 +45,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table=VERSION_TABLE,
     )
 
     with context.begin_transaction():
@@ -50,7 +54,7 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection) -> None:
     """Run migrations within a synchronous connection callback."""
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(connection=connection, target_metadata=target_metadata, version_table=VERSION_TABLE)
 
     with context.begin_transaction():
         context.run_migrations()
