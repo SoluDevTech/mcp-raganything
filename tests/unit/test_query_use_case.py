@@ -108,7 +108,7 @@ class TestQueryUseCase:
         mock_bm25 = AsyncMock()
         mock_bm25.search.return_value = [
             BM25SearchResult(
-                chunk_id="1",
+                chunk_id="chunk-abc123",
                 content="bm25 result",
                 file_path="/a.pdf",
                 score=5.0,
@@ -119,6 +119,7 @@ class TestQueryUseCase:
             "data": {
                 "chunks": [
                     {
+                        "chunk_id": "chunk-abc123",
                         "reference_id": "2",
                         "content": "vector result",
                         "file_path": "/b.pdf",
@@ -136,6 +137,12 @@ class TestQueryUseCase:
         mock_rag_engine.query.assert_called()
         assert result["status"] == "success"
         assert result["metadata"]["query_mode"] == "hybrid+"
+
+        chunk = result["data"]["chunks"][0]
+        assert chunk["chunk_id"] == "chunk-abc123"
+        assert chunk["bm25_rank"] == 1
+        assert chunk["vector_rank"] == 1
+        assert chunk["reference_id"] == "2"
 
     async def test_execute_hybrid_plus_without_bm25_falls_back(
         self, mock_rag_engine: AsyncMock

@@ -1,7 +1,7 @@
 """Main entry point for the RAGAnything API."""
 
-import asyncio
 import logging
+import logging.config
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,13 +18,45 @@ from application.api.mcp_tools import mcp
 from application.api.query_routes import query_router
 from dependencies import app_config, bm25_adapter
 
+_LOG_FORMAT = "%(asctime)s %(levelname)-8s [%(name)s] %(message)s"
+
+LOG_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {"format": _LOG_FORMAT},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+            "stream": "ext://sys.stderr",
+        },
+    },
+    "loggers": {
+        "uvicorn": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "uvicorn.error": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "uvicorn.access": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"],
+    },
+}
+
+logging.config.dictConfig(LOG_CONFIG)
+
 logger = logging.getLogger(__name__)
 
 MCP_PATH = "/mcp"
 
 
 def _run_alembic_upgrade() -> None:
-    """Run Alembic migrations to head (called via asyncio.to_thread)."""
+    """Run Alembic migrations to head."""
     alembic_dir = Path(__file__).parent
     cfg = Config(str(alembic_dir / "alembic.ini"))
     cfg.set_main_option("script_location", str(alembic_dir / "alembic"))
@@ -33,24 +65,9 @@ def _run_alembic_upgrade() -> None:
 
 @asynccontextmanager
 async def db_lifespan(_app: FastAPI):
-    """Database migrations and cleanup lifecycle.
-
-    - Runs Alembic migrations on startup
-    - Closes BM25 connection pool on shutdown
-    """
-    logger.info("Application startup initiated")
-
-    try:
-        logger.info("Running database migrations...")
-        await asyncio.to_thread(_run_alembic_upgrade)
-        logger.info("Database migrations completed")
-    except Exception:
-        logger.exception("Failed to run migrations — refusing to start")
-        raise
-
+    """Closes BM25 connection pool on shutdown."""
     yield
 
-    # Cleanup on shutdown
     logger.info("Application shutdown initiated")
     if bm25_adapter is not None:
         try:
@@ -97,12 +114,17 @@ app.include_router(query_router, prefix=REST_PATH)
 
 def run_fastapi():
     """Run FastAPI server with uvicorn."""
+    logger.info("Running database migrations...")
+    _run_alembic_upgrade()
+    logger.info("Database migrations completed")
+
     uvicorn.run(
         app,
         host=app_config.HOST,
         port=app_config.PORT,
         log_level=app_config.UVICORN_LOG_LEVEL,
-        access_log=False,
+        log_config=LOG_CONFIG,
+        access_log=True,
         ws="none",
     )
 

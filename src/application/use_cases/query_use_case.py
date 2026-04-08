@@ -98,7 +98,7 @@ class QueryUseCase:
 
             combined_results = self.rrf_combiner.combine(
                 bm25_results=bm25_hits,
-                vector_results=vector_results,
+                vector_results=vector_results,  # type: ignore[arg-type]
                 top_k=top_k,
             )
 
@@ -109,23 +109,29 @@ class QueryUseCase:
         )
 
     def _format_bm25_results(self, results: list) -> dict:
-        """Format BM25 results to match API response format."""
+        """Format BM25 results with rank information."""
+        chunks = []
+        for rank, r in enumerate(results, start=1):
+            chunks.append(
+                {
+                    "reference_id": r.chunk_id,
+                    "content": r.content,
+                    "file_path": r.file_path,
+                    "chunk_id": r.chunk_id,
+                    "score": r.score,
+                    "bm25_rank": rank,
+                    "vector_rank": None,
+                    "combined_score": None,
+                    "metadata": r.metadata,
+                }
+            )
         return {
             "status": "success",
             "message": "",
             "data": {
                 "entities": [],
                 "relationships": [],
-                "chunks": [
-                    {
-                        "chunk_id": r.chunk_id,
-                        "content": r.content,
-                        "file_path": r.file_path,
-                        "score": r.score,
-                        "metadata": r.metadata,
-                    }
-                    for r in results
-                ],
+                "chunks": chunks,
                 "references": [],
             },
             "metadata": {
@@ -144,9 +150,10 @@ class QueryUseCase:
                 "relationships": [],
                 "chunks": [
                     {
-                        "chunk_id": r.chunk_id,
+                        "reference_id": r.reference_id,
                         "content": r.content,
                         "file_path": r.file_path,
+                        "chunk_id": r.chunk_id,
                         "score": r.combined_score,
                         "bm25_rank": r.bm25_rank,
                         "vector_rank": r.vector_rank,

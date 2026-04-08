@@ -54,7 +54,11 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection) -> None:
     """Run migrations within a synchronous connection callback."""
-    context.configure(connection=connection, target_metadata=target_metadata, version_table=VERSION_TABLE)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table=VERSION_TABLE,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

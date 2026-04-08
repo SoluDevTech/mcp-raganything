@@ -221,3 +221,94 @@ def test_combine_only_vector_results():
     assert combined[0].chunk_id == "1"
     assert combined[0].bm25_score == 0
     assert combined[0].vector_score > 0
+
+
+def test_combine_uses_chunk_id_not_reference_id():
+    """RRF should match by chunk_id, not reference_id.
+
+    Vector results include both chunk_id (e.g. 'chunk-abc123') and
+    reference_id (e.g. '1'). BM25 results use the same chunk_id.
+    The combiner must match by chunk_id so overlapping results merge.
+    """
+    combiner = RRFCombiner(k=60)
+
+    bm25_results = [
+        BM25SearchResult(
+            chunk_id="chunk-abc123",
+            content="shared result",
+            file_path="/doc.pdf",
+            score=5.0,
+            metadata={},
+        ),
+    ]
+
+    vector_results = {
+        "data": {
+            "chunks": [
+                {
+                    "chunk_id": "chunk-abc123",
+                    "reference_id": "1",
+                    "content": "shared result",
+                    "file_path": "/doc.pdf",
+                },
+            ]
+        }
+    }
+
+    combined = combiner.combine(bm25_results, vector_results, top_k=10)
+
+    assert len(combined) == 1
+    assert combined[0].chunk_id == "chunk-abc123"
+    assert combined[0].bm25_rank == 1
+    assert combined[0].vector_rank == 1
+    assert combined[0].reference_id == "1"
+    assert combined[0].combined_score == 1 / (60 + 1) + 1 / (60 + 1)
+
+
+def test_combine_preserves_reference_id_from_vector():
+    """RRF should preserve reference_id from vector results."""
+    combiner = RRFCombiner()
+
+    bm25_results = []
+
+    vector_results = {
+        "data": {
+            "chunks": [
+                {
+                    "chunk_id": "chunk-xyz",
+                    "reference_id": "3",
+                    "content": "Vector result",
+                    "file_path": "/c.pdf",
+                },
+            ]
+        }
+    }
+
+    combined = combiner.combine(bm25_results, vector_results, top_k=10)
+
+    assert len(combined) == 1
+    assert combined[0].reference_id == "3"
+
+
+def test_combine_no_chunk_id_falls_back_to_reference_id():
+    """If vector results lack chunk_id, use reference_id as fallback."""
+    combiner = RRFCombiner()
+
+    bm25_results = []
+
+    vector_results = {
+        "data": {
+            "chunks": [
+                {
+                    "reference_id": "5",
+                    "content": "Old format vector result",
+                    "file_path": "/d.pdf",
+                },
+            ]
+        }
+    }
+
+    combined = combiner.combine(bm25_results, vector_results, top_k=10)
+
+    assert len(combined) == 1
+    assert combined[0].chunk_id == "5"

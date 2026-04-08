@@ -17,6 +17,7 @@ class HybridSearchResult:
     bm25_score: float
     combined_score: float
     metadata: dict[str, Any]
+    reference_id: str | None = None
     bm25_rank: int | None = None
     vector_rank: int | None = None
 
@@ -42,6 +43,7 @@ class RRFCombiner:
                 "metadata": result.metadata,
                 "bm25_score": 0.0,
                 "vector_score": 0.0,
+                "reference_id": None,
                 "bm25_rank": rank,
                 "vector_rank": None,
             }
@@ -52,9 +54,12 @@ class RRFCombiner:
     def _add_vector_result(
         self, scores: dict[str, dict[str, Any]], rank: int, chunk: dict[str, Any]
     ) -> None:
-        chunk_id = chunk.get("reference_id") or chunk.get("chunk_id")
-        if chunk_id is None:
+        raw_chunk_id = chunk.get("chunk_id")
+        raw_ref_id = chunk.get("reference_id")
+        chunk_id = raw_chunk_id or raw_ref_id
+        if not chunk_id:
             return
+        reference_id = raw_ref_id
         if chunk_id not in scores:
             scores[chunk_id] = {
                 "content": chunk.get("content", ""),
@@ -62,12 +67,17 @@ class RRFCombiner:
                 "metadata": chunk.get("metadata", {}),
                 "bm25_score": 0.0,
                 "vector_score": 0.0,
+                "reference_id": reference_id,
                 "bm25_rank": None,
                 "vector_rank": rank,
             }
         else:
             existing = scores[chunk_id]["vector_rank"]
-            scores[chunk_id]["vector_rank"] = min(existing, rank) if existing is not None else rank
+            scores[chunk_id]["vector_rank"] = (
+                min(existing, rank) if existing is not None else rank
+            )
+            if reference_id:
+                scores[chunk_id]["reference_id"] = reference_id
 
         actual_rank = scores[chunk_id]["vector_rank"]
         if actual_rank is not None:
@@ -98,6 +108,7 @@ class RRFCombiner:
                 bm25_score=data["bm25_score"],
                 combined_score=data["bm25_score"] + data["vector_score"],
                 metadata=data["metadata"],
+                reference_id=data["reference_id"],
                 bm25_rank=data["bm25_rank"],
                 vector_rank=data["vector_rank"],
             )
