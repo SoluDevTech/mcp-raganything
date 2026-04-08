@@ -109,22 +109,16 @@ class QueryUseCase:
         )
 
     def _format_bm25_results(self, results: list) -> dict:
-        """Format BM25 results with rank information."""
-        chunks = []
-        for rank, r in enumerate(results, start=1):
-            chunks.append(
-                {
-                    "reference_id": r.chunk_id,
-                    "content": r.content,
-                    "file_path": r.file_path,
-                    "chunk_id": r.chunk_id,
-                    "score": r.score,
-                    "bm25_rank": rank,
-                    "vector_rank": None,
-                    "combined_score": None,
-                    "metadata": r.metadata,
-                }
-            )
+        """Format BM25 results to match API response format."""
+        chunks = [
+            {
+                "reference_id": r.chunk_id,
+                "content": r.content,
+                "file_path": r.file_path,
+                "chunk_id": r.chunk_id,
+            }
+            for r in results
+        ]
         return {
             "status": "success",
             "message": "",
@@ -154,11 +148,6 @@ class QueryUseCase:
                         "content": r.content,
                         "file_path": r.file_path,
                         "chunk_id": r.chunk_id,
-                        "score": r.combined_score,
-                        "bm25_rank": r.bm25_rank,
-                        "vector_rank": r.vector_rank,
-                        "combined_score": r.combined_score,
-                        "metadata": r.metadata,
                     }
                     for r in results
                 ],

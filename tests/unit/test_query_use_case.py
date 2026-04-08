@@ -140,8 +140,6 @@ class TestQueryUseCase:
 
         chunk = result["data"]["chunks"][0]
         assert chunk["chunk_id"] == "chunk-abc123"
-        assert chunk["bm25_rank"] == 1
-        assert chunk["vector_rank"] == 1
         assert chunk["reference_id"] == "2"
 
     async def test_execute_hybrid_plus_without_bm25_falls_back(

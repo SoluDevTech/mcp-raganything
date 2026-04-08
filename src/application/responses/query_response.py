@@ -26,10 +26,6 @@ class ChunkResponse(BaseModel):
     content: str
     file_path: str
     chunk_id: str = ""
-    score: float | None = None
-    bm25_rank: int | None = None
-    vector_rank: int | None = None
-    combined_score: float | None = None
 
 
 class ReferenceResponse(BaseModel):
