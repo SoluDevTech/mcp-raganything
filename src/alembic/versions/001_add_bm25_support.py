@@ -18,6 +18,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add BM25 chunks table with tsvector column, indexes, and trigger."""
+    # Create pg_textsearch extension (requires shared_preload_libraries in postgresql.conf)
+    op.execute("CREATE EXTENSION IF NOT EXISTS pg_textsearch")
+
     # Create chunks table (used by BM25 adapter for full-text search)
     op.execute(
         """
@@ -42,17 +45,12 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS idx_chunks_working_dir ON chunks(working_dir)"
     )
 
-    # Create BM25 index (conditional on pg_textsearch extension)
+    # Create BM25 index using pg_textsearch
     op.execute(
         """
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_textsearch') THEN
-                CREATE INDEX IF NOT EXISTS idx_chunks_bm25
-                ON chunks USING bm25(content)
-                WITH (text_config='english');
-            END IF;
-        END $$;
+        CREATE INDEX IF NOT EXISTS idx_chunks_bm25
+        ON chunks USING bm25(content)
+        WITH (text_config='english')
     """
     )
 
@@ -84,3 +82,4 @@ def downgrade() -> None:
     """Remove BM25 support."""
     op.execute("DROP TABLE IF EXISTS chunks")
     op.execute("DROP FUNCTION IF EXISTS update_chunks_tsv()")
+    op.execute("DROP EXTENSION IF EXISTS pg_textsearch")
