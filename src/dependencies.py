@@ -40,7 +40,8 @@ bm25_adapter: BM25EnginePort | None = None
 if bm25_config.BM25_ENABLED:
     try:
         bm25_adapter = PostgresBM25Adapter(
-            db_url=db_config.DATABASE_URL.replace("+asyncpg", "")
+            db_url=db_config.DATABASE_URL.replace("+asyncpg", ""),
+            text_config=bm25_config.BM25_TEXT_CONFIG,
         )
     except Exception as e:
         print(f"WARNING: BM25 adapter initialization failed: {e}")

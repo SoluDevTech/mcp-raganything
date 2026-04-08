@@ -19,10 +19,17 @@ class PostgresBM25Adapter(BM25EnginePort):
     workspace mapping as LightRAGAdapter (_make_workspace).
     """
 
-    def __init__(self, db_url: str):
+    _BM25_INDEX_PREFIX = "idx_lightrag_chunks_bm25"
+
+    def __init__(self, db_url: str, text_config: str = "english"):
         self.db_url = db_url
+        self.text_config = text_config
         self._pool: asyncpg.Pool | None = None
         self._pool_lock = asyncio.Lock()
+
+    @property
+    def bm25_index_name(self) -> str:
+        return f"{self._BM25_INDEX_PREFIX}_{self.text_config}"
 
     @staticmethod
     def _make_workspace(working_dir: str) -> str:
@@ -54,8 +61,85 @@ class PostgresBM25Adapter(BM25EnginePort):
                         "BM25 ranking <@> operator will not work. "
                         "Run: CREATE EXTENSION pg_textsearch;"
                     )
+                    return
             except Exception as e:
                 logger.warning("Could not check pg_textsearch extension: %s", e)
+                return
+
+            await self._ensure_bm25_index(conn)
+            await self._rebuild_tsv_if_config_changed(conn)
+
+    async def _ensure_bm25_index(self, conn) -> None:
+        """Create or recreate the BM25 index for the configured text_config.
+
+        Drops any stale BM25 index from a different text_config.
+        """
+        index_name = self.bm25_index_name
+        try:
+            existing = await conn.fetchval(
+                "SELECT indexname FROM pg_indexes WHERE indexname = $1",
+                index_name,
+            )
+            if existing:
+                logger.info(
+                    "BM25 index '%s' already exists for text_config='%s'",
+                    index_name,
+                    self.text_config,
+                )
+                return
+
+            for suffix in ("english", "french"):
+                stale = f"{self._BM25_INDEX_PREFIX}_{suffix}"
+                if stale != index_name:
+                    await conn.execute(f"DROP INDEX IF EXISTS {stale}")
+
+            await conn.execute(
+                f"""
+                CREATE INDEX {index_name}
+                ON lightrag_doc_chunks USING bm25(content)
+                WITH (text_config='{self.text_config}')
+                """
+            )
+            logger.info(
+                "Created BM25 index '%s' with text_config='%s'",
+                index_name,
+                self.text_config,
+            )
+        except Exception as e:
+            logger.error("Failed to ensure BM25 index: %s", e)
+
+    async def _rebuild_tsv_if_config_changed(self, conn) -> None:
+        """Rebuild content_tsv if trigger function uses a different text_config."""
+        try:
+            func_def = await conn.fetchval(
+                "SELECT prosrc FROM pg_proc WHERE proname = 'update_chunks_tsv'"
+            )
+            if func_def and f"'{self.text_config}'" not in func_def:
+                logger.info(
+                    "Updating trigger function from old text_config to '%s'",
+                    self.text_config,
+                )
+                await conn.execute(
+                    f"""
+                    CREATE OR REPLACE FUNCTION update_chunks_tsv()
+                    RETURNS TRIGGER AS $$
+                    BEGIN
+                        NEW.content_tsv := to_tsvector('{self.text_config}', COALESCE(NEW.content, ''));
+                        RETURN NEW;
+                    END;
+                    $$ LANGUAGE plpgsql;
+                    """
+                )
+                status = await conn.execute(
+                    f"""
+                    UPDATE lightrag_doc_chunks
+                    SET content_tsv = to_tsvector('{self.text_config}', COALESCE(content, ''))
+                    WHERE content_tsv IS NOT NULL
+                    """
+                )
+                logger.info("Rebuilt content_tsv: %s with text_config='%s'", status, self.text_config)
+        except Exception as e:
+            logger.warning("Could not check/rebuild trigger function: %s", e)
 
     async def close(self) -> None:
         """Close connection pool on shutdown."""
@@ -72,6 +156,7 @@ class PostgresBM25Adapter(BM25EnginePort):
         """Search using BM25 ranking on lightrag_doc_chunks."""
         pool = await self._get_pool()
         workspace = self._make_workspace(working_dir)
+        bm25_index = f"idx_lightrag_chunks_bm25_{self.text_config}"
 
         try:
             async with pool.acquire() as conn:
@@ -80,15 +165,16 @@ class PostgresBM25Adapter(BM25EnginePort):
                         id AS chunk_id,
                         content,
                         file_path,
-                        content <@> to_bm25query($1, 'idx_lightrag_chunks_bm25') as score
+                        content <@> to_bm25query($1, $3) as score
                     FROM lightrag_doc_chunks
                     WHERE workspace = $2
-                      AND content_tsv @@ plainto_tsquery('english', $1)
-                      AND content <@> to_bm25query($1, 'idx_lightrag_chunks_bm25') < 0
+                      AND content <@> to_bm25query($1, $3) < 0
                     ORDER BY score
-                    LIMIT $3
+                    LIMIT $4
                 """
-                results = await conn.fetch(sql, query, workspace, top_k)
+                results = await conn.fetch(
+                    sql, query, workspace, bm25_index, top_k
+                )
 
                 return [
                     BM25SearchResult(
@@ -127,9 +213,9 @@ class PostgresBM25Adapter(BM25EnginePort):
         try:
             async with pool.acquire() as conn:
                 await conn.execute(
-                    """
+                    f"""
                     UPDATE lightrag_doc_chunks
-                    SET content_tsv = to_tsvector('english', COALESCE(content, ''))
+                    SET content_tsv = to_tsvector('{self.text_config}', COALESCE(content, ''))
                     WHERE workspace = $1 AND content_tsv IS NULL
                     """,
                     workspace,

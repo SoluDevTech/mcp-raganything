@@ -53,6 +53,26 @@ class TestMakeWorkspace:
         assert result1 != result2
 
 
+class TestTextConfig:
+    """Tests for text_config and BM25 index naming."""
+
+    def test_default_text_config_is_english(self):
+        adapter = PostgresBM25Adapter(db_url="postgresql://test")
+        assert adapter.text_config == "english"
+
+    def test_custom_text_config(self):
+        adapter = PostgresBM25Adapter(db_url="postgresql://test", text_config="french")
+        assert adapter.text_config == "french"
+
+    def test_bm25_index_name_includes_text_config(self):
+        adapter = PostgresBM25Adapter(db_url="postgresql://test", text_config="french")
+        assert adapter.bm25_index_name == "idx_lightrag_chunks_bm25_french"
+
+    def test_bm25_index_name_english(self):
+        adapter = PostgresBM25Adapter(db_url="postgresql://test", text_config="english")
+        assert adapter.bm25_index_name == "idx_lightrag_chunks_bm25_english"
+
+
 class TestSearch:
     @pytest.mark.asyncio
     async def test_search_returns_results(self, mock_pool, mock_connection):
@@ -127,6 +147,20 @@ class TestSearch:
         workspace_arg = mock_connection.fetch.call_args[0][2]
         assert workspace_arg == PostgresBM25Adapter._make_workspace("some-working-dir")
 
+    @pytest.mark.asyncio
+    async def test_search_uses_bm25_index_with_text_config(self, mock_pool, mock_connection):
+        """Search should use text_config-specific BM25 index."""
+        adapter = PostgresBM25Adapter(db_url="postgresql://test", text_config="french")
+        adapter._pool = mock_pool
+        mock_pool.acquire.return_value = _acquire_mock(mock_connection)
+
+        mock_connection.fetch.return_value = []
+
+        await adapter.search("test query", "some-working-dir", top_k=5)
+
+        bm25_index_arg = mock_connection.fetch.call_args[0][3]
+        assert bm25_index_arg == "idx_lightrag_chunks_bm25_french"
+
 
 class TestIndexDocument:
     @pytest.mark.asyncio
@@ -153,7 +187,7 @@ class TestCreateIndex:
         self, mock_pool, mock_connection
     ):
         """Create index should update lightrag_doc_chunks tsvector."""
-        adapter = PostgresBM25Adapter(db_url="postgresql://test")
+        adapter = PostgresBM25Adapter(db_url="postgresql://test", text_config="french")
         adapter._pool = mock_pool
         mock_pool.acquire.return_value = _acquire_mock(mock_connection)
 
@@ -163,6 +197,7 @@ class TestCreateIndex:
         sql = mock_connection.execute.call_args[0][0]
         assert "lightrag_doc_chunks" in sql
         assert "content_tsv" in sql
+        assert "french" in sql
 
         workspace_arg = mock_connection.execute.call_args[0][1]
         assert workspace_arg == PostgresBM25Adapter._make_workspace("some-working-dir")

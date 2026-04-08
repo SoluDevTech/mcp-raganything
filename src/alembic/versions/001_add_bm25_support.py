@@ -30,14 +30,6 @@ def upgrade() -> None:
 
     op.execute(
         """
-        CREATE INDEX IF NOT EXISTS idx_lightrag_chunks_bm25
-        ON lightrag_doc_chunks USING bm25(content)
-        WITH (text_config='english')
-    """
-    )
-
-    op.execute(
-        """
         CREATE OR REPLACE FUNCTION update_chunks_tsv()
         RETURNS TRIGGER AS $$
         BEGIN
@@ -57,8 +49,6 @@ def upgrade() -> None:
     """
     )
 
-    # WARNING: This UPDATE scans the entire table. For tables with >100K rows,
-    # consider running as a separate manual batch operation instead.
     op.execute(
         "UPDATE lightrag_doc_chunks SET content_tsv = to_tsvector('english', COALESCE(content, '')) WHERE content_tsv IS NULL"
     )
@@ -70,7 +60,8 @@ def downgrade() -> None:
     """Remove BM25 support from lightrag_doc_chunks."""
     op.execute("DROP TRIGGER IF EXISTS trg_chunks_content_tsv ON lightrag_doc_chunks")
     op.execute("DROP FUNCTION IF EXISTS update_chunks_tsv()")
-    op.execute("DROP INDEX IF EXISTS idx_lightrag_chunks_bm25")
+    for suffix in ("english", "french"):
+        op.execute(f"DROP INDEX IF EXISTS idx_lightrag_chunks_bm25_{suffix}")
     op.execute("DROP INDEX IF EXISTS idx_lightrag_chunks_content_tsv")
     op.execute("ALTER TABLE lightrag_doc_chunks DROP COLUMN IF EXISTS content_tsv")
     op.execute("DROP EXTENSION IF EXISTS pg_textsearch")
