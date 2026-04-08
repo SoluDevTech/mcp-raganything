@@ -19,9 +19,15 @@ target_metadata = None
 
 
 def get_url() -> str:
-    """Build the database URL from application settings (sync driver for Alembic)."""
+    """Build the async database URL from application settings.
+
+    Returns the asyncpg URL for async engine creation.
+    """
     db_config = DatabaseConfig()
-    return db_config.DATABASE_URL.replace("+asyncpg", "")
+    url = db_config.DATABASE_URL
+    if "+asyncpg" not in url:
+        url = url.replace("postgresql://", "postgresql+asyncpg://")
+    return url
 
 
 def run_migrations_offline() -> None:
