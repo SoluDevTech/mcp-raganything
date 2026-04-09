@@ -167,12 +167,12 @@ The service automatically detects and processes the following document formats t
 | Microsoft PowerPoint | `.pptx` | |
 | Microsoft Excel | `.xlsx` | |
 | HTML | `.html`, `.htm` | |
-| Plain Text | `.txt`, `.text`, `.md` | UTF-8, UTF-16, ASCII supported; converted to PDF via ReportLab |
-| Quarto Markdown | `.qmd` | Quarto documents |
-| R Markdown | `.Rmd`, `.rmd` | R Markdown files |
+| Plain Text | `.txt`, `.md` | Pre-converted to PDF by the adapter; UTF-8, UTF-16, ASCII supported |
+| Quarto Markdown | `.qmd` | Not currently supported (requires raganything patch) |
+| R Markdown | `.Rmd`, `.rmd` | Not currently supported (requires raganything patch) |
 | Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.tiff`, `.tif` | Vision model processing (if enabled) |
 
-**Note:** File format detection is automatic. No configuration is required to specify the document type. The service will process any supported format when indexed. All document and image formats are supported out-of-the-box when installed with `raganything[all]`.
+**Note:** `.txt` and `.md` files are pre-converted to PDF by the adapter before indexing, since raganything's DoclingParser doesn't natively support text formats. Other formats are processed directly by raganything.
 
 ### Query
 

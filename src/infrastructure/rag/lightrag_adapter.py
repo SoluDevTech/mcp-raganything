@@ -1,7 +1,10 @@
+import asyncio
+import contextlib
 import hashlib
 import os
 import tempfile
 import time
+from pathlib import Path
 from typing import Literal, cast
 
 from fastapi.logger import logger
@@ -9,6 +12,7 @@ from lightrag import QueryParam
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
 from raganything import RAGAnything, RAGAnythingConfig
+from raganything.parser import Parser
 
 from application.requests.query_request import MultimodalContentItem
 from config import LLMConfig, RAGConfig
@@ -22,6 +26,8 @@ from domain.entities.indexing_result import (
 from domain.ports.rag_engine import RAGEnginePort
 
 QueryMode = Literal["local", "global", "hybrid", "naive", "mix", "bypass"]
+
+_TEXT_EXTENSIONS = {".txt", ".md"}
 
 _POSTGRES_STORAGE = {
     "kv_storage": "PGKVStorage",
@@ -57,6 +63,26 @@ class LightRAGAdapter(RAGEnginePort):
         """
         digest = hashlib.sha256(working_dir.encode()).hexdigest()[:16]
         return f"ws_{digest}"
+
+    @staticmethod
+    def _convert_text_to_pdf(
+        file_path: str, output_dir: str
+    ) -> tuple[str, str]:
+        stem = os.path.splitext(os.path.basename(file_path))[0]
+        unique_dir = tempfile.mkdtemp(prefix=f"rag_txt_{stem}_", dir=output_dir)
+        pdf_path = Parser.convert_text_to_pdf(file_path, output_dir=unique_dir)
+        return str(pdf_path), unique_dir
+
+    @staticmethod
+    def _process_with_pdf_fallback(
+        file_path: str, output_dir: str
+    ) -> tuple[str, str | None, str | None]:
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in _TEXT_EXTENSIONS:
+            return file_path, None, None
+        logger.info(f"Converting {ext} file to PDF for docling compatibility: {file_path}")
+        pdf_path, temp_dir = LightRAGAdapter._convert_text_to_pdf(file_path, output_dir)
+        return pdf_path, pdf_path, temp_dir
 
     def init_project(self, working_dir: str) -> RAGAnything:
         if working_dir in self.rag:
@@ -200,9 +226,14 @@ class LightRAGAdapter(RAGEnginePort):
         start_time = time.time()
         rag = self._ensure_initialized(working_dir)
         await rag._ensure_lightrag_initialized()
+        temp_pdf_path: str | None = None
+        temp_dir: str | None = None
         try:
+            effective_path, temp_pdf_path, temp_dir = self._process_with_pdf_fallback(
+                file_path, output_dir
+            )
             await rag.process_document_complete(
-                file_path=file_path, output_dir=output_dir, parse_method="txt"
+                file_path=effective_path, output_dir=output_dir, parse_method="txt"
             )
             processing_time_ms = (time.time() - start_time) * 1000
             return FileIndexingResult(
@@ -223,6 +254,13 @@ class LightRAGAdapter(RAGEnginePort):
                 processing_time_ms=round(processing_time_ms, 2),
                 error=str(e),
             )
+        finally:
+            if temp_pdf_path is not None:
+                with contextlib.suppress(OSError):
+                    os.unlink(temp_pdf_path)
+                with contextlib.suppress(OSError):
+                    if temp_dir and os.path.isdir(temp_dir):
+                        os.rmdir(temp_dir)
 
     async def index_folder(
         self,
@@ -232,71 +270,109 @@ class LightRAGAdapter(RAGEnginePort):
         file_extensions: list[str] | None = None,
         working_dir: str = "",
     ) -> FolderIndexingResult:
-        """Index a folder by processing each document sequentially.
+        """Index a folder by processing documents concurrently.
 
-        RAGAnything's process_folder_complete uses deepcopy internally which
-        fails with asyncpg/asyncio objects. We iterate files manually and
-        call process_document_complete for each one instead.
+        Uses asyncio.Semaphore bounded by MAX_CONCURRENT_FILES to limit
+        concurrent process_document_complete calls. When MAX_CONCURRENT_FILES=1,
+        behavior is identical to sequential processing.
         """
         start_time = time.time()
         rag = self._ensure_initialized(working_dir)
         await rag._ensure_lightrag_initialized()
 
         glob_pattern = "**/*" if recursive else "*"
-        from pathlib import Path
-
         folder = Path(folder_path)
-        all_files = [f for f in folder.glob(glob_pattern) if f.is_file()]
+        matched = [f for f in folder.glob(glob_pattern) if f.is_file()]
 
-        if file_extensions:
-            exts = set(file_extensions)
-            all_files = [f for f in all_files if f.suffix in exts]
+        exts = set(file_extensions) if file_extensions else None
+        all_files = [str(f) for f in matched if exts is None or f.suffix in exts]
 
-        succeeded = 0
-        failed = 0
-        file_results: list[FileProcessingDetail] = []
+        if not all_files:
+            return FolderIndexingResult(
+                status=IndexingStatus.SUCCESS,
+                message=f"No files found in '{folder_path}'",
+                folder_path=folder_path,
+                recursive=recursive,
+                stats=FolderIndexingStats(),
+                file_results=[],
+                processing_time_ms=round((time.time() - start_time) * 1000, 2),
+            )
 
-        for file_path_obj in all_files:
-            try:
-                await rag.process_document_complete(
-                    file_path=str(file_path_obj),
-                    output_dir=output_dir,
-                    parse_method="txt",
-                )
-                succeeded += 1
-                file_results.append(
-                    FileProcessingDetail(
-                        file_path=str(file_path_obj),
-                        file_name=file_path_obj.name,
+        semaphore = asyncio.Semaphore(self._rag_config.MAX_CONCURRENT_FILES)
+
+        async def _process_file(file_path_str: str) -> FileProcessingDetail:
+            file_name = Path(file_path_str).name
+            temp_pdf_path: str | None = None
+            temp_dir: str | None = None
+            async with semaphore:
+                try:
+                    effective_path, temp_pdf_path, temp_dir = (
+                        self._process_with_pdf_fallback(file_path_str, output_dir)
+                    )
+                    await rag.process_document_complete(
+                        file_path=effective_path,
+                        output_dir=output_dir,
+                        parse_method="txt",
+                    )
+                    logger.info(f"Indexed {file_name}")
+                    return FileProcessingDetail(
+                        file_path=file_path_str,
+                        file_name=file_name,
                         status=IndexingStatus.SUCCESS,
                     )
-                )
-                logger.info(
-                    f"Indexed {file_path_obj.name} ({succeeded}/{len(all_files)})"
-                )
-            except Exception as e:
-                failed += 1
-                logger.error(f"Failed to index {file_path_obj.name}: {e}")
-                file_results.append(
-                    FileProcessingDetail(
-                        file_path=str(file_path_obj),
-                        file_name=file_path_obj.name,
+                except Exception as e:
+                    logger.error(f"Failed to index {file_name}: {e}")
+                    return FileProcessingDetail(
+                        file_path=file_path_str,
+                        file_name=file_name,
                         status=IndexingStatus.FAILED,
                         error=str(e),
                     )
-                )
+                finally:
+                    if temp_pdf_path is not None:
+                        with contextlib.suppress(OSError):
+                            os.unlink(temp_pdf_path)
+                        with contextlib.suppress(OSError):
+                            if temp_dir and os.path.isdir(temp_dir):
+                                os.rmdir(temp_dir)
 
-        processing_time_ms = (time.time() - start_time) * 1000
-        total = len(all_files)
-        if failed == 0 and succeeded > 0:
-            status = IndexingStatus.SUCCESS
-            message = f"Successfully indexed {succeeded} file(s) from '{folder_path}'"
+        results = await asyncio.gather(
+            *[_process_file(f) for f in all_files], return_exceptions=True
+        )
+
+        file_results = [
+            r
+            if isinstance(r, FileProcessingDetail)
+            else FileProcessingDetail(
+                file_path="<unknown>",
+                file_name="<unknown>",
+                status=IndexingStatus.FAILED,
+                error=str(r),
+            )
+            for r in results
+        ]
+        for r in results:
+            if isinstance(r, BaseException):
+                logger.error(f"Unexpected error in file processing: {r}")
+
+        succeeded = sum(r.status == IndexingStatus.SUCCESS for r in file_results)
+        failed = len(file_results) - succeeded
+
+        if failed == 0:
+            status, message = (
+                IndexingStatus.SUCCESS,
+                f"Successfully indexed {succeeded} file(s) from '{folder_path}'",
+            )
         elif succeeded > 0 and failed > 0:
-            status = IndexingStatus.PARTIAL
-            message = f"Partially indexed: {succeeded} succeeded, {failed} failed"
+            status, message = (
+                IndexingStatus.PARTIAL,
+                f"Partially indexed: {succeeded} succeeded, {failed} failed",
+            )
         else:
-            status = IndexingStatus.FAILED
-            message = f"Failed to index folder '{folder_path}'"
+            status, message = (
+                IndexingStatus.FAILED,
+                f"Failed to index folder '{folder_path}'",
+            )
 
         return FolderIndexingResult(
             status=status,
@@ -304,13 +380,13 @@ class LightRAGAdapter(RAGEnginePort):
             folder_path=folder_path,
             recursive=recursive,
             stats=FolderIndexingStats(
-                total_files=total,
+                total_files=len(all_files),
                 files_processed=succeeded,
                 files_failed=failed,
                 files_skipped=0,
             ),
             file_results=file_results,
-            processing_time_ms=round(processing_time_ms, 2),
+            processing_time_ms=round((time.time() - start_time) * 1000, 2),
         )
 
     # ------------------------------------------------------------------
