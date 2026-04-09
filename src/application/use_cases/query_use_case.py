@@ -6,7 +6,7 @@ from typing import Literal
 
 from domain.ports.bm25_engine import BM25EnginePort, BM25SearchResult
 from domain.ports.rag_engine import RAGEnginePort
-from infrastructure.hybrid.rrf_combiner import RRFCombiner
+from infrastructure.rag.rrf_combiner import RRFCombiner
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +75,13 @@ class QueryUseCase:
         if mode == "hybrid+":
             if self.bm25_engine is None:
                 return await self.rag_engine.query(
-                    query=query, mode="naive", top_k=top_k, working_dir=working_dir
+                    query=query, mode="hybrid", top_k=top_k, working_dir=working_dir
                 )
 
             bm25_results, vector_results = await asyncio.gather(
                 self.bm25_engine.search(query, working_dir, top_k=top_k * 2),
                 self.rag_engine.query(
-                    query=query, mode="naive", top_k=top_k * 2, working_dir=working_dir
+                    query=query, mode="hybrid", top_k=top_k * 2, working_dir=working_dir
                 ),
                 return_exceptions=True,
             )

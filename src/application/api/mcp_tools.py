@@ -21,7 +21,13 @@ async def query_knowledge_base(
     Args:
         working_dir: RAG workspace directory for this project
         query: The user's question or search query
-        mode: Search mode - "naive" (default), "local", "global", "hybrid", "mix"
+        mode: Search mode
+            - "naive": Vector search only
+            - "local": Local knowledge graph search
+            - "global": Global knowledge graph search
+            - "hybrid": Local + global knowledge graph
+            - "hybrid+": BM25 + vector search (parallel)
+            - "mix": Knowledge graph + vector chunks
         top_k: Number of chunks to retrieve (default 5)
 
     Returns:

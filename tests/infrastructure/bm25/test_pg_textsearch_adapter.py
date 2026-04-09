@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import asyncpg
 import pytest
 
-from infrastructure.bm25.pg_textsearch_adapter import PostgresBM25Adapter
+from infrastructure.rag.pg_textsearch_adapter import PostgresBM25Adapter
 
 
 @pytest.fixture
@@ -148,7 +148,9 @@ class TestSearch:
         assert workspace_arg == PostgresBM25Adapter._make_workspace("some-working-dir")
 
     @pytest.mark.asyncio
-    async def test_search_uses_bm25_index_with_text_config(self, mock_pool, mock_connection):
+    async def test_search_uses_bm25_index_with_text_config(
+        self, mock_pool, mock_connection
+    ):
         """Search should use text_config-specific BM25 index."""
         adapter = PostgresBM25Adapter(db_url="postgresql://test", text_config="french")
         adapter._pool = mock_pool

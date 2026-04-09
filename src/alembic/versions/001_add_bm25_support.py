@@ -20,12 +20,38 @@ def upgrade() -> None:
     """Add BM25 full-text search to lightrag_doc_chunks."""
     op.execute("CREATE EXTENSION IF NOT EXISTS pg_textsearch")
 
+    # Guard: LightRAG creates lightrag_doc_chunks lazily on first use.
+    # On a fresh database the table does not exist yet, so skip the
+    # column/index/trigger steps.  They will be applied on next run
+    # after LightRAG has created the table.
     op.execute(
-        "ALTER TABLE lightrag_doc_chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector"
-    )
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'lightrag_doc_chunks'
+            ) THEN
+                ALTER TABLE lightrag_doc_chunks
+                    ADD COLUMN IF NOT EXISTS content_tsv tsvector;
 
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_lightrag_chunks_content_tsv ON lightrag_doc_chunks USING GIN(content_tsv)"
+                CREATE INDEX IF NOT EXISTS idx_lightrag_chunks_content_tsv
+                    ON lightrag_doc_chunks USING GIN(content_tsv);
+
+                DROP TRIGGER IF EXISTS trg_chunks_content_tsv
+                    ON lightrag_doc_chunks;
+
+                CREATE TRIGGER trg_chunks_content_tsv
+                    BEFORE INSERT OR UPDATE ON lightrag_doc_chunks
+                    FOR EACH ROW EXECUTE FUNCTION update_chunks_tsv();
+
+                UPDATE lightrag_doc_chunks
+                    SET content_tsv = to_tsvector('english', COALESCE(content, ''))
+                    WHERE content_tsv IS NULL;
+            END IF;
+        END;
+        $$
+        """
     )
 
     op.execute(
@@ -38,19 +64,6 @@ def upgrade() -> None:
         END;
         $$ LANGUAGE plpgsql;
     """
-    )
-
-    op.execute("DROP TRIGGER IF EXISTS trg_chunks_content_tsv ON lightrag_doc_chunks")
-    op.execute(
-        """
-        CREATE TRIGGER trg_chunks_content_tsv
-        BEFORE INSERT OR UPDATE ON lightrag_doc_chunks
-        FOR EACH ROW EXECUTE FUNCTION update_chunks_tsv();
-    """
-    )
-
-    op.execute(
-        "UPDATE lightrag_doc_chunks SET content_tsv = to_tsvector('english', COALESCE(content, '')) WHERE content_tsv IS NULL"
     )
 
     op.execute("DROP TABLE IF EXISTS chunks")
