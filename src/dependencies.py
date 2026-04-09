@@ -15,7 +15,7 @@ from config import (
     RAGConfig,
 )
 from domain.ports.bm25_engine import BM25EnginePort
-from infrastructure.bm25.pg_textsearch_adapter import PostgresBM25Adapter
+from infrastructure.rag.pg_textsearch_adapter import PostgresBM25Adapter
 from infrastructure.rag.lightrag_adapter import LightRAGAdapter
 from infrastructure.storage.minio_adapter import MinioAdapter
 

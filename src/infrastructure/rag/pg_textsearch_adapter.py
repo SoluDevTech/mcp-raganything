@@ -137,7 +137,11 @@ class PostgresBM25Adapter(BM25EnginePort):
                     WHERE content_tsv IS NOT NULL
                     """
                 )
-                logger.info("Rebuilt content_tsv: %s with text_config='%s'", status, self.text_config)
+                logger.info(
+                    "Rebuilt content_tsv: %s with text_config='%s'",
+                    status,
+                    self.text_config,
+                )
         except Exception as e:
             logger.warning("Could not check/rebuild trigger function: %s", e)
 
@@ -172,9 +176,7 @@ class PostgresBM25Adapter(BM25EnginePort):
                     ORDER BY score
                     LIMIT $4
                 """
-                results = await conn.fetch(
-                    sql, query, workspace, bm25_index, top_k
-                )
+                results = await conn.fetch(sql, query, workspace, bm25_index, top_k)
 
                 return [
                     BM25SearchResult(
