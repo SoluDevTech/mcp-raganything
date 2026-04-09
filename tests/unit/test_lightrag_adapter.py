@@ -1,3 +1,4 @@
+import asyncio
 import os
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -559,3 +560,240 @@ class TestLightRAGAdapter:
 
         # All three should be processed
         assert mock_rag.process_document_complete.call_count == 3
+
+    # ------------------------------------------------------------------
+    # Concurrent index_folder tests
+    # ------------------------------------------------------------------
+
+
+class TestLightRAGAdapterConcurrentIndexFolder:
+    """Tests for concurrent file processing in index_folder.
+
+    Verifies that the ``asyncio.Semaphore`` + ``asyncio.gather`` implementation
+    respects ``MAX_CONCURRENT_FILES`` and handles edge cases correctly.
+    """
+
+    @staticmethod
+    def _make_adapter(
+        llm_config: LLMConfig, max_concurrent_files: int
+    ) -> LightRAGAdapter:
+        """Create an adapter with a custom MAX_CONCURRENT_FILES."""
+        rag_config = RAGConfig(
+            RAG_STORAGE_TYPE="postgres",
+            MAX_CONCURRENT_FILES=max_concurrent_files,
+        )
+        return LightRAGAdapter(llm_config, rag_config)
+
+    @staticmethod
+    def _make_mock_rag() -> MagicMock:
+        """Create a mock RAG with standard async stubs."""
+        mock_rag = MagicMock()
+        mock_rag._ensure_lightrag_initialized = AsyncMock()
+        return mock_rag
+
+    async def test_index_folder_concurrent_respects_max_concurrency(
+        self,
+        llm_config: LLMConfig,
+        tmp_path,
+    ) -> None:
+        """With MAX_CONCURRENT_FILES=2 and 5 files, at most 2 calls in-flight."""
+        adapter = self._make_adapter(llm_config, max_concurrent_files=2)
+        mock_rag = self._make_mock_rag()
+        adapter.rag["test_dir"] = mock_rag
+
+        # Create 5 test files
+        for i in range(5):
+            (tmp_path / f"doc_{i}.pdf").write_text(f"content_{i}")
+
+        max_concurrent = 0
+        current_concurrent = 0
+        lock = asyncio.Lock()
+
+        async def slow_process(**_kwargs):
+            nonlocal max_concurrent, current_concurrent
+            async with lock:
+                current_concurrent += 1
+                if current_concurrent > max_concurrent:
+                    max_concurrent = current_concurrent
+            # Simulate I/O delay so tasks overlap
+            await asyncio.sleep(0.05)
+            async with lock:
+                current_concurrent -= 1
+
+        mock_rag.process_document_complete = AsyncMock(side_effect=slow_process)
+
+        result = await adapter.index_folder(
+            folder_path=str(tmp_path),
+            output_dir="/tmp/output",
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.stats.total_files == 5
+        assert result.stats.files_processed == 5
+        assert result.stats.files_failed == 0
+        assert max_concurrent <= 2, (
+            f"Expected max 2 concurrent calls, got {max_concurrent}"
+        )
+        assert max_concurrent >= 2, (
+            f"Expected at least 2 concurrent calls (concurrent execution), got {max_concurrent}"
+        )
+
+    async def test_index_folder_concurrent_all_succeed(
+        self,
+        llm_config: LLMConfig,
+        tmp_path,
+    ) -> None:
+        """With MAX_CONCURRENT_FILES=4 and 8 files, all succeed."""
+        adapter = self._make_adapter(llm_config, max_concurrent_files=4)
+        mock_rag = self._make_mock_rag()
+        mock_rag.process_document_complete = AsyncMock()
+        adapter.rag["test_dir"] = mock_rag
+
+        for i in range(8):
+            (tmp_path / f"file_{i}.pdf").write_text(f"data_{i}")
+
+        result = await adapter.index_folder(
+            folder_path=str(tmp_path),
+            output_dir="/tmp/output",
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.stats.total_files == 8
+        assert result.stats.files_processed == 8
+        assert result.stats.files_failed == 0
+        assert mock_rag.process_document_complete.call_count == 8
+
+    async def test_index_folder_concurrent_max_zero_treated_as_one(
+        self,
+        llm_config: LLMConfig,
+        tmp_path,
+    ) -> None:
+        """MAX_CONCURRENT_FILES=0 should be treated as 1 (deadlock prevention)."""
+        adapter = self._make_adapter(llm_config, max_concurrent_files=0)
+        mock_rag = self._make_mock_rag()
+        adapter.rag["test_dir"] = mock_rag
+
+        for i in range(3):
+            (tmp_path / f"doc_{i}.pdf").write_text(f"content_{i}")
+
+        max_concurrent = 0
+        current_concurrent = 0
+        lock = asyncio.Lock()
+
+        async def tracked_process(**_kwargs):
+            nonlocal max_concurrent, current_concurrent
+            async with lock:
+                current_concurrent += 1
+                if current_concurrent > max_concurrent:
+                    max_concurrent = current_concurrent
+            await asyncio.sleep(0.05)
+            async with lock:
+                current_concurrent -= 1
+
+        mock_rag.process_document_complete = AsyncMock(side_effect=tracked_process)
+
+        result = await adapter.index_folder(
+            folder_path=str(tmp_path),
+            output_dir="/tmp/output",
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.stats.files_processed == 3
+        assert result.stats.files_failed == 0
+        # With concurrency clamped to 1, never more than 1 in-flight
+        assert max_concurrent <= 1, (
+            f"Expected max 1 concurrent call with MAX_CONCURRENT_FILES=0, got {max_concurrent}"
+        )
+
+    async def test_index_folder_concurrent_greater_than_file_count(
+        self,
+        llm_config: LLMConfig,
+        tmp_path,
+    ) -> None:
+        """With MAX_CONCURRENT_FILES=10 and only 3 files, all start immediately."""
+        adapter = self._make_adapter(llm_config, max_concurrent_files=10)
+        mock_rag = self._make_mock_rag()
+        mock_rag.process_document_complete = AsyncMock()
+        adapter.rag["test_dir"] = mock_rag
+
+        for i in range(3):
+            (tmp_path / f"small_{i}.pdf").write_text(f"data_{i}")
+
+        result = await adapter.index_folder(
+            folder_path=str(tmp_path),
+            output_dir="/tmp/output",
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.stats.total_files == 3
+        assert result.stats.files_processed == 3
+        assert result.stats.files_failed == 0
+        assert mock_rag.process_document_complete.call_count == 3
+
+    async def test_index_folder_concurrent_single_file(
+        self,
+        llm_config: LLMConfig,
+        tmp_path,
+    ) -> None:
+        """Single file with any concurrency setting produces identical result."""
+        adapter = self._make_adapter(llm_config, max_concurrent_files=5)
+        mock_rag = self._make_mock_rag()
+        mock_rag.process_document_complete = AsyncMock()
+        adapter.rag["test_dir"] = mock_rag
+
+        (tmp_path / "only.pdf").write_text("solo content")
+
+        result = await adapter.index_folder(
+            folder_path=str(tmp_path),
+            output_dir="/tmp/output",
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.SUCCESS
+        assert result.stats.total_files == 1
+        assert result.stats.files_processed == 1
+        assert result.stats.files_failed == 0
+        mock_rag.process_document_complete.assert_awaited_once_with(
+            file_path=str(tmp_path / "only.pdf"),
+            output_dir="/tmp/output",
+            parse_method="txt",
+        )
+
+    async def test_index_folder_concurrent_mixed_success_failure(
+        self,
+        llm_config: LLMConfig,
+        tmp_path,
+    ) -> None:
+        """Some files succeed, some fail under concurrency → PARTIAL status."""
+        adapter = self._make_adapter(llm_config, max_concurrent_files=3)
+        mock_rag = self._make_mock_rag()
+        adapter.rag["test_dir"] = mock_rag
+
+        for i in range(4):
+            (tmp_path / f"doc_{i}.pdf").write_text(f"content_{i}")
+
+        call_count = 0
+
+        async def flaky_process(**_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count % 2 == 0:
+                raise RuntimeError("Simulated failure")
+
+        mock_rag.process_document_complete = AsyncMock(side_effect=flaky_process)
+
+        result = await adapter.index_folder(
+            folder_path=str(tmp_path),
+            output_dir="/tmp/output",
+            working_dir="test_dir",
+        )
+
+        assert result.status == IndexingStatus.PARTIAL
+        assert result.stats.files_processed == 2
+        assert result.stats.files_failed == 2
+        assert result.file_results is not None
+        assert len(result.file_results) == 4
