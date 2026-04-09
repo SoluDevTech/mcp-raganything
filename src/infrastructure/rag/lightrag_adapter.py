@@ -288,7 +288,10 @@ class LightRAGAdapter(RAGEnginePort):
 
         processing_time_ms = (time.time() - start_time) * 1000
         total = len(all_files)
-        if failed == 0 and succeeded > 0:
+        if total == 0:
+            status = IndexingStatus.SUCCESS
+            message = f"No files found in '{folder_path}'"
+        elif failed == 0 and succeeded > 0:
             status = IndexingStatus.SUCCESS
             message = f"Successfully indexed {succeeded} file(s) from '{folder_path}'"
         elif succeeded > 0 and failed > 0:

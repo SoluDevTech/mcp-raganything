@@ -22,10 +22,10 @@ class RelationshipResponse(BaseModel):
 
 
 class ChunkResponse(BaseModel):
-    reference_id: str
+    reference_id: str | None = None
     content: str
     file_path: str
-    chunk_id: str
+    chunk_id: str = ""
 
 
 class ReferenceResponse(BaseModel):

@@ -3,20 +3,42 @@
   "Trivy": {
     "Version": "0.69.3"
   },
-  "ReportID": "019d67a8-03be-7bc3-96ad-233658ba2bdf",
-  "CreatedAt": "2026-04-07T13:15:57.502773+02:00",
-  "ArtifactID": "sha256:44de1297411e46aa253b4587f1a66eb89f732fd7bd66822db54093a6f7fc28ca",
+  "ReportID": "019d695b-0697-7d65-9dbe-387e1f838d1c",
+  "CreatedAt": "2026-04-07T21:11:06.39188+02:00",
+  "ArtifactID": "sha256:9829ca31ff653ff8fe9be186152bf65041835de0e419a8b4359bf2b7189673c3",
   "ArtifactName": ".",
   "ArtifactType": "repository",
   "Metadata": {
     "RepoURL": "https://github.com/Kaiohz/mcp-raganything.git",
-    "Branch": "main",
-    "Commit": "ef601f6d3a8415d3a8329292e645d2e3d8c0e8a9",
-    "CommitMsg": "fix: remove conditional on SonarQube CI step, secrets are now configured (#5)",
-    "Author": "Yohan Gonçalves \u003cyohan.goncalves.pro@gmail.com\u003e",
-    "Committer": "GitHub \u003cnoreply@github.com\u003e"
+    "Branch": "BRIC-7/add-bm25-pg-textsearch",
+    "Commit": "c3e5cb316291d7fc0082899f8ae23523e8cbb82e",
+    "CommitMsg": "refactor: Reduce cognitive complexity in RRF combiner (sonar S3776) (BRIC-7)",
+    "Author": "Kaiohz \u003cyohan.goncalves@cosigma.io\u003e",
+    "Committer": "Kaiohz \u003cyohan.goncalves@cosigma.io\u003e"
   },
   "Results": [
+    {
+      "Target": ".venv/lib/python3.14/site-packages/paddleocr/ppstructure/kie/requirements.txt",
+      "Class": "lang-pkgs",
+      "Type": "pip",
+      "Packages": [
+        {
+          "Name": "paddlenlp",
+          "Identifier": {
+            "PURL": "pkg:pypi/paddlenlp@2.5.2",
+            "UID": "2b35cf3d8063c65e"
+          },
+          "Version": "2.5.2",
+          "Locations": [
+            {
+              "StartLine": 7,
+              "EndLine": 7
+            }
+          ],
+          "AnalyzedBy": "pip"
+        }
+      ]
+    },
     {
       "Target": "Python",
       "Class": "lang-pkgs",
@@ -26,13 +48,13 @@
           "Name": "my-test-package",
           "Identifier": {
             "PURL": "pkg:pypi/my-test-package@1.0",
-            "UID": "cf354c804175f1b1"
+            "UID": "b9a06bfcca9bf672"
           },
           "Version": "1.0",
           "Licenses": [
             "UNKNOWN"
           ],
-          "FilePath": ".venv/lib/python3.13/site-packages/pkg_resources/tests/data/my-test-package_zipped-egg/my_test_package-1.0-py3.7.egg",
+          "FilePath": ".venv/lib/python3.14/site-packages/pkg_resources/tests/data/my-test-package_zipped-egg/my_test_package-1.0-py3.7.egg",
           "AnalyzedBy": "python-egg"
         }
       ]
@@ -47,20 +69,21 @@
           "Name": "mcp-raganything",
           "Identifier": {
             "PURL": "pkg:pypi/mcp-raganything@0.1.0",
-            "UID": "27f0726934767eb7"
+            "UID": "c7408d4962c500ca"
           },
           "Version": "0.1.0",
           "Relationship": "root",
           "DependsOn": [
             "aiofiles@24.1.0",
+            "alembic@1.18.4",
             "asyncpg@0.31.0",
             "authlib@1.6.9",
             "cryptography@46.0.6",
-            "docling@2.83.0",
+            "docling@2.84.0",
             "fastapi@0.135.3",
             "fastmcp@3.2.0",
             "httpx@0.28.1",
-            "lightrag-hku@1.4.12",
+            "lightrag-hku@1.4.13",
             "mcp@1.26.0",
             "minio@7.2.20",
             "openai@2.30.0",
@@ -83,6 +106,22 @@
           },
           "Version": "24.1.0",
           "Relationship": "direct",
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "alembic@1.18.4",
+          "Name": "alembic",
+          "Identifier": {
+            "PURL": "pkg:pypi/alembic@1.18.4",
+            "UID": "cdc5b7a87334bcc2"
+          },
+          "Version": "1.18.4",
+          "Relationship": "direct",
+          "DependsOn": [
+            "mako@1.3.10",
+            "sqlalchemy@2.0.48",
+            "typing-extensions@4.15.0"
+          ],
           "AnalyzedBy": "uv"
         },
         {
@@ -125,13 +164,13 @@
           "AnalyzedBy": "uv"
         },
         {
-          "ID": "docling@2.83.0",
+          "ID": "docling@2.84.0",
           "Name": "docling",
           "Identifier": {
-            "PURL": "pkg:pypi/docling@2.83.0",
-            "UID": "8c0d76ec334dff22"
+            "PURL": "pkg:pypi/docling@2.84.0",
+            "UID": "f6f6b94364dcf6fc"
           },
-          "Version": "2.83.0",
+          "Version": "2.84.0",
           "Relationship": "direct",
           "DependsOn": [
             "accelerate@1.13.0",
@@ -238,13 +277,13 @@
           "AnalyzedBy": "uv"
         },
         {
-          "ID": "lightrag-hku@1.4.12",
+          "ID": "lightrag-hku@1.4.13",
           "Name": "lightrag-hku",
           "Identifier": {
-            "PURL": "pkg:pypi/lightrag-hku@1.4.12",
-            "UID": "70958c7c95dc56d7"
+            "PURL": "pkg:pypi/lightrag-hku@1.4.13",
+            "UID": "41086f8911af13ed"
           },
-          "Version": "1.4.12",
+          "Version": "1.4.13",
           "Relationship": "direct",
           "DependsOn": [
             "aiofiles@24.1.0",
@@ -412,15 +451,22 @@
           "Name": "raganything",
           "Identifier": {
             "PURL": "pkg:pypi/raganything@1.2.10",
-            "UID": "1ab5e428ac85ffcf"
+            "UID": "c9ebb114e1b109ba"
           },
           "Version": "1.2.10",
           "Relationship": "direct",
           "DependsOn": [
             "huggingface-hub@0.36.2",
-            "lightrag-hku@1.4.12",
+            "lightrag-hku@1.4.13",
+            "markdown@3.10.2",
             "mineru@3.0.7",
-            "tqdm@4.67.3"
+            "paddleocr@2.10.0",
+            "pillow@12.2.0",
+            "pygments@2.20.0",
+            "pypdfium2@4.30.0",
+            "reportlab@4.4.10",
+            "tqdm@4.67.3",
+            "weasyprint@68.1"
           ],
           "AnalyzedBy": "uv"
         },
@@ -795,6 +841,21 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "brotlicffi@1.2.0.1",
+          "Name": "brotlicffi",
+          "Identifier": {
+            "PURL": "pkg:pypi/brotlicffi@1.2.0.1",
+            "UID": "e8b5d9c1977eb78e"
+          },
+          "Version": "1.2.0.1",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "cffi@2.0.0"
+          ],
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "cachetools@7.0.5",
           "Name": "cachetools",
           "Identifier": {
@@ -924,6 +985,22 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "cssselect2@0.9.0",
+          "Name": "cssselect2",
+          "Identifier": {
+            "PURL": "pkg:pypi/cssselect2@0.9.0",
+            "UID": "70afa14bae638fe1"
+          },
+          "Version": "0.9.0",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "tinycss2@1.5.1",
+            "webencodings@0.5.1"
+          ],
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "cuda-bindings@13.2.0",
           "Name": "cuda-bindings",
           "Identifier": {
@@ -991,6 +1068,18 @@
             "rich-rst@1.3.2",
             "rich@14.3.3"
           ],
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "cython@3.2.4",
+          "Name": "cython",
+          "Identifier": {
+            "PURL": "pkg:pypi/cython@3.2.4",
+            "UID": "fe8b7d655ea803c6"
+          },
+          "Version": "3.2.4",
+          "Indirect": true,
+          "Relationship": "indirect",
           "AnalyzedBy": "uv"
         },
         {
@@ -1279,6 +1368,21 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "fire@0.7.1",
+          "Name": "fire",
+          "Identifier": {
+            "PURL": "pkg:pypi/fire@0.7.1",
+            "UID": "1290e6fb2c44d6d3"
+          },
+          "Version": "0.7.1",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "termcolor@3.3.0"
+          ],
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "flatbuffers@25.12.19",
           "Name": "flatbuffers",
           "Identifier": {
@@ -1288,6 +1392,23 @@
           "Version": "25.12.19",
           "Indirect": true,
           "Relationship": "indirect",
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "fonttools@4.62.1",
+          "Name": "fonttools",
+          "Identifier": {
+            "PURL": "pkg:pypi/fonttools@4.62.1",
+            "UID": "a148a8969201fe5c"
+          },
+          "Version": "4.62.1",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "brotli@1.2.0",
+            "brotlicffi@1.2.0.1",
+            "zopfli@0.4.1"
+          ],
           "AnalyzedBy": "uv"
         },
         {
@@ -1882,6 +2003,18 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "lmdb@2.2.0",
+          "Name": "lmdb",
+          "Identifier": {
+            "PURL": "pkg:pypi/lmdb@2.2.0",
+            "UID": "ccfd487f051dc543"
+          },
+          "Version": "2.2.0",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "loguru@0.7.3",
           "Name": "loguru",
           "Identifier": {
@@ -1926,6 +2059,21 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "mako@1.3.10",
+          "Name": "mako",
+          "Identifier": {
+            "PURL": "pkg:pypi/mako@1.3.10",
+            "UID": "c3f5442c690bcb7e"
+          },
+          "Version": "1.3.10",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "markupsafe@3.0.3"
+          ],
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "mammoth@1.12.0",
           "Name": "mammoth",
           "Identifier": {
@@ -1938,6 +2086,18 @@
           "DependsOn": [
             "cobble@0.1.4"
           ],
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "markdown@3.10.2",
+          "Name": "markdown",
+          "Identifier": {
+            "PURL": "pkg:pypi/markdown@3.10.2",
+            "UID": "8d04ca3112f1b5c2"
+          },
+          "Version": "3.10.2",
+          "Indirect": true,
+          "Relationship": "indirect",
           "AnalyzedBy": "uv"
         },
         {
@@ -2463,6 +2623,21 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "opencv-contrib-python@4.13.0.92",
+          "Name": "opencv-contrib-python",
+          "Identifier": {
+            "PURL": "pkg:pypi/opencv-contrib-python@4.13.0.92",
+            "UID": "4cfd654bb7bbabba"
+          },
+          "Version": "4.13.0.92",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "numpy@2.4.4"
+          ],
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "opencv-python@4.13.0.92",
           "Name": "opencv-python",
           "Identifier": {
@@ -2545,6 +2720,39 @@
           "Version": "26.0",
           "Indirect": true,
           "Relationship": "indirect",
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "paddleocr@2.10.0",
+          "Name": "paddleocr",
+          "Identifier": {
+            "PURL": "pkg:pypi/paddleocr@2.10.0",
+            "UID": "1b504a5dbdb8859e"
+          },
+          "Version": "2.10.0",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "albucore@0.0.24",
+            "albumentations@2.0.8",
+            "beautifulsoup4@4.14.3",
+            "cython@3.2.4",
+            "fire@0.7.1",
+            "fonttools@4.62.1",
+            "lmdb@2.2.0",
+            "numpy@2.4.4",
+            "opencv-contrib-python@4.13.0.92",
+            "opencv-python@4.13.0.92",
+            "pillow@12.2.0",
+            "pyclipper@1.4.0",
+            "python-docx@1.2.0",
+            "pyyaml@6.0.3",
+            "rapidfuzz@3.14.5",
+            "requests@2.33.1",
+            "scikit-image@0.26.0",
+            "shapely@2.1.2",
+            "tqdm@4.67.3"
+          ],
           "AnalyzedBy": "uv"
         },
         {
@@ -2860,6 +3068,18 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "pydyf@0.12.1",
+          "Name": "pydyf",
+          "Identifier": {
+            "PURL": "pkg:pypi/pydyf@0.12.1",
+            "UID": "5ab04c66a2b48b21"
+          },
+          "Version": "0.12.1",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "pygments@2.20.0",
           "Name": "pygments",
           "Identifier": {
@@ -3007,6 +3227,18 @@
             "UID": "61a7004745cdfd62"
           },
           "Version": "1.11.0",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "pyphen@0.17.2",
+          "Name": "pyphen",
+          "Identifier": {
+            "PURL": "pkg:pypi/pyphen@0.17.2",
+            "UID": "b9fd3d00209ae3cd"
+          },
+          "Version": "0.17.2",
           "Indirect": true,
           "Relationship": "indirect",
           "AnalyzedBy": "uv"
@@ -3172,6 +3404,18 @@
             "pillow@12.2.0",
             "requests@2.33.1"
           ],
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "rapidfuzz@3.14.5",
+          "Name": "rapidfuzz",
+          "Identifier": {
+            "PURL": "pkg:pypi/rapidfuzz@3.14.5",
+            "UID": "4334814b20e55342"
+          },
+          "Version": "3.14.5",
+          "Indirect": true,
+          "Relationship": "indirect",
           "AnalyzedBy": "uv"
         },
         {
@@ -3647,6 +3891,18 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "termcolor@3.3.0",
+          "Name": "termcolor",
+          "Identifier": {
+            "PURL": "pkg:pypi/termcolor@3.3.0",
+            "UID": "88bdf909e3550c1d"
+          },
+          "Version": "3.3.0",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "tifffile@2026.3.3",
           "Name": "tifffile",
           "Identifier": {
@@ -3674,6 +3930,36 @@
           "DependsOn": [
             "regex@2026.3.32",
             "requests@2.33.1"
+          ],
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "tinycss2@1.5.1",
+          "Name": "tinycss2",
+          "Identifier": {
+            "PURL": "pkg:pypi/tinycss2@1.5.1",
+            "UID": "5f5bf54206e20b33"
+          },
+          "Version": "1.5.1",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "webencodings@0.5.1"
+          ],
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "tinyhtml5@2.1.0",
+          "Name": "tinyhtml5",
+          "Identifier": {
+            "PURL": "pkg:pypi/tinyhtml5@2.1.0",
+            "UID": "4ca217870b9d5b8"
+          },
+          "Version": "2.1.0",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "webencodings@0.5.1"
           ],
           "AnalyzedBy": "uv"
         },
@@ -3969,6 +4255,40 @@
           "AnalyzedBy": "uv"
         },
         {
+          "ID": "weasyprint@68.1",
+          "Name": "weasyprint",
+          "Identifier": {
+            "PURL": "pkg:pypi/weasyprint@68.1",
+            "UID": "a19c5a08f98e5f73"
+          },
+          "Version": "68.1",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "DependsOn": [
+            "cffi@2.0.0",
+            "cssselect2@0.9.0",
+            "fonttools@4.62.1",
+            "pillow@12.2.0",
+            "pydyf@0.12.1",
+            "pyphen@0.17.2",
+            "tinycss2@1.5.1",
+            "tinyhtml5@2.1.0"
+          ],
+          "AnalyzedBy": "uv"
+        },
+        {
+          "ID": "webencodings@0.5.1",
+          "Name": "webencodings",
+          "Identifier": {
+            "PURL": "pkg:pypi/webencodings@0.5.1",
+            "UID": "68511b951cc24266"
+          },
+          "Version": "0.5.1",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "AnalyzedBy": "uv"
+        },
+        {
           "ID": "websockets@16.0",
           "Name": "websockets",
           "Identifier": {
@@ -4032,109 +4352,24 @@
           "Indirect": true,
           "Relationship": "indirect",
           "AnalyzedBy": "uv"
-        }
-      ],
-      "Vulnerabilities": [
+        },
         {
-          "VulnerabilityID": "CVE-2026-30762",
-          "VendorIDs": [
-            "GHSA-mcww-4hxq-hfr3"
-          ],
-          "PkgID": "lightrag-hku@1.4.12",
-          "PkgName": "lightrag-hku",
-          "PkgIdentifier": {
-            "PURL": "pkg:pypi/lightrag-hku@1.4.12",
-            "UID": "70958c7c95dc56d7"
+          "ID": "zopfli@0.4.1",
+          "Name": "zopfli",
+          "Identifier": {
+            "PURL": "pkg:pypi/zopfli@0.4.1",
+            "UID": "c3159c362bdeaae3"
           },
-          "InstalledVersion": "1.4.12",
-          "FixedVersion": "1.4.13",
-          "Status": "fixed",
-          "SeveritySource": "ghsa",
-          "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-30762",
-          "DataSource": {
-            "ID": "ghsa",
-            "Name": "GitHub Security Advisory pip",
-            "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
-          },
-          "Fingerprint": "sha256:2e3d703f6045ff5badd8fef003b641bfd5be6083555af203173539f322c7247f",
-          "Title": "LightRAG: Hardcoded JWT Signing Secret Allows Authentication Bypass",
-          "Description": "Summary:\nThe file lightrag/api/config.py (line 397) uses a default JWT secret \"lightrag-jwt-default-secret\" when the TOKEN_SECRET environment variable is not set. The AuthHandler in lightrag/api/auth.py (lines 24-25) uses this secret to sign and verify tokens. An unauthenticated attacker can forge valid JWT tokens using the publicly known default secret and gain access to any protected endpoint.\n\nReproduction:\n1. Install LightRAG v1.4.10 with AUTH_ACCOUNTS configured but no TOKEN_SECRET set\n2. Use PyJWT to sign a token: jwt.encode({\"sub\": \"admin\", \"role\": \"user\"}, \"lightrag-jwt-default-secret\", algorithm=\"HS256\")\n3. Send a request to any protected endpoint with the header: Authorization: Bearer \u003cforged_token\u003e\n4. Access is granted without valid credentials\n\nSuggested Fix:\nRequire TOKEN_SECRET to be explicitly set when AUTH_ACCOUNTS is configured. Refuse to start the API server if authentication is enabled but no custom secret is provided.\n\n---\nVenkata Avinash Taduturi\ntaduturivenkata@gmail.com",
-          "Severity": "HIGH",
-          "VendorSeverity": {
-            "ghsa": 3
-          },
-          "CVSS": {
-            "ghsa": {
-              "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
-              "V3Score": 7.5
-            }
-          },
-          "References": [
-            "https://github.com/HKUDS/LightRAG",
-            "https://github.com/HKUDS/LightRAG/security/advisories/GHSA-mcww-4hxq-hfr3"
-          ]
+          "Version": "0.4.1",
+          "Indirect": true,
+          "Relationship": "indirect",
+          "AnalyzedBy": "uv"
         }
       ]
     },
     {
-      "Target": ".venv/lib/python3.13/site-packages/skimage/data/_fetchers.py",
-      "Class": "secret",
-      "Secrets": [
-        {
-          "RuleID": "jwt-token",
-          "Category": "JWT",
-          "Severity": "MEDIUM",
-          "Title": "JWT token",
-          "StartLine": 528,
-          "EndLine": 528,
-          "Code": {
-            "Lines": [
-              {
-                "Number": 526,
-                "Content": "    \u003e\u003e\u003e import requests",
-                "IsCause": false,
-                "Annotation": "",
-                "Truncated": false,
-                "Highlighted": "    \u003e\u003e\u003e import requests",
-                "FirstCause": false,
-                "LastCause": false
-              },
-              {
-                "Number": 527,
-                "Content": "    \u003e\u003e\u003e import zipfile",
-                "IsCause": false,
-                "Annotation": "",
-                "Truncated": false,
-                "Highlighted": "    \u003e\u003e\u003e import zipfile",
-                "FirstCause": false,
-                "LastCause": false
-              },
-              {
-                "Number": 528,
-                "Content": "9-be36-26ec9bc0df3b.jpg?token=****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************'",
-                "IsCause": true,
-                "Annotation": "",
-                "Truncated": false,
-                "Highlighted": "9-be36-26ec9bc0df3b.jpg?token=****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************'",
-                "FirstCause": true,
-                "LastCause": true
-              },
-              {
-                "Number": 529,
-                "Content": "    \u003e\u003e\u003e r = requests.get(url)",
-                "IsCause": false,
-                "Annotation": "",
-                "Truncated": false,
-                "Highlighted": "    \u003e\u003e\u003e r = requests.get(url)",
-                "FirstCause": false,
-                "LastCause": false
-              }
-            ]
-          },
-          "Match": "9-be36-26ec9bc0df3b.jpg?token=****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************'",
-          "Offset": 17236
-        }
-      ]
+      "Target": ".venv/lib/python3.14/site-packages/skimage/data/_fetchers.py",
+      "Class": "secret"
     }
   ]
 }

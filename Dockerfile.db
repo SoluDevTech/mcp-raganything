@@ -10,13 +10,24 @@ RUN apt-get update && apt-get install -y \
     bison \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Apache AGE (v1.6.0 for PG17) and cleanup
+# Install Apache AGE (v1.6.0 for PG17)
 RUN cd /tmp && \
     git clone --branch PG17/v1.6.0-rc0 https://github.com/apache/age.git && \
     cd age && \
     make PG_CONFIG=/usr/lib/postgresql/17/bin/pg_config install || \
-    (echo "Failed to build AGE" && exit 1) && \
-    rm -rf /tmp/age
+    (echo "Failed to build AGE" && exit 1)
+
+# Install pg_textsearch extension for BM25 full-text search
+RUN cd /tmp && \
+    git clone https://github.com/timescale/pg_textsearch.git && \
+    cd pg_textsearch && \
+    make PG_CONFIG=/usr/lib/postgresql/17/bin/pg_config || \
+    (echo "Failed to build pg_textsearch" && exit 1) && \
+    make PG_CONFIG=/usr/lib/postgresql/17/bin/pg_config install || \
+    (echo "Failed to install pg_textsearch" && exit 1)
+
+# Cleanup build artifacts
+RUN rm -rf /tmp/age /tmp/pg_textsearch
 
 # Switch back to non-root user for security
 USER postgres
