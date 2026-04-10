@@ -2050,6 +2050,18 @@ wheels = [
 ]
 
 [[package]]
+name = "kreuzberg"
+version = "4.8.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/20/5dd24291d7a527fd05ea6288d53c2c11d5b38fed099ba1f7ab4949acabe4/kreuzberg-4.8.2.tar.gz", hash = "sha256:acf2067a8b0b64b99658048f0b830b4e9c4f085de6f674abe12079b2e89a6401", size = 2374937, upload-time = "2026-04-10T08:07:15.523Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/0d/05da654aee8c1388f2c97a39c3b63fca0b7141571fed2a529d855d854c35/kreuzberg-4.8.2-cp310-abi3-macosx_14_0_arm64.whl", hash = "sha256:70fcb2d003a36a78c09d128a9e1ac2f31bcf38c9c01ca2d08445afce8f1d85aa", size = 58423542, upload-time = "2026-04-10T08:07:00.768Z" },
+    { url = "https://files.pythonhosted.org/packages/90/13/eb755e5eb06acb002aa99f618001d870cd614a9fec24ef10ff881b7e9075/kreuzberg-4.8.2-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:338f53afa1787de9b52aa6de4e7a4b2680333a8d89495d5585505c20af87b65b", size = 57380314, upload-time = "2026-04-10T08:07:04.409Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/2a/2279d15e46a504814a5b3ea5cf6389d8ecbcbd6691df753ce0f89f23a18c/kreuzberg-4.8.2-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:9f0ec11f96259d579fac1941bc4ad5114cfcd007d07d4e60b29664de1fd1bd1d", size = 60628097, upload-time = "2026-04-10T08:07:08.217Z" },
+    { url = "https://files.pythonhosted.org/packages/33/56/258d1d227620075d6f1a21cd7a5f0b80488d816598c3c9edcdf1d067a6eb/kreuzberg-4.8.2-cp310-abi3-win_amd64.whl", hash = "sha256:232b3bdbd30ca850e129f55ef8735be7696f91cc372ad29c77ef0539a13974de", size = 66916658, upload-time = "2026-04-10T08:07:12.619Z" },
+]
+
+[[package]]
 name = "latex2mathml"
 version = "3.79.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2444,6 +2456,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "httpx" },
+    { name = "kreuzberg" },
     { name = "lightrag-hku", extra = ["api"] },
     { name = "mcp" },
     { name = "minio" },
@@ -2477,6 +2490,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.124.0" },
     { name = "fastmcp", specifier = ">=3.2.0" },
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "kreuzberg", specifier = ">=4.0.0" },
     { name = "lightrag-hku", specifier = ">=1.4.13" },
     { name = "lightrag-hku", extras = ["api"], specifier = ">=1.4.13" },
     { name = "mcp", specifier = ">=1.24.0" },

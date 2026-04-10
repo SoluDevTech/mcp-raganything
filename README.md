@@ -19,21 +19,24 @@ Multi-modal RAG service exposing a REST API and MCP server for document indexing
    | api/                         |       |
    |   indexing_routes.py         |       |
    |   query_routes.py           |       |
+   |   file_routes.py             |       |
    |   health_routes.py          |       |
    | use_cases/                   |       |
    |   IndexFileUseCase           |       |
    |   IndexFolderUseCase         |       |
    |   QueryUseCase               |       |
+   |   ListFilesUseCase            |       |
+   |   ReadFileUseCase             |       |
    | requests/ responses/         |       |
    +------------------------------+       |
             |         |          |        |
             v         v          v        v
    Domain Layer (ports)
    +------------------------------------------+
-   | RAGEnginePort  StoragePort  BM25EnginePort|
+   | RAGEnginePort  StoragePort  BM25EnginePort  DocumentReaderPort |
    +------------------------------------------+
-            |         |          |
-            v         v          v
+            |         |          |              |
+            v         v          v              v
    Infrastructure Layer (adapters)
    +------------------------------------------+
    | LightRAGAdapter  MinioAdapter            |
@@ -41,12 +44,15 @@ Multi-modal RAG service exposing a REST API and MCP server for document indexing
    |                                              |
    | PostgresBM25Adapter    RRFCombiner          |
    | (pg_textsearch)         (hybrid+ fusion)   |
+   |                                              |
+   | KreuzbergAdapter                             |
+   | (kreuzberg - 91 formats)                    |
    +------------------------------------------+
-            |         |          |
-            v         v          v
-      PostgreSQL        MinIO
-      (pgvector +     (object
-       Apache AGE     storage)
+            |         |          |              |
+            v         v          v              v
+      PostgreSQL        MinIO         Kreuzberg
+      (pgvector +     (object       (document
+       Apache AGE      storage)       extraction)
        pg_textsearch)
 ```
 
@@ -178,6 +184,65 @@ The service automatically detects and processes the following document formats t
 | Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.tiff`, `.tif` | Vision model processing (if enabled) |
 
 **Note:** File format detection is automatic. No configuration is required to specify the document type. The service will process any supported format when indexed. All document and image formats are supported out-of-the-box when installed with `raganything[all]`.
+
+## File Browsing & Reading
+
+Browse and read files directly from MinIO without indexing them into the RAG knowledge base. Powered by [Kreuzberg](https://github.com/kreuzberg-dev/kreuzberg) for document text extraction (91 file formats).
+
+### List files
+
+```bash
+# List all files in the bucket
+curl http://localhost:8000/api/v1/files/list
+
+# List files under a specific prefix
+curl "http://localhost:8000/api/v1/files/list?prefix=documents/&recursive=true"
+```
+
+Response (`200 OK`):
+
+```json
+[
+  {"object_name": "documents/report.pdf", "size": 1024, "last_modified": "2026-01-01 00:00:00+00:00"},
+  {"object_name": "documents/notes.txt", "size": 512, "last_modified": "2026-01-02 00:00:00+00:00"}
+]
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prefix` | string | `""` | MinIO prefix to filter files by |
+| `recursive` | boolean | `true` | List files in subdirectories |
+
+### Read a file
+
+Downloads the file from MinIO, extracts its text content using Kreuzberg, and returns the result. Supports 91 file formats including PDF, Office documents, images, and HTML.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/files/read \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "documents/report.pdf"}'
+```
+
+Response (`200 OK`):
+
+```json
+{
+  "content": "Extracted text from the document...",
+  "metadata": {"format_type": "pdf", "mime_type": "application/pdf"},
+  "tables": [{"markdown": "| Header | Value |\n|---|---|\n| A | 1 |"}]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file_path` | string | **Required.** File path in the MinIO bucket (relative, no `..` or absolute paths) |
+
+Error responses:
+
+| Status | Condition |
+|--------|-----------|
+| `404` | File not found in MinIO |
+| `422` | Unsupported file format or invalid path (path traversal, absolute path) |
 
 ### Query
 
@@ -319,7 +384,7 @@ The `combined_score` is the sum of `bm25_score` and `vector_score`, each compute
 
 ## MCP Server
 
-The MCP server is mounted at `/mcp` and exposes a single tool: `query_knowledge_base`.
+The MCP server is mounted at `/mcp` and exposes the following tools:
 
 ### Tool: `query_knowledge_base`
 
@@ -329,6 +394,31 @@ The MCP server is mounted at `/mcp` and exposes a single tool: `query_knowledge_
 | `query` | string | required | The search query |
 | `mode` | string | `"naive"` | Search mode: `naive`, `local`, `global`, `hybrid`, `hybrid+`, `mix`, `bm25`, `bypass` |
 | `top_k` | integer | `10` | Number of chunks to retrieve |
+
+### Tool: `query_knowledge_base_multimodal`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `working_dir` | string | required | RAG workspace directory for this project |
+| `query` | string | required | The search query |
+| `multimodal_content` | list | required | List of multimodal content items |
+| `mode` | string | `"hybrid"` | Search mode |
+| `top_k` | integer | `5` | Number of chunks to retrieve |
+
+### Tool: `list_files`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prefix` | string | `""` | MinIO prefix to filter files by |
+| `recursive` | boolean | `true` | List files in subdirectories |
+
+### Tool: `read_file`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `file_path` | string | required | File path in MinIO bucket (e.g. `documents/report.pdf`) |
+
+Downloads the file from MinIO, extracts its text content using Kreuzberg, and returns the extracted text along with metadata and any detected tables.
 
 ### Transport modes
 
@@ -495,28 +585,36 @@ src/
       indexing_result.py             -- FileIndexingResult, FolderIndexingResult
     ports/
       rag_engine.py                  -- RAGEnginePort (abstract)
-      storage_port.py                -- StoragePort (abstract)
+      storage_port.py                -- StoragePort (abstract) + FileInfo
       bm25_engine.py                 -- BM25EnginePort (abstract)
+      document_reader_port.py        -- DocumentReaderPort (abstract) + DocumentContent
   application/
     api/
       health_routes.py               -- GET /health
       indexing_routes.py              -- POST /file/index, /folder/index
       query_routes.py                 -- POST /query
-      mcp_tools.py                    -- MCP tool: query_knowledge_base
+      file_routes.py                  -- GET /files/list, POST /files/read
+      mcp_tools.py                    -- MCP tools: query_knowledge_base, list_files, read_file
     requests/
       indexing_request.py            -- IndexFileRequest, IndexFolderRequest
-      query_request.py                -- QueryRequest, QueryMode
+      query_request.py                -- QueryRequest, MultimodalQueryRequest
+      file_request.py                 -- ListFilesRequest, ReadFileRequest
     responses/
       query_response.py              -- QueryResponse, QueryDataResponse
+      file_response.py                -- FileInfoResponse, FileContentResponse
     use_cases/
       index_file_use_case.py         -- Downloads from MinIO, indexes single file
       index_folder_use_case.py       -- Downloads from MinIO, indexes folder
       query_use_case.py              -- Query with bm25/hybrid+ support
+      list_files_use_case.py          -- Lists files with metadata from MinIO
+      read_file_use_case.py           -- Reads file from MinIO, extracts content via Kreuzberg
   infrastructure/
     rag/
       lightrag_adapter.py            -- LightRAGAdapter (RAGAnything/LightRAG)
     storage/
       minio_adapter.py               -- MinioAdapter (minio-py client)
+    document_reader/
+      kreuzberg_adapter.py            -- KreuzbergAdapter (kreuzberg, 91 formats)
     bm25/
       pg_textsearch_adapter.py        -- PostgresBM25Adapter (pg_textsearch)
     hybrid/
