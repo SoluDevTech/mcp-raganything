@@ -4,7 +4,7 @@ import logging
 from minio import Minio
 from minio.error import S3Error
 
-from domain.ports.storage_port import StoragePort
+from domain.ports.storage_port import FileInfo, StoragePort
 
 logger = logging.getLogger(__name__)
 
@@ -15,15 +15,6 @@ class MinioAdapter(StoragePort):
     def __init__(
         self, host: str, access: str, secret: str, secure: bool = False
     ) -> None:
-        """
-        Initialize the MinIO adapter with connection parameters.
-
-        Args:
-            host: The MinIO server endpoint (host:port).
-            access: The access key for authentication.
-            secret: The secret key for authentication.
-            secure: Whether to use HTTPS. Defaults to False.
-        """
         self.client = Minio(
             endpoint=host,
             access_key=access,
@@ -32,19 +23,6 @@ class MinioAdapter(StoragePort):
         )
 
     async def get_object(self, bucket: str, object_path: str) -> bytes:
-        """
-        Retrieve an object from MinIO storage.
-
-        Args:
-            bucket: The bucket name where the object is stored.
-            object_path: The path/key of the object within the bucket.
-
-        Returns:
-            The object content as bytes.
-
-        Raises:
-            FileNotFoundError: If the object or bucket does not exist.
-        """
         try:
             loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
@@ -57,32 +35,48 @@ class MinioAdapter(StoragePort):
                 response.release_conn()
         except S3Error as e:
             if e.code in ("NoSuchKey", "NoSuchBucket"):
-                logger.warning(f"Object not found: bucket={bucket}, path={object_path}")
+                logger.info("Object not found: bucket=%s, path=%s", bucket, object_path)
                 raise FileNotFoundError(
                     f"Object not found: bucket={bucket}, path={object_path}"
-                ) from None
-            logger.error(f"MinIO error retrieving object: {e}", exc_info=True)
+                ) from e
+            logger.error("MinIO error retrieving object: %s", e, exc_info=True)
+            raise
+
+    async def _list_minio_objects(
+        self, bucket: str, prefix: str, recursive: bool = True
+    ) -> list:
+        """Fetch raw MinIO object list, raising FileNotFoundError for missing buckets."""
+        try:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(
+                None,
+                lambda: list(
+                    self.client.list_objects(bucket, prefix=prefix, recursive=recursive)
+                ),
+            )
+        except S3Error as e:
+            if e.code == "NoSuchBucket":
+                logger.info("Bucket not found: %s", bucket)
+                raise FileNotFoundError(f"Bucket not found: {bucket}") from e
+            logger.error("MinIO error listing objects: %s", e, exc_info=True)
             raise
 
     async def list_objects(
         self, bucket: str, prefix: str, recursive: bool = True
     ) -> list[str]:
-        """
-        List object keys under a given prefix in MinIO.
-
-        Args:
-            bucket: The bucket name to list objects from.
-            prefix: The prefix to filter objects by.
-            recursive: Whether to list objects recursively.
-
-        Returns:
-            A list of object keys (excluding directories).
-        """
-        loop = asyncio.get_running_loop()
-        objects = await loop.run_in_executor(
-            None,
-            lambda: list(
-                self.client.list_objects(bucket, prefix=prefix, recursive=recursive)
-            ),
-        )
+        objects = await self._list_minio_objects(bucket, prefix, recursive)
         return [obj.object_name for obj in objects if not obj.is_dir]
+
+    async def list_files_metadata(
+        self, bucket: str, prefix: str, recursive: bool = True
+    ) -> list[FileInfo]:
+        objects = await self._list_minio_objects(bucket, prefix, recursive)
+        return [
+            FileInfo(
+                object_name=obj.object_name,
+                size=obj.size or 0,
+                last_modified=str(obj.last_modified) if obj.last_modified else None,
+            )
+            for obj in objects
+            if not obj.is_dir
+        ]

@@ -1,4 +1,12 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass
+class FileInfo:
+    object_name: str
+    size: int
+    last_modified: str | None = None
 
 
 class StoragePort(ABC):
@@ -35,5 +43,22 @@ class StoragePort(ABC):
 
         Returns:
             A list of object keys matching the prefix.
+        """
+        pass
+
+    @abstractmethod
+    async def list_files_metadata(
+        self, bucket: str, prefix: str, recursive: bool = True
+    ) -> list[FileInfo]:
+        """
+        List files with metadata under a given prefix.
+
+        Args:
+            bucket: The bucket name to list files from.
+            prefix: The prefix to filter files by.
+            recursive: Whether to list files recursively.
+
+        Returns:
+            A list of FileInfo objects with object_name, size, and last_modified.
         """
         pass

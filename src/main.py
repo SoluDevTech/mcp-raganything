@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from alembic import command
+from application.api.file_routes import file_router
 from application.api.health_routes import health_router
 from application.api.indexing_routes import indexing_router
 from application.api.mcp_tools import mcp
@@ -110,6 +111,7 @@ REST_PATH = "/api/v1"
 app.include_router(indexing_router, prefix=REST_PATH)
 app.include_router(health_router, prefix=REST_PATH)
 app.include_router(query_router, prefix=REST_PATH)
+app.include_router(file_router, prefix=REST_PATH)
 
 
 def run_fastapi():
