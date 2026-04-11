@@ -245,3 +245,80 @@ class TestListMinioObjects:
             await adapter._list_minio_objects("my-bucket", "", recursive=True)
 
         assert exc_info.value.code == "InternalError"
+
+
+class TestListFolders:
+    """Tests for MinioAdapter.list_folders."""
+
+    async def test_returns_only_dir_objects(
+        self, adapter: MinioAdapter, mock_minio_client: MagicMock
+    ) -> None:
+        """Should return only directory object names."""
+        mock_dir1 = MagicMock()
+        mock_dir1.object_name = "docs/"
+        mock_dir1.is_dir = True
+
+        mock_file = MagicMock()
+        mock_file.object_name = "docs/report.pdf"
+        mock_file.is_dir = False
+
+        mock_dir2 = MagicMock()
+        mock_dir2.object_name = "photos/"
+        mock_dir2.is_dir = True
+
+        mock_minio_client.list_objects.return_value = [mock_dir1, mock_file, mock_dir2]
+
+        result = await adapter.list_folders("my-bucket", "")
+
+        assert result == ["docs/", "photos/"]
+
+    async def test_returns_empty_when_no_dirs(
+        self, adapter: MinioAdapter, mock_minio_client: MagicMock
+    ) -> None:
+        """Should return empty list when no directories exist."""
+        mock_file = MagicMock()
+        mock_file.object_name = "report.pdf"
+        mock_file.is_dir = False
+
+        mock_minio_client.list_objects.return_value = [mock_file]
+
+        result = await adapter.list_folders("my-bucket", "")
+
+        assert result == []
+
+    async def test_excludes_files_from_result(
+        self, adapter: MinioAdapter, mock_minio_client: MagicMock
+    ) -> None:
+        """Should exclude non-directory entries from result."""
+        mock_dir = MagicMock()
+        mock_dir.object_name = "archive/"
+        mock_dir.is_dir = True
+
+        mock_file1 = MagicMock()
+        mock_file1.object_name = "readme.txt"
+        mock_file1.is_dir = False
+
+        mock_file2 = MagicMock()
+        mock_file2.object_name = "data.csv"
+        mock_file2.is_dir = False
+
+        mock_minio_client.list_objects.return_value = [mock_dir, mock_file1, mock_file2]
+
+        result = await adapter.list_folders("my-bucket", "")
+
+        assert result == ["archive/"]
+
+    async def test_propagates_file_not_found_for_missing_bucket(
+        self, adapter: MinioAdapter, mock_minio_client: MagicMock
+    ) -> None:
+        mock_minio_client.list_objects.side_effect = S3Error(
+            response=None,
+            code="NoSuchBucket",
+            message="The specified bucket does not exist.",
+            resource="resource",
+            request_id="request_id",
+            host_id="host_id",
+        )
+
+        with pytest.raises(FileNotFoundError, match="Bucket not found"):
+            await adapter.list_folders("bad-bucket", "")

@@ -67,6 +67,7 @@ def mock_storage() -> AsyncMock:
             last_modified="2026-01-02 00:00:00+00:00",
         ),
     ]
+    mock.list_folders.return_value = ["project/", "documents/"]
     return mock
 
 

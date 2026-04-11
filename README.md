@@ -26,6 +26,7 @@ Multi-modal RAG service exposing a REST API and MCP server for document indexing
     |   IndexFolderUseCase         |   _base              read_file
     |   QueryUseCase               |   query_knowledge
     |   ListFilesUseCase           |   _base_multimodal
+    |   ListFoldersUseCase         |
     |   ReadFileUseCase            |
     | requests/ responses/         |
     +------------------------------+
@@ -212,6 +213,34 @@ Response (`200 OK`):
 |-----------|------|---------|-------------|
 | `prefix` | string | `""` | MinIO prefix to filter files by |
 | `recursive` | boolean | `true` | List files in subdirectories |
+
+### List folders
+
+Returns top-level folder prefixes under a given path. REST-only endpoint (not exposed as an MCP tool).
+
+```bash
+# List all folders in the bucket root
+curl http://localhost:8000/api/v1/files/folders
+
+# List folders under a specific prefix
+curl "http://localhost:8000/api/v1/files/folders?prefix=documents/"
+```
+
+Response (`200 OK`):
+
+```json
+["documents/reports/", "documents/invoices/", "photos/"]
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prefix` | string | `""` | MinIO prefix to list folders under |
+
+Error responses:
+
+| Status | Condition |
+|--------|-----------|
+| `404` | Bucket not found |
 
 ### Read a file
 
@@ -574,7 +603,7 @@ src/
       health_routes.py               -- GET /health
       indexing_routes.py              -- POST /file/index, /folder/index
       query_routes.py                 -- POST /query
-      file_routes.py                  -- GET /files/list, POST /files/read
+      file_routes.py                  -- GET /files/list, GET /files/folders, POST /files/read
       mcp_query_tools.py              -- MCP tools: query_knowledge_base, query_knowledge_base_multimodal
       mcp_file_tools.py                -- MCP tools: list_files, read_file
     requests/
@@ -589,6 +618,7 @@ src/
       index_folder_use_case.py       -- Downloads from MinIO, indexes folder
       query_use_case.py              -- Query with bm25/hybrid+ support
       list_files_use_case.py          -- Lists files with metadata from MinIO
+      list_folders_use_case.py        -- Lists folder prefixes from MinIO
       read_file_use_case.py           -- Reads file from MinIO, extracts content via Kreuzberg
   infrastructure/
     rag/

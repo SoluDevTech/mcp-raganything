@@ -64,6 +64,20 @@ class StoragePort(ABC):
         pass
 
     @abstractmethod
+    async def list_folders(self, bucket: str, prefix: str) -> list[str]:
+        """
+        List folder prefixes under a given prefix.
+
+        Args:
+            bucket: The bucket name to list folders from.
+            prefix: The prefix to list folders under.
+
+        Returns:
+            A list of folder prefix strings (e.g., ['docs/', 'photos/']).
+        """
+        pass
+
+    @abstractmethod
     async def ping(self, bucket: str) -> bool:
         """
         Check connectivity to the storage backend.

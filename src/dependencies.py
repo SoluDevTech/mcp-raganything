@@ -5,6 +5,7 @@ import os
 from application.use_cases.index_file_use_case import IndexFileUseCase
 from application.use_cases.index_folder_use_case import IndexFolderUseCase
 from application.use_cases.list_files_use_case import ListFilesUseCase
+from application.use_cases.list_folders_use_case import ListFoldersUseCase
 from application.use_cases.liveness_check_use_case import LivenessCheckUseCase
 from application.use_cases.multimodal_query_use_case import MultimodalQueryUseCase
 from application.use_cases.query_use_case import QueryUseCase
@@ -82,6 +83,10 @@ def get_multimodal_query_use_case() -> MultimodalQueryUseCase:
 
 def get_list_files_use_case() -> ListFilesUseCase:
     return ListFilesUseCase(storage=minio_adapter, bucket=minio_config.MINIO_BUCKET)
+
+
+def get_list_folders_use_case() -> ListFoldersUseCase:
+    return ListFoldersUseCase(storage=minio_adapter, bucket=minio_config.MINIO_BUCKET)
 
 
 def get_read_file_use_case() -> ReadFileUseCase:

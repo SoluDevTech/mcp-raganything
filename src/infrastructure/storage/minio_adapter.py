@@ -81,6 +81,10 @@ class MinioAdapter(StoragePort):
             if not obj.is_dir
         ]
 
+    async def list_folders(self, bucket: str, prefix: str) -> list[str]:
+        objects = await self._list_minio_objects(bucket, prefix, recursive=False)
+        return [obj.object_name for obj in objects if obj.is_dir]
+
     async def ping(self, bucket: str) -> bool:
         try:
             loop = asyncio.get_running_loop()
