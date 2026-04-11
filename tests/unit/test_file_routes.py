@@ -2,10 +2,10 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-from application.use_cases.list_folders_use_case import ListFoldersUseCase
 from httpx import ASGITransport
 
 from application.use_cases.list_files_use_case import ListFilesUseCase
+from application.use_cases.list_folders_use_case import ListFoldersUseCase
 from application.use_cases.read_file_use_case import ReadFileUseCase
 from dependencies import (
     get_list_files_use_case,
@@ -248,23 +248,6 @@ class TestListFoldersRoute:
 
         body = response.json()
         assert body == ["docs/", "photos/"]
-
-    async def test_list_folders_with_prefix_param(
-        self, mock_list_folders_use_case: AsyncMock
-    ) -> None:
-        app.dependency_overrides[get_list_folders_use_case] = lambda: (
-            mock_list_folders_use_case
-        )
-
-        async with httpx.AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get(
-                "/api/v1/files/folders", params={"prefix": "docs/"}
-            )
-
-        assert response.status_code == 200
-        mock_list_folders_use_case.execute.assert_called_once_with(prefix="docs/")
 
     async def test_list_folders_empty_result(
         self, mock_list_folders_use_case: AsyncMock

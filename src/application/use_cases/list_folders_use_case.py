@@ -6,5 +6,5 @@ class ListFoldersUseCase:
         self.storage = storage
         self.bucket = bucket
 
-    async def execute(self, prefix: str = "") -> list[str]:
-        return await self.storage.list_folders(self.bucket, prefix)
+    async def execute(self) -> list[str]:
+        return await self.storage.list_folders(self.bucket)

@@ -253,7 +253,6 @@ class TestListFolders:
     async def test_returns_only_dir_objects(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
-        """Should return only directory object names."""
         mock_dir1 = MagicMock()
         mock_dir1.object_name = "docs/"
         mock_dir1.is_dir = True
@@ -268,28 +267,26 @@ class TestListFolders:
 
         mock_minio_client.list_objects.return_value = [mock_dir1, mock_file, mock_dir2]
 
-        result = await adapter.list_folders("my-bucket", "")
+        result = await adapter.list_folders("my-bucket")
 
         assert result == ["docs/", "photos/"]
 
     async def test_returns_empty_when_no_dirs(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
-        """Should return empty list when no directories exist."""
         mock_file = MagicMock()
         mock_file.object_name = "report.pdf"
         mock_file.is_dir = False
 
         mock_minio_client.list_objects.return_value = [mock_file]
 
-        result = await adapter.list_folders("my-bucket", "")
+        result = await adapter.list_folders("my-bucket")
 
         assert result == []
 
     async def test_excludes_files_from_result(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
-        """Should exclude non-directory entries from result."""
         mock_dir = MagicMock()
         mock_dir.object_name = "archive/"
         mock_dir.is_dir = True
@@ -304,7 +301,7 @@ class TestListFolders:
 
         mock_minio_client.list_objects.return_value = [mock_dir, mock_file1, mock_file2]
 
-        result = await adapter.list_folders("my-bucket", "")
+        result = await adapter.list_folders("my-bucket")
 
         assert result == ["archive/"]
 
@@ -321,4 +318,4 @@ class TestListFolders:
         )
 
         with pytest.raises(FileNotFoundError, match="Bucket not found"):
-            await adapter.list_folders("bad-bucket", "")
+            await adapter.list_folders("bad-bucket")

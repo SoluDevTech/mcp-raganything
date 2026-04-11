@@ -216,25 +216,17 @@ Response (`200 OK`):
 
 ### List folders
 
-Returns top-level folder prefixes under a given path. REST-only endpoint (not exposed as an MCP tool).
+Returns top-level folder prefixes in the bucket. REST-only endpoint (not exposed as an MCP tool).
 
 ```bash
-# List all folders in the bucket root
 curl http://localhost:8000/api/v1/files/folders
-
-# List folders under a specific prefix
-curl "http://localhost:8000/api/v1/files/folders?prefix=documents/"
 ```
 
 Response (`200 OK`):
 
 ```json
-["documents/reports/", "documents/invoices/", "photos/"]
+["documents/", "photos/", "reports/"]
 ```
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `prefix` | string | `""` | MinIO prefix to list folders under |
 
 Error responses:
 
