@@ -34,7 +34,7 @@ class KreuzbergAdapter(DocumentReaderPort):
     async def extract_content(self, file_path: str) -> DocumentContent:
         try:
             result = await extract_file(file_path, config=_KREUZBERG_CONFIG)
-            logger.debug("Extracted content from %s (mime_type=%s)", file_path, result.mime_type)
+            logger.debug("Full extraction result for %s: %s", file_path, result)
         except ParsingError as e:
             raise ValueError(f"Unsupported file format: {e}") from e
         except ValidationError as e:

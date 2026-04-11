@@ -6,11 +6,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from alembic import command
 from application.api.file_routes import file_router
 from application.api.health_routes import health_router
 from application.api.indexing_routes import indexing_router

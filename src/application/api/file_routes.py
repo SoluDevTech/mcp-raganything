@@ -13,7 +13,6 @@ file_router = APIRouter(tags=["Files"])
 
 @file_router.get(
     "/files/list",
-    response_model=list[FileInfoResponse],
     status_code=status.HTTP_200_OK,
 )
 async def list_files(
@@ -27,7 +26,6 @@ async def list_files(
 
 @file_router.post(
     "/files/read",
-    response_model=FileContentResponse,
     status_code=status.HTTP_200_OK,
 )
 async def read_file(

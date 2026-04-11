@@ -80,3 +80,13 @@ class MinioAdapter(StoragePort):
             for obj in objects
             if not obj.is_dir
         ]
+
+    async def ping(self, bucket: str) -> bool:
+        try:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(
+                None, lambda: self.client.bucket_exists(bucket)
+            )
+        except Exception:
+            logger.warning("MinIO health check failed", exc_info=True)
+            return False

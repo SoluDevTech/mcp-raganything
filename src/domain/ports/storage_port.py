@@ -62,3 +62,16 @@ class StoragePort(ABC):
             A list of FileInfo objects with object_name, size, and last_modified.
         """
         pass
+
+    @abstractmethod
+    async def ping(self, bucket: str) -> bool:
+        """
+        Check connectivity to the storage backend.
+
+        Args:
+            bucket: The bucket name to check.
+
+        Returns:
+            True if the backend is reachable, False otherwise.
+        """
+        pass

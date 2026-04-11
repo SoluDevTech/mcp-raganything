@@ -43,9 +43,7 @@ class TestQueryKnowledgeBase:
             },
         }
 
-    async def test_returns_chunks_from_use_case(
-        self, mock_query_result: dict
-    ) -> None:
+    async def test_returns_chunks_from_use_case(self, mock_query_result: dict) -> None:
         """Should call use_case.execute and return the chunk list."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = mock_query_result
@@ -64,9 +62,7 @@ class TestQueryKnowledgeBase:
         assert isinstance(result[0], ChunkResponse)
         assert result[0].content == "Relevant chunk content"
 
-    async def test_calls_use_case_with_defaults(
-        self, mock_query_result: dict
-    ) -> None:
+    async def test_calls_use_case_with_defaults(self, mock_query_result: dict) -> None:
         """Should pass default mode='hybrid' and top_k=5 to use case."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = mock_query_result
@@ -112,9 +108,7 @@ class TestQueryKnowledgeBase:
             top_k=20,
         )
 
-    async def test_handles_naive_mode(
-        self, mock_query_result: dict
-    ) -> None:
+    async def test_handles_naive_mode(self, mock_query_result: dict) -> None:
         """Should work with naive mode (vector search only)."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = mock_query_result
@@ -137,9 +131,7 @@ class TestQueryKnowledgeBase:
             top_k=5,
         )
 
-    async def test_handles_global_mode(
-        self, mock_query_result: dict
-    ) -> None:
+    async def test_handles_global_mode(self, mock_query_result: dict) -> None:
         """Should work with global mode."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = mock_query_result
@@ -162,9 +154,7 @@ class TestQueryKnowledgeBase:
             top_k=10,
         )
 
-    async def test_handles_mix_mode(
-        self, mock_query_result: dict
-    ) -> None:
+    async def test_handles_mix_mode(self, mock_query_result: dict) -> None:
         """Should work with mix mode."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = mock_query_result
@@ -187,9 +177,7 @@ class TestQueryKnowledgeBase:
             top_k=15,
         )
 
-    async def test_handles_hybrid_plus_mode(
-        self, mock_query_result: dict
-    ) -> None:
+    async def test_handles_hybrid_plus_mode(self, mock_query_result: dict) -> None:
         """Should work with hybrid+ mode (BM25 + vector)."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = mock_query_result
@@ -241,10 +229,13 @@ class TestQueryKnowledgeBase:
         mock_use_case = AsyncMock()
         mock_use_case.execute.side_effect = RuntimeError("RAG engine failure")
 
-        with patch(
-            "application.api.mcp_query_tools.get_query_use_case",
-            return_value=mock_use_case,
-        ), pytest.raises(RuntimeError, match="RAG engine failure"):
+        with (
+            patch(
+                "application.api.mcp_query_tools.get_query_use_case",
+                return_value=mock_use_case,
+            ),
+            pytest.raises(RuntimeError, match="RAG engine failure"),
+        ):
             await query_knowledge_base(
                 working_dir="/tmp/rag/test",
                 query="will fail",
@@ -257,9 +248,7 @@ class TestQueryKnowledgeBaseMultimodal:
     @pytest.fixture
     def multimodal_content(self) -> list[MultimodalContentItem]:
         return [
-            MultimodalContentItem(
-                type="image", img_path="/tmp/images/chart.png"
-            ),
+            MultimodalContentItem(type="image", img_path="/tmp/images/chart.png"),
         ]
 
     async def test_returns_result_from_use_case(
@@ -311,7 +300,8 @@ class TestQueryKnowledgeBaseMultimodal:
         )
 
     async def test_calls_use_case_with_custom_params(
-        self, multimodal_content: list[MultimodalContentItem],  # noqa: ARG002
+        self,
+        multimodal_content: list[MultimodalContentItem],  # noqa: ARG002
     ) -> None:
         """Should forward custom mode and top_k to use case."""
         mock_use_case = AsyncMock()
@@ -375,10 +365,13 @@ class TestQueryKnowledgeBaseMultimodal:
         mock_use_case = AsyncMock()
         mock_use_case.execute.side_effect = RuntimeError("Vision model failed")
 
-        with patch(
-            "application.api.mcp_query_tools.get_multimodal_query_use_case",
-            return_value=mock_use_case,
-        ), pytest.raises(RuntimeError, match="Vision model failed"):
+        with (
+            patch(
+                "application.api.mcp_query_tools.get_multimodal_query_use_case",
+                return_value=mock_use_case,
+            ),
+            pytest.raises(RuntimeError, match="Vision model failed"),
+        ):
             await query_knowledge_base_multimodal(
                 working_dir="/tmp/rag/test",
                 query="will fail",

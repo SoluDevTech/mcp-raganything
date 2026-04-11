@@ -4,7 +4,6 @@ The validator converts various input types into a consistent list[str] | None
 format for the IndexFolderRequest.file_extensions field.
 """
 
-
 from application.requests.indexing_request import (
     IndexFolderRequest,
     _coerce_file_extensions,

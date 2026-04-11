@@ -133,10 +133,13 @@ class TestReadFile:
         mock_use_case = AsyncMock()
         mock_use_case.execute.side_effect = FileNotFoundError
 
-        with patch(
-            "application.api.mcp_file_tools.get_read_file_use_case",
-            return_value=mock_use_case,
-        ), pytest.raises(ValueError, match="File not found: missing.pdf"):
+        with (
+            patch(
+                "application.api.mcp_file_tools.get_read_file_use_case",
+                return_value=mock_use_case,
+            ),
+            pytest.raises(ValueError, match="File not found: missing.pdf"),
+        ):
             await read_file(file_path="missing.pdf")
 
     async def test_raises_runtime_error_for_generic_failure(self) -> None:
@@ -144,10 +147,13 @@ class TestReadFile:
         mock_use_case = AsyncMock()
         mock_use_case.execute.side_effect = Exception("Disk full")
 
-        with patch(
-            "application.api.mcp_file_tools.get_read_file_use_case",
-            return_value=mock_use_case,
-        ), pytest.raises(RuntimeError, match="Failed to read file"):
+        with (
+            patch(
+                "application.api.mcp_file_tools.get_read_file_use_case",
+                return_value=mock_use_case,
+            ),
+            pytest.raises(RuntimeError, match="Failed to read file"),
+        ):
             await read_file(file_path="documents/broken.pdf")
 
     async def test_includes_tables_in_response(self) -> None:

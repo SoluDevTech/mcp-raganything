@@ -48,13 +48,13 @@ def adapter(mock_llm_config: MagicMock, mock_rag_config: MagicMock) -> LightRAGA
 class TestQueryMultimodal:
     """Tests for LightRAGAdapter.query_multimodal."""
 
-    async def test_returns_multimodal_result(
-        self, adapter: LightRAGAdapter
-    ) -> None:
+    async def test_returns_multimodal_result(self, adapter: LightRAGAdapter) -> None:
         """Should call rag.aquery_with_multimodal and return its string result."""
         mock_rag = AsyncMock()
         mock_rag._ensure_lightrag_initialized = AsyncMock()
-        mock_rag.aquery_with_multimodal.return_value = "Image shows a bar chart with sales data."
+        mock_rag.aquery_with_multimodal.return_value = (
+            "Image shows a bar chart with sales data."
+        )
 
         # Pre-populate the rag dict so _ensure_initialized succeeds
         adapter.rag["/tmp/project"] = mock_rag
@@ -97,9 +97,7 @@ class TestQueryMultimodal:
                 working_dir="/tmp/uninitialized",
             )
 
-    async def test_passes_mode_and_top_k(
-        self, adapter: LightRAGAdapter
-    ) -> None:
+    async def test_passes_mode_and_top_k(self, adapter: LightRAGAdapter) -> None:
         """Should forward mode and top_k to aquery_with_multimodal."""
         mock_rag = AsyncMock()
         mock_rag._ensure_lightrag_initialized = AsyncMock()
@@ -174,7 +172,9 @@ class TestBuildVisionMessages:
         assert len(user_msg["content"]) == 2  # text + image
         assert user_msg["content"][0]["type"] == "text"
         assert user_msg["content"][1]["type"] == "image_url"
-        assert user_msg["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+        assert user_msg["content"][1]["image_url"]["url"].startswith(
+            "data:image/jpeg;base64,"
+        )
 
     def test_builds_messages_with_image_url(self) -> None:
         """Should use http URLs directly without base64 prefix."""
@@ -186,7 +186,10 @@ class TestBuildVisionMessages:
         )
 
         user_msg = messages[0]
-        assert user_msg["content"][1]["image_url"]["url"] == "https://example.com/image.png"
+        assert (
+            user_msg["content"][1]["image_url"]["url"]
+            == "https://example.com/image.png"
+        )
 
     def test_builds_messages_with_multiple_images(self) -> None:
         """Should handle list of images in image_data."""
