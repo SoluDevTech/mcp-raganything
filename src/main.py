@@ -2,20 +2,20 @@
 
 import logging
 import logging.config
-import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
+from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from alembic import command
 from application.api.file_routes import file_router
 from application.api.health_routes import health_router
 from application.api.indexing_routes import indexing_router
-from application.api.mcp_tools import mcp
+from application.api.mcp_file_tools import mcp_files
+from application.api.mcp_query_tools import mcp_query
 from application.api.query_routes import query_router
 from dependencies import app_config, bm25_adapter
 
@@ -53,8 +53,6 @@ logging.config.dictConfig(LOG_CONFIG)
 
 logger = logging.getLogger(__name__)
 
-MCP_PATH = "/mcp"
-
 
 def _run_alembic_upgrade() -> None:
     """Run Alembic migrations to head."""
@@ -78,26 +76,25 @@ async def db_lifespan(_app: FastAPI):
     logger.info("Application shutdown complete")
 
 
-# Create FastAPI app with appropriate lifespan
-if app_config.MCP_TRANSPORT == "streamable":
-    mcp_app = mcp.http_app(path="/")
+mcp_query_app = mcp_query.http_app(path="/")
+mcp_files_app = mcp_files.http_app(path="/")
 
-    @asynccontextmanager
-    async def combined_lifespan(app: FastAPI):
-        """Combine database lifecycle with MCP lifecycle for streamable transport."""
-        async with db_lifespan(app), mcp_app.lifespan(app):
-            yield
 
-    app = FastAPI(
-        title="RAG Anything API",
-        lifespan=combined_lifespan,
-    )
-    app.mount(MCP_PATH, mcp_app)
-else:
-    app = FastAPI(
-        title="RAG Anything API",
-        lifespan=db_lifespan,
-    )
+@asynccontextmanager
+async def combined_lifespan(app: FastAPI):
+    """Combine database lifecycle with both MCP lifespans."""
+    async with (
+        db_lifespan(app),
+        mcp_query_app.lifespan(app),
+        mcp_files_app.lifespan(app),
+    ):
+        yield
+
+
+app = FastAPI(
+    title="RAG Anything API",
+    lifespan=combined_lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -112,6 +109,9 @@ app.include_router(indexing_router, prefix=REST_PATH)
 app.include_router(health_router, prefix=REST_PATH)
 app.include_router(query_router, prefix=REST_PATH)
 app.include_router(file_router, prefix=REST_PATH)
+
+app.mount("/rag/mcp", mcp_query_app)
+app.mount("/files/mcp", mcp_files_app)
 
 
 def run_fastapi():
@@ -132,9 +132,4 @@ def run_fastapi():
 
 
 if __name__ == "__main__":
-    if app_config.MCP_TRANSPORT == "stdio":
-        api_thread = threading.Thread(target=run_fastapi, daemon=True)
-        api_thread.start()
-        mcp.run(transport="stdio")
-    else:
-        run_fastapi()
+    run_fastapi()

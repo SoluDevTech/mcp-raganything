@@ -14,23 +14,23 @@ Multi-modal RAG service exposing a REST API and MCP server for document indexing
                             |
             +---------------+---------------+
             |                               |
-   Application Layer                  MCP Tools
-   +------------------------------+   (FastMCP)
-   | api/                         |       |
-   |   indexing_routes.py         |       |
-   |   query_routes.py           |       |
-   |   file_routes.py             |       |
-   |   health_routes.py          |       |
-   | use_cases/                   |       |
-   |   IndexFileUseCase           |       |
-   |   IndexFolderUseCase         |       |
-   |   QueryUseCase               |       |
-   |   ListFilesUseCase            |       |
-   |   ReadFileUseCase             |       |
-   | requests/ responses/         |       |
-   +------------------------------+       |
-            |         |          |        |
-            v         v          v        v
+    Application Layer            MCP Servers (FastMCP)
+    +------------------------------+       |
+    | api/                         |   +---+--------+  +--+-----------+
+    |   indexing_routes.py         |   | RAGAnything |  | RAGAnything |
+    |   query_routes.py            |   | Query       |  | Files       |
+    |   file_routes.py             |   |  /rag/mcp   |  |  /files/mcp |
+    |   health_routes.py           |   +---+--------+  +--+-----------+
+    | use_cases/                   |       |               |
+    |   IndexFileUseCase           |   query_knowledge    list_files
+    |   IndexFolderUseCase         |   _base              read_file
+    |   QueryUseCase               |   query_knowledge
+    |   ListFilesUseCase           |   _base_multimodal
+    |   ReadFileUseCase            |
+    | requests/ responses/         |
+    +------------------------------+
+             |         |          |
+             v         v          v
    Domain Layer (ports)
    +------------------------------------------+
    | RAGEnginePort  StoragePort  BM25EnginePort  DocumentReaderPort |
@@ -173,7 +173,7 @@ The service automatically detects and processes the following document formats t
 
 | Format | Extensions | Notes |
 |--------|------------|-------|
-| PDF | `.pdf` | Includes OCR support |
+| PDF | `.pdf` | Includes OCR support (English + French via Tesseract) |
 | Microsoft Word | `.docx` | |
 | Microsoft PowerPoint | `.pptx` | |
 | Microsoft Excel | `.xlsx` | |
@@ -382,20 +382,24 @@ Response (`200 OK`):
 
 The `combined_score` is the sum of `bm25_score` and `vector_score`, each computed as `1 / (k + rank)`. Results are sorted by `combined_score` descending. A chunk that appears in both result sets will have a higher combined score than one that appears in only one.
 
-## MCP Server
+## MCP Servers
 
-The MCP server is mounted at `/mcp` and exposes the following tools:
+The service exposes **two separate MCP servers**, both using streamable HTTP transport:
 
-### Tool: `query_knowledge_base`
+### RAGAnythingQuery — `/rag/mcp`
+
+Query-focused tools for searching the indexed knowledge base.
+
+#### Tool: `query_knowledge_base`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `working_dir` | string | required | RAG workspace directory for this project |
 | `query` | string | required | The search query |
-| `mode` | string | `"naive"` | Search mode: `naive`, `local`, `global`, `hybrid`, `hybrid+`, `mix`, `bm25`, `bypass` |
-| `top_k` | integer | `10` | Number of chunks to retrieve |
+| `mode` | string | `"hybrid"` | Search mode: `naive`, `local`, `global`, `hybrid`, `hybrid+`, `mix`, `bm25`, `bypass` |
+| `top_k` | integer | `5` | Number of chunks to retrieve |
 
-### Tool: `query_knowledge_base_multimodal`
+#### Tool: `query_knowledge_base_multimodal`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -405,14 +409,18 @@ The MCP server is mounted at `/mcp` and exposes the following tools:
 | `mode` | string | `"hybrid"` | Search mode |
 | `top_k` | integer | `5` | Number of chunks to retrieve |
 
-### Tool: `list_files`
+### RAGAnythingFiles — `/files/mcp`
+
+File browsing tools for listing and reading files from MinIO storage.
+
+#### Tool: `list_files`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `prefix` | string | `""` | MinIO prefix to filter files by |
 | `recursive` | boolean | `true` | List files in subdirectories |
 
-### Tool: `read_file`
+#### Tool: `read_file`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -420,39 +428,13 @@ The MCP server is mounted at `/mcp` and exposes the following tools:
 
 Downloads the file from MinIO, extracts its text content using Kreuzberg, and returns the extracted text along with metadata and any detected tables.
 
-### Transport modes
+### Transport
 
-The `MCP_TRANSPORT` environment variable controls how the MCP server is exposed:
+Both MCP servers use **streamable HTTP** transport exclusively. Connect MCP clients to the mount paths:
 
-| Value | Behavior |
-|-------|----------|
-| `stdio` | MCP runs over stdin/stdout; FastAPI runs in a background thread |
-| `sse` | MCP mounted at `/mcp` as SSE endpoint |
-| `streamable` | MCP mounted at `/mcp` as streamable HTTP endpoint |
-
-### Claude Desktop configuration
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "raganything": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/absolute/path/to/mcp-raganything",
-        "python",
-        "-m",
-        "src.main"
-      ],
-      "env": {
-        "MCP_TRANSPORT": "stdio"
-      }
-    }
-  }
-}
+```
+http://localhost:8000/rag/mcp      # RAGAnythingQuery
+http://localhost:8000/files/mcp    # RAGAnythingFiles
 ```
 
 ## Configuration
@@ -465,7 +447,6 @@ All configuration is via environment variables, loaded through Pydantic Settings
 |----------|---------|-------------|
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `8000` | Server port |
-| `MCP_TRANSPORT` | `stdio` | MCP transport: `stdio`, `sse`, `streamable` |
 | `ALLOWED_ORIGINS` | `["*"]` | CORS allowed origins |
 | `OUTPUT_DIR` | system temp | Temporary directory for downloaded files |
 | `UVICORN_LOG_LEVEL` | `critical` | Uvicorn log level |
@@ -577,7 +558,7 @@ The PostgreSQL server must have the `pg_textsearch` extension installed and load
 
 ```
 src/
-  main.py                           -- FastAPI app, MCP mount, entry point
+  main.py                           -- FastAPI app, dual MCP mounts, entry point
   config.py                         -- Pydantic Settings config classes
   dependencies.py                   -- Dependency injection wiring
   domain/
@@ -594,7 +575,8 @@ src/
       indexing_routes.py              -- POST /file/index, /folder/index
       query_routes.py                 -- POST /query
       file_routes.py                  -- GET /files/list, POST /files/read
-      mcp_tools.py                    -- MCP tools: query_knowledge_base, list_files, read_file
+      mcp_query_tools.py              -- MCP tools: query_knowledge_base, query_knowledge_base_multimodal
+      mcp_file_tools.py                -- MCP tools: list_files, read_file
     requests/
       indexing_request.py            -- IndexFileRequest, IndexFolderRequest
       query_request.py                -- QueryRequest, MultimodalQueryRequest
