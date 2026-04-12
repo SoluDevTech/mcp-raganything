@@ -47,6 +47,24 @@ class StoragePort(ABC):
         pass
 
     @abstractmethod
+    async def put_object(
+        self, bucket: str, object_path: str, data: bytes, content_type: str
+    ) -> None:
+        """
+        Store an object in the given bucket.
+
+        Args:
+            bucket: The bucket name to store the object in.
+            object_path: The path/key for the object within the bucket.
+            data: The raw bytes to store.
+            content_type: The MIME type of the content.
+
+        Raises:
+            FileNotFoundError: If the bucket does not exist.
+        """
+        pass
+
+    @abstractmethod
     async def list_files_metadata(
         self, bucket: str, prefix: str, recursive: bool = True
     ) -> list[FileInfo]:

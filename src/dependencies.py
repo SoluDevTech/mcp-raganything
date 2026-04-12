@@ -8,6 +8,7 @@ from application.use_cases.list_files_use_case import ListFilesUseCase
 from application.use_cases.multimodal_query_use_case import MultimodalQueryUseCase
 from application.use_cases.query_use_case import QueryUseCase
 from application.use_cases.read_file_use_case import ReadFileUseCase
+from application.use_cases.upload_file_use_case import UploadFileUseCase
 from config import (
     AppConfig,
     BM25Config,
@@ -88,3 +89,7 @@ def get_read_file_use_case() -> ReadFileUseCase:
         bucket=minio_config.MINIO_BUCKET,
         output_dir=app_config.OUTPUT_DIR,
     )
+
+
+def get_upload_file_use_case() -> UploadFileUseCase:
+    return UploadFileUseCase(storage=minio_adapter, bucket=minio_config.MINIO_BUCKET)

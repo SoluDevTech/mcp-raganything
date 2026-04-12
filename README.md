@@ -213,6 +213,37 @@ Response (`200 OK`):
 | `prefix` | string | `""` | MinIO prefix to filter files by |
 | `recursive` | boolean | `true` | List files in subdirectories |
 
+### Upload a file
+
+Uploads a file directly to the MinIO bucket. The file is stored at `{prefix}{filename}`. This endpoint does **not** index the file — use the `POST /file/index` endpoint after uploading to add it to the RAG knowledge base.
+
+**Allowed file types:** `.pdf`, `.txt`, `.docx`, `.xlsx`, `.pptx`, `.md`, `.csv`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`, `.html`, `.xml`, `.json`, `.rtf`, `.odt`, `.ods`
+**Maximum file size:** 50 MB
+
+```bash
+curl -X POST http://localhost:8000/api/v1/files/upload \
+  -F "file=@report.pdf" \
+  -F "prefix=documents/"
+```
+
+Response (`201 Created`):
+
+```json
+{"object_name": "documents/report.pdf", "size": 2048, "message": "File uploaded successfully"}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `file` | file | yes | -- | The file to upload (multipart form) |
+| `prefix` | string | no | `""` | MinIO prefix (folder path). Must be a relative path |
+
+Error responses:
+
+| Status | Condition |
+|--------|-----------|
+| `413` | File exceeds 50 MB limit |
+| `422` | Invalid prefix (path traversal/absolute), disallowed file type, or missing file |
+
 ### Read a file
 
 Downloads the file from MinIO, extracts its text content using Kreuzberg, and returns the result. Supports 91 file formats including PDF, Office documents, images, and HTML.
@@ -593,7 +624,7 @@ src/
       health_routes.py               -- GET /health
       indexing_routes.py              -- POST /file/index, /folder/index
       query_routes.py                 -- POST /query
-      file_routes.py                  -- GET /files/list, POST /files/read
+      file_routes.py                  -- GET /files/list, POST /files/read, POST /files/upload
       mcp_tools.py                    -- MCP tools: query_knowledge_base, list_files, read_file
     requests/
       indexing_request.py            -- IndexFileRequest, IndexFolderRequest
@@ -608,6 +639,7 @@ src/
       query_use_case.py              -- Query with bm25/hybrid+ support
       list_files_use_case.py          -- Lists files with metadata from MinIO
       read_file_use_case.py           -- Reads file from MinIO, extracts content via Kreuzberg
+      upload_file_use_case.py          -- Uploads file to MinIO storage
   infrastructure/
     rag/
       lightrag_adapter.py            -- LightRAGAdapter (RAGAnything/LightRAG)
