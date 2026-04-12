@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     libgl1 \
     git \
     tesseract-ocr \
+    tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
