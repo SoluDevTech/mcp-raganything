@@ -1,4 +1,5 @@
 import asyncio
+import io
 import logging
 
 from minio import Minio
@@ -40,6 +41,28 @@ class MinioAdapter(StoragePort):
                     f"Object not found: bucket={bucket}, path={object_path}"
                 ) from e
             logger.error("MinIO error retrieving object: %s", e, exc_info=True)
+            raise
+
+    async def put_object(
+        self, bucket: str, object_path: str, data: bytes, content_type: str
+    ) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: self.client.put_object(
+                    bucket,
+                    object_path,
+                    io.BytesIO(data),
+                    len(data),
+                    content_type=content_type,
+                ),
+            )
+        except S3Error as e:
+            if e.code == "NoSuchBucket":
+                logger.info("Bucket not found: %s", bucket)
+                raise FileNotFoundError(f"Bucket not found: {bucket}") from e
+            logger.error("MinIO error uploading object: %s", e, exc_info=True)
             raise
 
     async def _list_minio_objects(

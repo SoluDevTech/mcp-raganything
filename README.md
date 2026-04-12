@@ -214,25 +214,36 @@ Response (`200 OK`):
 | `prefix` | string | `""` | MinIO prefix to filter files by |
 | `recursive` | boolean | `true` | List files in subdirectories |
 
-### List folders
+### Upload a file
 
-Returns top-level folder prefixes in the bucket. REST-only endpoint (not exposed as an MCP tool).
+Uploads a file directly to the MinIO bucket. The file is stored at `{prefix}{filename}`. This endpoint does **not** index the file — use the `POST /file/index` endpoint after uploading to add it to the RAG knowledge base.
+
+**Allowed file types:** `.pdf`, `.txt`, `.docx`, `.xlsx`, `.pptx`, `.md`, `.csv`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`, `.html`, `.xml`, `.json`, `.rtf`, `.odt`, `.ods`
+**Maximum file size:** 50 MB
 
 ```bash
-curl http://localhost:8000/api/v1/files/folders
+curl -X POST http://localhost:8000/api/v1/files/upload \
+  -F "file=@report.pdf" \
+  -F "prefix=documents/"
 ```
 
-Response (`200 OK`):
+Response (`201 Created`):
 
 ```json
-["documents/", "photos/", "reports/"]
+{"object_name": "documents/report.pdf", "size": 2048, "message": "File uploaded successfully"}
 ```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `file` | file | yes | -- | The file to upload (multipart form) |
+| `prefix` | string | no | `""` | MinIO prefix (folder path). Must be a relative path |
 
 Error responses:
 
 | Status | Condition |
 |--------|-----------|
-| `404` | Bucket not found |
+| `413` | File exceeds 50 MB limit |
+| `422` | Invalid prefix (path traversal/absolute), disallowed file type, or missing file |
 
 ### Read a file
 
@@ -612,6 +623,7 @@ src/
       list_files_use_case.py          -- Lists files with metadata from MinIO
       list_folders_use_case.py        -- Lists folder prefixes from MinIO
       read_file_use_case.py           -- Reads file from MinIO, extracts content via Kreuzberg
+      upload_file_use_case.py          -- Uploads file to MinIO storage
   infrastructure/
     rag/
       lightrag_adapter.py            -- LightRAGAdapter (RAGAnything/LightRAG)
