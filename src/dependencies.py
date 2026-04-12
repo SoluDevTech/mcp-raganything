@@ -5,6 +5,8 @@ import os
 from application.use_cases.index_file_use_case import IndexFileUseCase
 from application.use_cases.index_folder_use_case import IndexFolderUseCase
 from application.use_cases.list_files_use_case import ListFilesUseCase
+from application.use_cases.list_folders_use_case import ListFoldersUseCase
+from application.use_cases.liveness_check_use_case import LivenessCheckUseCase
 from application.use_cases.multimodal_query_use_case import MultimodalQueryUseCase
 from application.use_cases.query_use_case import QueryUseCase
 from application.use_cases.read_file_use_case import ReadFileUseCase
@@ -17,6 +19,7 @@ from config import (
     RAGConfig,
 )
 from domain.ports.bm25_engine import BM25EnginePort
+from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
 from infrastructure.document_reader.kreuzberg_adapter import KreuzbergAdapter
 from infrastructure.rag.lightrag_adapter import LightRAGAdapter
 from infrastructure.rag.pg_textsearch_adapter import PostgresBM25Adapter
@@ -51,6 +54,7 @@ if bm25_config.BM25_ENABLED:
         bm25_adapter = None
 
 kreuzberg_adapter = KreuzbergAdapter()
+postgres_health_adapter = AsyncpgHealthAdapter(db_config)
 
 
 def get_index_file_use_case() -> IndexFileUseCase:
@@ -81,10 +85,22 @@ def get_list_files_use_case() -> ListFilesUseCase:
     return ListFilesUseCase(storage=minio_adapter, bucket=minio_config.MINIO_BUCKET)
 
 
+def get_list_folders_use_case() -> ListFoldersUseCase:
+    return ListFoldersUseCase(storage=minio_adapter, bucket=minio_config.MINIO_BUCKET)
+
+
 def get_read_file_use_case() -> ReadFileUseCase:
     return ReadFileUseCase(
         storage=minio_adapter,
         document_reader=kreuzberg_adapter,
         bucket=minio_config.MINIO_BUCKET,
         output_dir=app_config.OUTPUT_DIR,
+    )
+
+
+def get_liveness_check_use_case() -> LivenessCheckUseCase:
+    return LivenessCheckUseCase(
+        storage=minio_adapter,
+        postgres_health=postgres_health_adapter,
+        bucket=minio_config.MINIO_BUCKET,
     )

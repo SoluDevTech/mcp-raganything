@@ -12,9 +12,6 @@ class AppConfig(BaseSettings):
     ALLOWED_ORIGINS: list[str] = Field(
         default=["*"], description="CORS allowed origins"
     )
-    MCP_TRANSPORT: str = Field(
-        default="stdio", description="MCP transport mode: stdio, sse, streamable"
-    )
     HOST: str = Field(default="0.0.0.0", description="Server host")
     PORT: int = Field(default=8000, description="Server port")
     UVICORN_LOG_LEVEL: str = Field(default="critical", description="Uvicorn log level")

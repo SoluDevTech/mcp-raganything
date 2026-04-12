@@ -5,8 +5,13 @@ import pytest
 from httpx import ASGITransport
 
 from application.use_cases.list_files_use_case import ListFilesUseCase
+from application.use_cases.list_folders_use_case import ListFoldersUseCase
 from application.use_cases.read_file_use_case import ReadFileUseCase
-from dependencies import get_list_files_use_case, get_read_file_use_case
+from dependencies import (
+    get_list_files_use_case,
+    get_list_folders_use_case,
+    get_read_file_use_case,
+)
 from domain.ports.document_reader_port import DocumentContent, DocumentMetadata
 from domain.ports.storage_port import FileInfo
 from main import app
@@ -206,3 +211,73 @@ class TestReadFileRoute:
             )
 
         assert response.status_code == 422
+
+
+class TestListFoldersRoute:
+    @pytest.fixture
+    def mock_list_folders_use_case(self) -> AsyncMock:
+        mock = AsyncMock(spec=ListFoldersUseCase)
+        mock.execute.return_value = ["docs/", "photos/"]
+        return mock
+
+    async def test_list_folders_returns_200(
+        self, mock_list_folders_use_case: AsyncMock
+    ) -> None:
+        app.dependency_overrides[get_list_folders_use_case] = lambda: (
+            mock_list_folders_use_case
+        )
+
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/v1/files/folders")
+
+        assert response.status_code == 200
+
+    async def test_list_folders_returns_folder_list(
+        self, mock_list_folders_use_case: AsyncMock
+    ) -> None:
+        app.dependency_overrides[get_list_folders_use_case] = lambda: (
+            mock_list_folders_use_case
+        )
+
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/v1/files/folders")
+
+        body = response.json()
+        assert body == ["docs/", "photos/"]
+
+    async def test_list_folders_empty_result(
+        self, mock_list_folders_use_case: AsyncMock
+    ) -> None:
+        mock_list_folders_use_case.execute.return_value = []
+        app.dependency_overrides[get_list_folders_use_case] = lambda: (
+            mock_list_folders_use_case
+        )
+
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/v1/files/folders")
+
+        body = response.json()
+        assert body == []
+
+    async def test_list_folders_returns_404_for_missing_bucket(
+        self, mock_list_folders_use_case: AsyncMock
+    ) -> None:
+        mock_list_folders_use_case.execute.side_effect = FileNotFoundError(
+            "Bucket not found"
+        )
+        app.dependency_overrides[get_list_folders_use_case] = lambda: (
+            mock_list_folders_use_case
+        )
+
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/v1/files/folders")
+
+        assert response.status_code == 404

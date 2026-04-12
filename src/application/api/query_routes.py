@@ -13,9 +13,7 @@ from dependencies import get_multimodal_query_use_case, get_query_use_case
 query_router = APIRouter(tags=["RAG Query"])
 
 
-@query_router.post(
-    "/query", response_model=list[ChunkResponse], status_code=status.HTTP_200_OK
-)
+@query_router.post("/query", status_code=status.HTTP_200_OK)
 async def query_knowledge_base(
     request: QueryRequest,
     use_case: QueryUseCase = Depends(get_query_use_case),
@@ -32,7 +30,6 @@ async def query_knowledge_base(
 
 @query_router.post(
     "/query/multimodal",
-    response_model=MultimodalQueryResponse,
     status_code=status.HTTP_200_OK,
 )
 async def query_knowledge_base_multimodal(

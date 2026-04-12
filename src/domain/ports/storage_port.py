@@ -62,3 +62,29 @@ class StoragePort(ABC):
             A list of FileInfo objects with object_name, size, and last_modified.
         """
         pass
+
+    @abstractmethod
+    async def list_folders(self, bucket: str) -> list[str]:
+        """
+        List top-level folder prefixes in the bucket.
+
+        Args:
+            bucket: The bucket name to list folders from.
+
+        Returns:
+            A list of folder prefix strings (e.g., ['docs/', 'photos/']).
+        """
+        pass
+
+    @abstractmethod
+    async def ping(self, bucket: str) -> bool:
+        """
+        Check connectivity to the storage backend.
+
+        Args:
+            bucket: The bucket name to check.
+
+        Returns:
+            True if the backend is reachable, False otherwise.
+        """
+        pass
