@@ -62,4 +62,4 @@ class FolderIndexingResult(BaseModel):
     file_results: list[FileProcessingDetail] | None = Field(
         default=None, description="Individual file results"
     )
-    error: str | None = Field(default=None, description="Error message if failed")
+    error: str | None = Field(default=None, description=ERROR_MESSAGE_IF_FAILED)

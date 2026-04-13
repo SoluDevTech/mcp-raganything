@@ -27,7 +27,9 @@ def _validate_prefix(prefix: str) -> str:
     if normalized == ".":
         normalized = ""
     if normalized.startswith("..") or posixpath.isabs(normalized):
-        raise ToolError(f"prefix must be a relative path within the bucket, got: {prefix!r}")
+        raise ToolError(
+            f"prefix must be a relative path within the bucket, got: {prefix!r}"
+        )
     if prefix.endswith("/") and not normalized.endswith("/"):
         normalized += "/"
     return normalized

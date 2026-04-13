@@ -1,60 +1,69 @@
 # MCP-RAGAnything
 
-Multi-modal RAG service exposing a REST API and MCP server for document indexing and knowledge-base querying, powered by [RAGAnything](https://github.com/HKUDS/RAG-Anything) and [LightRAG](https://github.com/HKUDS/LightRAG). Files are retrieved from MinIO object storage and indexed into a PostgreSQL-backed knowledge graph. Each project is isolated via its own `working_dir`.
+Multi-modal RAG service exposing a REST API and MCP server for document indexing and knowledge-base querying, powered by [RAGAnything](https://github.com/HKUDS/RAG-Anything) and [LightRAG](https://github.com/HKUDS/LightRAG). Two retrieval pathways are available: a **graph-based LightRAG pipeline** and a **classical RAG pipeline** using multi-query generation with LLM-as-judge scoring. Files are retrieved from MinIO object storage and indexed into a PostgreSQL-backed knowledge graph. Each project is isolated via its own `working_dir`.
 
 ## Architecture
 
 ```
-                        Clients
-                 (REST / MCP / Claude)
-                           |
-                +-----------------------+
-                |      FastAPI App      |
-                +-----------+-----------+
-                            |
-            +---------------+---------------+
-            |                               |
-    Application Layer            MCP Servers (FastMCP)
-    +------------------------------+       |
-    | api/                         |   +---+--------+  +--+-----------+
-    |   indexing_routes.py         |   | RAGAnything |  | RAGAnything |
-    |   query_routes.py            |   | Query       |  | Files       |
-    |   file_routes.py             |   |  /rag/mcp   |  |  /files/mcp |
-    |   health_routes.py           |   +---+--------+  +--+-----------+
-    | use_cases/                   |       |               |
-    |   IndexFileUseCase           |   query_knowledge    list_files
-    |   IndexFolderUseCase         |   _base              read_file
-    |   QueryUseCase               |   query_knowledge
-    |   ListFilesUseCase           |   _base_multimodal
-    |   ListFoldersUseCase         |
-    |   ReadFileUseCase            |
-    | requests/ responses/         |
-    +------------------------------+
-             |         |          |
-             v         v          v
-   Domain Layer (ports)
-   +------------------------------------------+
-   | RAGEnginePort  StoragePort  BM25EnginePort  DocumentReaderPort |
-   +------------------------------------------+
-            |         |          |              |
-            v         v          v              v
-   Infrastructure Layer (adapters)
-   +------------------------------------------+
-   | LightRAGAdapter  MinioAdapter            |
-   | (RAGAnything)    (minio-py)              |
-   |                                              |
-   | PostgresBM25Adapter    RRFCombiner          |
-   | (pg_textsearch)         (hybrid+ fusion)   |
-   |                                              |
-   | KreuzbergAdapter                             |
-   | (kreuzberg - 91 formats)                    |
-   +------------------------------------------+
-            |         |          |              |
-            v         v          v              v
-      PostgreSQL        MinIO         Kreuzberg
-      (pgvector +     (object       (document
-       Apache AGE      storage)       extraction)
-       pg_textsearch)
+                            Clients
+                     (REST / MCP / Claude)
+                               |
+                 +-------------+-------------+
+                 |          FastAPI App        |
+                 +-------------+-------------+
+                               |
+               +---------------+---------------+
+               |                               |
+       Application Layer            MCP Servers (FastMCP)
+       +------------------------------+       |
+       | api/                         |   +---+--------+  +--+-----------+  +--+-------------+
+       |   indexing_routes.py         |   | RAGAnything |  | RAGAnything |  | RAGAnything    |
+       |   query_routes.py            |   | Query       |  | Files       |  | Classical      |
+       |   file_routes.py             |   |  /rag/mcp   |  |  /files/mcp |  |  /classical/mcp|
+       |   health_routes.py           |   +---+--------+  +--+-----------+  +--+-------------+
+       |   classical_indexing_routes   |       |               |                 |
+       |   classical_query_routes      |       |               |         classical_index_file
+       | use_cases/                   |       |               |         classical_index_folder
+       |   IndexFileUseCase           |       |               |         classical_query
+       |   IndexFolderUseCase         |
+       |   QueryUseCase               |
+       |   ClassicalIndexFileUseCase   |
+       |   ClassicalIndexFolderUseCase |
+       |   ClassicalQueryUseCase       |
+       |   ListFilesUseCase           |
+       |   ListFoldersUseCase         |
+       |   ReadFileUseCase            |
+       | requests/ responses/         |
+       +------------------------------+
+                |         |          |
+                v         v          v
+     Domain Layer (ports)
+     +----------------------------------------------------------+
+     | RAGEnginePort  StoragePort  BM25EnginePort              |
+     | DocumentReaderPort  VectorStorePort  LLMPort            |
+     +----------------------------------------------------------+
+              |         |          |            |      |
+              v         v          v            v      v
+     Infrastructure Layer (adapters)
+     +----------------------------------------------------------+
+     | LightRAGAdapter       MinioAdapter                        |
+     | (RAGAnything)         (minio-py)                          |
+     |                                                            |
+     | PostgresBM25Adapter       RRFCombiner                      |
+     | (pg_textsearch)            (hybrid+ fusion)                |
+     |                                                            |
+     | KreuzbergAdapter          LangchainPgvectorAdapter         |
+     | (kreuzberg - 91 formats) (langchain-postgres PGVector)    |
+     |                                                            |
+     | LangchainOpenAIAdapter                                     |
+     | (langchain-openai ChatOpenAI)                             |
+     +----------------------------------------------------------+
+              |         |          |            |      |
+              v         v          v            v      v
+        PostgreSQL        MinIO       Kreuzberg    OpenAI-compatible
+        (pgvector +     (object     (document     (LLM API)
+         Apache AGE      storage)    extraction)
+         pg_textsearch)
 ```
 
 ## Prerequisites
@@ -414,9 +423,148 @@ Response (`200 OK`):
 
 The `combined_score` is the sum of `bm25_score` and `vector_score`, each computed as `1 / (k + rank)`. Results are sorted by `combined_score` descending. A chunk that appears in both result sets will have a higher combined score than one that appears in only one.
 
+---
+
+## Classical RAG Pipeline
+
+A second retrieval pathway alongside the graph-based LightRAG. Classical RAG uses a straightforward chunk → embed → retrieve flow with two quality-enhancing techniques: **multi-query generation** and **LLM-as-judge relevance scoring**. It stores chunks in dedicated PGVector tables (one per `working_dir`) and does not build a knowledge graph.
+
+### How it works
+
+1. **Indexing** — A file is downloaded from MinIO, text is extracted via Kreuzberg (with chunking), and each chunk is embedded and stored in a PGVector table.
+2. **Querying** — The LLM generates N alternative phrasings of the user query (multi-query), similarity search runs for each variation, results are deduplicated by `chunk_id`, then an LLM judge scores each chunk's relevance on a 0–10 scale. Chunks below the relevance threshold are discarded; the rest are returned sorted by score.
+
+### Classical Indexing
+
+Both classical indexing endpoints accept JSON bodies and run processing in the background.
+
+#### Index a single file (classical)
+
+Downloads the file from MinIO, extracts text with Kreuzberg chunking, and embeds the chunks into a PGVector table scoped to `working_dir`.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/classical/file/index \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_name": "project-alpha/report.pdf",
+    "working_dir": "project-alpha",
+    "chunk_size": 1000,
+    "chunk_overlap": 200
+  }'
+```
+
+Response (`202 Accepted`):
+
+```json
+{"status": "accepted", "message": "File indexing started in background"}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `file_name` | string | yes | -- | Object path in the MinIO bucket |
+| `working_dir` | string | yes | -- | RAG workspace directory (project isolation) |
+| `chunk_size` | integer | no | `1000` | Max characters per chunk (100–10000) |
+| `chunk_overlap` | integer | no | `200` | Overlap characters between chunks (0–2000) |
+
+#### Index a folder (classical)
+
+Lists all objects under the `working_dir` prefix in MinIO, downloads them, and indexes each file into the PGVector table.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/classical/folder/index \
+  -H "Content-Type: application/json" \
+  -d '{
+    "working_dir": "project-alpha",
+    "recursive": true,
+    "file_extensions": [".pdf", ".docx", ".txt"],
+    "chunk_size": 1000,
+    "chunk_overlap": 200
+  }'
+```
+
+Response (`202 Accepted`):
+
+```json
+{"status": "accepted", "message": "Folder indexing started in background"}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `working_dir` | string | yes | -- | RAG workspace directory, also used as the MinIO prefix |
+| `recursive` | boolean | no | `true` | Process subdirectories recursively |
+| `file_extensions` | list[string] | no | `null` (all files) | Filter by extensions, e.g. `[".pdf", ".docx", ".txt"]` |
+| `chunk_size` | integer | no | `1000` | Max characters per chunk (100–10000) |
+| `chunk_overlap` | integer | no | `200` | Overlap characters between chunks (0–2000) |
+
+### Classical Query
+
+Query the classical RAG pipeline. The LLM generates query variations, runs vector similarity search for each, deduplicates results, then scores and filters them with an LLM judge.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/classical/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "working_dir": "project-alpha",
+    "query": "What are the main findings of the report?",
+    "top_k": 10,
+    "num_variations": 3,
+    "relevance_threshold": 5.0
+  }'
+```
+
+Response (`200 OK`):
+
+```json
+{
+  "status": "success",
+  "message": "",
+  "queries": [
+    "What are the main findings of the report?",
+    "What key results does the report present?",
+    "Summarize the primary conclusions from the report"
+  ],
+  "chunks": [
+    {
+      "chunk_id": "a1b2c3d4-...",
+      "content": "The primary finding indicates that...",
+      "file_path": "project-alpha/report.pdf",
+      "relevance_score": 8.5,
+      "metadata": {"chunk_index": 0}
+    },
+    {
+      "chunk_id": "e5f6g7h8-...",
+      "content": "Secondary findings suggest...",
+      "file_path": "project-alpha/report.pdf",
+      "relevance_score": 7.2,
+      "metadata": {"chunk_index": 3}
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `working_dir` | string | yes | -- | RAG workspace directory for this project |
+| `query` | string | yes | -- | The search query |
+| `top_k` | integer | no | `10` | Maximum chunks to retrieve per query variation (1–100) |
+| `num_variations` | integer | no | `3` | Number of LLM-generated query variations (1–10) |
+| `relevance_threshold` | float | no | `5.0` | Minimum LLM judge score (0–10) to include a chunk |
+
+### LightRAG vs Classical RAG
+
+| Aspect | LightRAG (graph-based) | Classical RAG |
+|--------|----------------------|---------------|
+| Storage | Apache AGE knowledge graph + pgvector | PGVector tables only |
+| Indexing | Builds entity/relationship graph | Chunk + embed only |
+| Query modes | `naive`, `local`, `global`, `hybrid`, `hybrid+`, `mix`, `bm25`, `bypass` | Multi-query + LLM judge |
+| Project isolation | Shared graph per `working_dir` | Separate PG table per `working_dir` |
+| Best for | Complex reasoning, relationship traversal | Straightforward document Q&A, simpler setup |
+
+---
+
 ## MCP Servers
 
-The service exposes **two separate MCP servers**, both using streamable HTTP transport:
+The service exposes **three MCP servers**, all using streamable HTTP transport:
 
 ### RAGAnythingQuery — `/rag/mcp`
 
@@ -460,13 +608,47 @@ File browsing tools for listing and reading files from MinIO storage.
 
 Downloads the file from MinIO, extracts its text content using Kreuzberg, and returns the extracted text along with metadata and any detected tables.
 
+### RAGAnythingClassical — `/classical/mcp`
+
+Classical RAG tools for indexing and querying without a knowledge graph.
+
+#### Tool: `classical_index_file`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `file_name` | string | required | Object path in the MinIO bucket |
+| `working_dir` | string | required | RAG workspace directory (project isolation) |
+| `chunk_size` | integer | `1000` | Max characters per chunk (100–10000) |
+| `chunk_overlap` | integer | `200` | Overlap characters between chunks (0–2000) |
+
+#### Tool: `classical_index_folder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `working_dir` | string | required | RAG workspace directory, also used as MinIO prefix |
+| `recursive` | boolean | `true` | Process subdirectories recursively |
+| `file_extensions` | list[string] | `null` (all files) | Filter by extensions, e.g. `[".pdf", ".docx"]` |
+| `chunk_size` | integer | `1000` | Max characters per chunk (100–10000) |
+| `chunk_overlap` | integer | `200` | Overlap characters between chunks (0–2000) |
+
+#### Tool: `classical_query`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `working_dir` | string | required | RAG workspace directory for this project |
+| `query` | string | required | The search query |
+| `top_k` | integer | `10` | Maximum chunks to retrieve per query variation |
+| `num_variations` | integer | `3` | Number of LLM-generated query variations (1–10) |
+| `relevance_threshold` | float | `5.0` | Minimum LLM judge score (0–10) to include a chunk |
+
 ### Transport
 
-Both MCP servers use **streamable HTTP** transport exclusively. Connect MCP clients to the mount paths:
+All MCP servers use **streamable HTTP** transport exclusively. Connect MCP clients to the mount paths:
 
 ```
-http://localhost:8000/rag/mcp      # RAGAnythingQuery
-http://localhost:8000/files/mcp    # RAGAnythingFiles
+http://localhost:8000/rag/mcp          # RAGAnythingQuery
+http://localhost:8000/files/mcp        # RAGAnythingFiles
+http://localhost:8000/classical/mcp    # RAGAnythingClassical
 ```
 
 ## Configuration
@@ -527,6 +709,19 @@ All configuration is via environment variables, loaded through Pydantic Settings
 | `BM25_RRF_K` | `60` | RRF constant K for hybrid search (must be >= 1) |
 
 When `BM25_ENABLED` is `false` or the pg_textsearch extension is not available, `hybrid+` mode falls back to `naive` (vector-only) and `bm25` mode returns an error.
+
+### Classical RAG (`ClassicalRAGConfig`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLASSICAL_CHUNK_SIZE` | `1000` | Max characters per chunk (Kreuzberg `ChunkingConfig`) |
+| `CLASSICAL_CHUNK_OVERLAP` | `200` | Overlap characters between chunks |
+| `CLASSICAL_NUM_QUERY_VARIATIONS` | `3` | Number of multi-query variations the LLM generates (1–10) |
+| `CLASSICAL_RELEVANCE_THRESHOLD` | `5.0` | Minimum LLM judge score (0–10) for a chunk to be included in results |
+| `CLASSICAL_TABLE_PREFIX` | `classical_rag_` | Prefix for PGVectorStore table names. Full name: `{prefix}{sha256(working_dir)[:16]}` |
+| `CLASSICAL_LLM_TEMPERATURE` | `0.0` | Temperature for LLM calls (multi-query generation + judge scoring) |
+
+The classical RAG adapters share the same `OPEN_ROUTER_API_KEY`, `OPEN_ROUTER_API_URL`/`BASE_URL`, `CHAT_MODEL`, `EMBEDDING_MODEL`, and `EMBEDDING_DIM` settings from the LLM config. If initialization fails (e.g. missing API key), the classical endpoints return `503 Service Unavailable` with a descriptive error.
 
 ### MinIO (`MinioConfig`)
 
@@ -590,7 +785,7 @@ The PostgreSQL server must have the `pg_textsearch` extension installed and load
 
 ```
 src/
-  main.py                           -- FastAPI app, dual MCP mounts, entry point
+  main.py                           -- FastAPI app, triple MCP mounts, entry point
   config.py                         -- Pydantic Settings config classes
   dependencies.py                   -- Dependency injection wiring
   domain/
@@ -601,25 +796,37 @@ src/
       storage_port.py                -- StoragePort (abstract) + FileInfo
       bm25_engine.py                 -- BM25EnginePort (abstract)
       document_reader_port.py        -- DocumentReaderPort (abstract) + DocumentContent
+      vector_store_port.py          -- VectorStorePort (abstract) + SearchResult
+      llm_port.py                   -- LLMPort (abstract)
   application/
     api/
       health_routes.py               -- GET /health
       indexing_routes.py              -- POST /file/index, /folder/index
       query_routes.py                 -- POST /query
       file_routes.py                  -- GET /files/list, GET /files/folders, POST /files/read
+      classical_indexing_routes.py   -- POST /classical/file/index, /classical/folder/index
+      classical_query_routes.py      -- POST /classical/query
       mcp_query_tools.py              -- MCP tools: query_knowledge_base, query_knowledge_base_multimodal
-      mcp_file_tools.py                -- MCP tools: list_files, read_file
+      mcp_file_tools.py               -- MCP tools: list_files, read_file
+      mcp_classical_tools.py          -- MCP tools: classical_index_file, classical_index_folder, classical_query
     requests/
       indexing_request.py            -- IndexFileRequest, IndexFolderRequest
+      classical_indexing_request.py  -- ClassicalIndexFileRequest, ClassicalIndexFolderRequest
+      classical_query_request.py     -- ClassicalQueryRequest
       query_request.py                -- QueryRequest, MultimodalQueryRequest
       file_request.py                 -- ListFilesRequest, ReadFileRequest
     responses/
       query_response.py              -- QueryResponse, QueryDataResponse
+      classical_query_response.py    -- ClassicalQueryResponse, ClassicalChunkResponse
       file_response.py                -- FileInfoResponse, FileContentResponse
     use_cases/
-      index_file_use_case.py         -- Downloads from MinIO, indexes single file
-      index_folder_use_case.py       -- Downloads from MinIO, indexes folder
+      index_file_use_case.py         -- Downloads from MinIO, indexes single file (LightRAG)
+      index_folder_use_case.py       -- Downloads from MinIO, indexes folder (LightRAG)
       query_use_case.py              -- Query with bm25/hybrid+ support
+      classical_index_file_use_case.py  -- Classical: download → Kreuzberg chunk → PGVector
+      classical_index_folder_use_case.py -- Classical: folder batch index
+      classical_query_use_case.py    -- Classical: multi-query + LLM judge scoring
+      _classical_helpers.py          -- validate_path, build_documents_from_extraction
       list_files_use_case.py          -- Lists files with metadata from MinIO
       list_folders_use_case.py        -- Lists folder prefixes from MinIO
       read_file_use_case.py           -- Reads file from MinIO, extracts content via Kreuzberg
@@ -635,6 +842,10 @@ src/
       pg_textsearch_adapter.py        -- PostgresBM25Adapter (pg_textsearch)
     hybrid/
       rrf_combiner.py                 -- RRFCombiner (Reciprocal Rank Fusion)
+    vector_store/
+      langchain_pgvector_adapter.py -- LangchainPgvectorAdapter (langchain-postgres PGVectorStore)
+    llm/
+      langchain_openai_adapter.py    -- LangchainOpenAIAdapter (langchain-openai ChatOpenAI)
   alembic/
     env.py                            -- Alembic migration environment (async)
     versions/

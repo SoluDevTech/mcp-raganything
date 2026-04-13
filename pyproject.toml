@@ -20,13 +20,16 @@ dependencies = [
     "mcp>=1.24.0",
     "minio>=7.2.18",
     "openai>=2.9.0",
-    "pgvector>=0.4.2",
+    "pgvector>=0.3.6,<0.4.0",
     "pydantic-settings>=2.12.0",
     "python-dotenv>=1.2.1",
     "python-multipart>=0.0.22",
     "raganything[all]>=1.2.10",
     "sqlalchemy[asyncio]>=2.0.0",
     "uvicorn>=0.38.0",
+    "langchain-postgres>=0.0.17",
+    "langchain-core>=1.2.28",
+    "langchain-openai>=1.1.12",
 ]
 
 [dependency-groups]
@@ -59,7 +62,7 @@ select = [
     "ARG",    # flake8-unused-arguments
     "SIM",    # flake8-simplify
 ]
-ignore = ["E501", "B008"]  # E501: line too long (handled by formatter), B008: FastAPI Depends/File in defaults
+ignore = ["E501", "B008", "ARG001", "ARG002"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

@@ -20,6 +20,8 @@ _spec.loader.exec_module(_external)
 mock_rag_engine = _external.mock_rag_engine
 mock_storage = _external.mock_storage
 mock_document_reader = _external.mock_document_reader
+mock_vector_store = _external.mock_vector_store
+mock_llm = _external.mock_llm
 
 
 @pytest.fixture
