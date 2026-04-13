@@ -77,10 +77,11 @@ async def list_files(
     status_code=status.HTTP_200_OK,
 )
 async def list_folders(
+    prefix: str = "",
     use_case: ListFoldersUseCase = Depends(get_list_folders_use_case),
 ) -> list[str]:
     try:
-        return await use_case.execute()
+        return await use_case.execute(prefix=prefix)
     except FileNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -54,10 +54,18 @@ async def read_file(file_path: str) -> FileContentResponse:
     try:
         result = await use_case.execute(file_path=file_path)
     except FileNotFoundError:
-        raise ValueError(f"File not found: {file_path}") from None
+        return FileContentResponse(
+            content=f"File not found: {file_path}",
+            metadata={"error": "file_not_found", "file_path": file_path},
+            tables=[],
+        )
     except Exception:
         logger.exception("Unexpected error reading file: %s", file_path)
-        raise RuntimeError("Failed to read file") from None
+        return FileContentResponse(
+            content=f"Failed to read file: {file_path}",
+            metadata={"error": "read_error", "file_path": file_path},
+            tables=[],
+        )
     return FileContentResponse(
         content=result.content,
         metadata=result.metadata,

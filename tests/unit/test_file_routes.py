@@ -265,6 +265,25 @@ class TestListFoldersRoute:
         body = response.json()
         assert body == []
 
+    async def test_list_folders_with_prefix_param(
+        self, mock_list_folders_use_case: AsyncMock
+    ) -> None:
+        mock_list_folders_use_case.execute.return_value = ["reports/", "exports/"]
+        app.dependency_overrides[get_list_folders_use_case] = lambda: (
+            mock_list_folders_use_case
+        )
+
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get(
+                "/api/v1/files/folders", params={"prefix": "docs/"}
+            )
+
+        assert response.status_code == 200
+        assert response.json() == ["reports/", "exports/"]
+        mock_list_folders_use_case.execute.assert_called_once_with(prefix="docs/")
+
     async def test_list_folders_returns_404_for_missing_bucket(
         self, mock_list_folders_use_case: AsyncMock
     ) -> None:

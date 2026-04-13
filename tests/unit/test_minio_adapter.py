@@ -270,6 +270,9 @@ class TestListFolders:
         result = await adapter.list_folders("my-bucket")
 
         assert result == ["docs/", "photos/"]
+        mock_minio_client.list_objects.assert_called_once_with(
+            "my-bucket", prefix="", recursive=False
+        )
 
     async def test_returns_empty_when_no_dirs(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
@@ -319,3 +322,19 @@ class TestListFolders:
 
         with pytest.raises(FileNotFoundError, match="Bucket not found"):
             await adapter.list_folders("bad-bucket")
+
+    async def test_passes_prefix_to_minio_client(
+        self, adapter: MinioAdapter, mock_minio_client: MagicMock
+    ) -> None:
+        mock_dir = MagicMock()
+        mock_dir.object_name = "docs/reports/"
+        mock_dir.is_dir = True
+
+        mock_minio_client.list_objects.return_value = [mock_dir]
+
+        result = await adapter.list_folders("my-bucket", prefix="docs/")
+
+        assert result == ["docs/reports/"]
+        mock_minio_client.list_objects.assert_called_once_with(
+            "my-bucket", prefix="docs/", recursive=False
+        )

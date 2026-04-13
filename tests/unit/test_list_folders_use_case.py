@@ -12,7 +12,18 @@ class TestListFoldersUseCase:
 
         await use_case.execute()
 
-        mock_storage.list_folders.assert_called_once_with("test-bucket")
+        mock_storage.list_folders.assert_called_once_with("test-bucket", "")
+
+    async def test_execute_with_prefix_passes_prefix_to_storage(
+        self, mock_storage: AsyncMock
+    ) -> None:
+        mock_storage.list_folders.return_value = ["reports/", "exports/"]
+        use_case = ListFoldersUseCase(storage=mock_storage, bucket="test-bucket")
+
+        result = await use_case.execute(prefix="docs/")
+
+        mock_storage.list_folders.assert_called_once_with("test-bucket", "docs/")
+        assert result == ["reports/", "exports/"]
 
     async def test_execute_returns_folder_prefixes(
         self, mock_storage: AsyncMock
