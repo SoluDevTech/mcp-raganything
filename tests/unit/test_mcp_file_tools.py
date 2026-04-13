@@ -3,9 +3,12 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 from application.api.mcp_file_tools import (
+    _validate_prefix,
     list_files,
+    list_folders,
     mcp_files,
     read_file,
 )
@@ -19,6 +22,33 @@ class TestMCPFilesInstance:
     def test_mcp_files_has_correct_name(self) -> None:
         """mcp_files should be named 'RAGAnythingFiles'."""
         assert mcp_files.name == "RAGAnythingFiles"
+
+
+class TestValidatePrefix:
+    """Tests for the _validate_prefix helper."""
+
+    def test_empty_prefix_returns_empty(self) -> None:
+        assert _validate_prefix("") == ""
+
+    def test_valid_prefix_passes_through(self) -> None:
+        assert _validate_prefix("docs/reports/") == "docs/reports/"
+
+    def test_trailing_slash_preserved(self) -> None:
+        assert _validate_prefix("docs/") == "docs/"
+
+    def test_backslash_normalized(self) -> None:
+        assert _validate_prefix("docs\\reports/") == "docs/reports/"
+
+    def test_dot_normalized_to_empty(self) -> None:
+        assert _validate_prefix(".") == ""
+
+    def test_path_traversal_rejected(self) -> None:
+        with pytest.raises(ToolError, match="prefix must be a relative path"):
+            _validate_prefix("../../etc")
+
+    def test_absolute_path_rejected(self) -> None:
+        with pytest.raises(ToolError, match="prefix must be a relative path"):
+            _validate_prefix("/etc/passwd")
 
 
 class TestListFiles:
@@ -100,6 +130,53 @@ class TestListFiles:
 
         assert result == []
 
+    async def test_rejects_path_traversal_prefix(self) -> None:
+        """Should raise ToolError for path traversal in prefix."""
+        with pytest.raises(ToolError, match="prefix must be a relative path"):
+            await list_files(prefix="../../etc")
+
+    async def test_rejects_absolute_prefix(self) -> None:
+        """Should raise ToolError for absolute path in prefix."""
+        with pytest.raises(ToolError, match="prefix must be a relative path"):
+            await list_files(prefix="/etc/passwd")
+
+
+class TestListFolders:
+    """Tests for the list_folders MCP tool."""
+
+    async def test_returns_folder_list(self) -> None:
+        mock_use_case = AsyncMock()
+        mock_use_case.execute.return_value = ["docs/", "photos/"]
+
+        with patch(
+            "application.api.mcp_file_tools.get_list_folders_use_case",
+            return_value=mock_use_case,
+        ):
+            result = await list_folders()
+
+        assert result == ["docs/", "photos/"]
+
+    async def test_forwards_prefix_to_use_case(self) -> None:
+        mock_use_case = AsyncMock()
+        mock_use_case.execute.return_value = ["reports/"]
+
+        with patch(
+            "application.api.mcp_file_tools.get_list_folders_use_case",
+            return_value=mock_use_case,
+        ):
+            result = await list_folders(prefix="docs/")
+
+        mock_use_case.execute.assert_called_once_with(prefix="docs/")
+        assert result == ["reports/"]
+
+    async def test_rejects_path_traversal_prefix(self) -> None:
+        with pytest.raises(ToolError, match="prefix must be a relative path"):
+            await list_folders(prefix="../../etc")
+
+    async def test_rejects_absolute_prefix(self) -> None:
+        with pytest.raises(ToolError, match="prefix must be a relative path"):
+            await list_folders(prefix="/etc/passwd")
+
 
 class TestReadFile:
     """Tests for the read_file MCP tool."""
@@ -128,8 +205,8 @@ class TestReadFile:
         assert result.content == "Extracted text from the document."
         assert result.metadata.mime_type == "application/pdf"
 
-    async def test_raises_value_error_for_file_not_found(self) -> None:
-        """Should convert FileNotFoundError to ValueError with helpful message."""
+    async def test_raises_tool_error_for_file_not_found(self) -> None:
+        """Should convert FileNotFoundError to ToolError."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.side_effect = FileNotFoundError
 
@@ -138,12 +215,12 @@ class TestReadFile:
                 "application.api.mcp_file_tools.get_read_file_use_case",
                 return_value=mock_use_case,
             ),
-            pytest.raises(ValueError, match="File not found: missing.pdf"),
+            pytest.raises(ToolError, match="File not found: missing.pdf"),
         ):
             await read_file(file_path="missing.pdf")
 
-    async def test_raises_runtime_error_for_generic_failure(self) -> None:
-        """Should convert generic exceptions to RuntimeError."""
+    async def test_raises_tool_error_for_generic_failure(self) -> None:
+        """Should convert generic exceptions to ToolError."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.side_effect = Exception("Disk full")
 
@@ -152,7 +229,7 @@ class TestReadFile:
                 "application.api.mcp_file_tools.get_read_file_use_case",
                 return_value=mock_use_case,
             ),
-            pytest.raises(RuntimeError, match="Failed to read file"),
+            pytest.raises(ToolError, match="Failed to read file"),
         ):
             await read_file(file_path="documents/broken.pdf")
 

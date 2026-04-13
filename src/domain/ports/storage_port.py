@@ -82,12 +82,13 @@ class StoragePort(ABC):
         pass
 
     @abstractmethod
-    async def list_folders(self, bucket: str) -> list[str]:
+    async def list_folders(self, bucket: str, prefix: str = "") -> list[str]:
         """
-        List top-level folder prefixes in the bucket.
+        List folder prefixes in the bucket under a given prefix.
 
         Args:
             bucket: The bucket name to list folders from.
+            prefix: The prefix to list folders under (default: root).
 
         Returns:
             A list of folder prefix strings (e.g., ['docs/', 'photos/']).
