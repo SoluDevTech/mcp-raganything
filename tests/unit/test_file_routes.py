@@ -103,6 +103,26 @@ class TestListFilesRoute:
         body = response.json()
         assert body == []
 
+    async def test_list_files_rejects_path_traversal_prefix(self) -> None:
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get(
+                "/api/v1/files/list", params={"prefix": "../../etc"}
+            )
+
+        assert response.status_code == 422
+
+    async def test_list_files_rejects_absolute_prefix(self) -> None:
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get(
+                "/api/v1/files/list", params={"prefix": "/etc/passwd"}
+            )
+
+        assert response.status_code == 422
+
 
 class TestReadFileRoute:
     @pytest.fixture
@@ -300,3 +320,23 @@ class TestListFoldersRoute:
             response = await client.get("/api/v1/files/folders")
 
         assert response.status_code == 404
+
+    async def test_list_folders_rejects_path_traversal_prefix(self) -> None:
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get(
+                "/api/v1/files/folders", params={"prefix": "../../etc"}
+            )
+
+        assert response.status_code == 422
+
+    async def test_list_folders_rejects_absolute_prefix(self) -> None:
+        async with httpx.AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get(
+                "/api/v1/files/folders", params={"prefix": "/etc/passwd"}
+            )
+
+        assert response.status_code == 422

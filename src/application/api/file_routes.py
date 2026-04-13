@@ -59,6 +59,20 @@ def _validate_file_type(filename: str, content_type: str) -> None:
         )
 
 
+def _validate_prefix(prefix: str) -> str:
+    normalized = posixpath.normpath(prefix.replace("\\", "/"))
+    if normalized == ".":
+        normalized = ""
+    if normalized.startswith("..") or posixpath.isabs(normalized):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="prefix must be a relative path within the bucket",
+        )
+    if prefix.endswith("/") and not normalized.endswith("/"):
+        normalized += "/"
+    return normalized
+
+
 @file_router.get(
     "/files/list",
     status_code=status.HTTP_200_OK,
@@ -68,6 +82,7 @@ async def list_files(
     recursive: bool = True,
     use_case: ListFilesUseCase = Depends(get_list_files_use_case),
 ) -> list[FileInfoResponse]:
+    prefix = _validate_prefix(prefix)
     files = await use_case.execute(prefix=prefix, recursive=recursive)
     return [FileInfoResponse(**asdict(f)) for f in files]
 
@@ -80,6 +95,7 @@ async def list_folders(
     prefix: str = "",
     use_case: ListFoldersUseCase = Depends(get_list_folders_use_case),
 ) -> list[str]:
+    prefix = _validate_prefix(prefix)
     try:
         return await use_case.execute(prefix=prefix)
     except FileNotFoundError as e:
