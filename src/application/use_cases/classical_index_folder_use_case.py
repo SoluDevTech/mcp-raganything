@@ -5,7 +5,7 @@ from pathlib import Path
 import aiofiles
 from kreuzberg import ChunkingConfig, ExtractionConfig, extract_file
 
-from application.use_cases._classical_helpers import (
+from application.services.classical_helpers import (
     build_documents_from_extraction,
     validate_path,
 )
