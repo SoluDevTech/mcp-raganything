@@ -18,7 +18,17 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add BM25 full-text search to lightrag_doc_chunks."""
-    op.execute("CREATE EXTENSION IF NOT EXISTS pg_textsearch")
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            CREATE EXTENSION IF NOT EXISTS pg_textsearch;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'pg_textsearch extension not available, skipping BM25 setup';
+        END;
+        $$
+        """
+    )
 
     # Guard: LightRAG creates lightrag_doc_chunks lazily on first use.
     # On a fresh database the table does not exist yet, so skip the
