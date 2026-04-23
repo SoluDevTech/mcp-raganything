@@ -2,6 +2,13 @@
 
 import os
 
+from application.use_cases.classical_index_file_use_case import (
+    ClassicalIndexFileUseCase,
+)
+from application.use_cases.classical_index_folder_use_case import (
+    ClassicalIndexFolderUseCase,
+)
+from application.use_cases.classical_query_use_case import ClassicalQueryUseCase
 from application.use_cases.index_file_use_case import IndexFileUseCase
 from application.use_cases.index_folder_use_case import IndexFolderUseCase
 from application.use_cases.list_files_use_case import ListFilesUseCase
@@ -14,12 +21,15 @@ from application.use_cases.upload_file_use_case import UploadFileUseCase
 from config import (
     AppConfig,
     BM25Config,
+    ClassicalRAGConfig,
     DatabaseConfig,
     LLMConfig,
     MinioConfig,
     RAGConfig,
 )
 from domain.ports.bm25_engine import BM25EnginePort
+from domain.ports.llm_port import LLMPort
+from domain.ports.vector_store_port import VectorStorePort
 from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
 from infrastructure.document_reader.kreuzberg_adapter import KreuzbergAdapter
 from infrastructure.rag.lightrag_adapter import LightRAGAdapter
@@ -56,6 +66,73 @@ if bm25_config.BM25_ENABLED:
 
 kreuzberg_adapter = KreuzbergAdapter()
 postgres_health_adapter = AsyncpgHealthAdapter(db_config)
+
+classical_rag_config = ClassicalRAGConfig()
+
+classical_vector_store: VectorStorePort | None = None
+classical_llm: LLMPort | None = None
+try:
+    from langchain_openai import OpenAIEmbeddings
+
+    _embedding = OpenAIEmbeddings(
+        model=llm_config.EMBEDDING_MODEL,
+        api_key=llm_config.api_key,
+        base_url=llm_config.api_base_url,
+    )
+    from infrastructure.vector_store.langchain_pgvector_adapter import (
+        LangchainPgvectorAdapter,
+    )
+
+    classical_vector_store = LangchainPgvectorAdapter(
+        connection_string=db_config.DATABASE_URL.replace("+asyncpg", ""),
+        table_prefix=classical_rag_config.CLASSICAL_TABLE_PREFIX,
+        embedding_dimension=llm_config.EMBEDDING_DIM,
+        embedding_service=_embedding,
+    )
+    from infrastructure.llm.langchain_openai_adapter import LangchainOpenAIAdapter
+
+    classical_llm = LangchainOpenAIAdapter(
+        api_key=llm_config.api_key,
+        base_url=llm_config.api_base_url,
+        model=llm_config.CHAT_MODEL,
+        temperature=classical_rag_config.CLASSICAL_LLM_TEMPERATURE,
+    )
+except Exception as e:
+    print(f"WARNING: Classical RAG adapter initialization failed: {e}")
+
+
+def get_classical_index_file_use_case() -> ClassicalIndexFileUseCase:
+    if classical_vector_store is None:
+        raise RuntimeError("Classical RAG unavailable: vector store not initialized")
+    return ClassicalIndexFileUseCase(
+        vector_store=classical_vector_store,
+        storage=minio_adapter,
+        bucket=minio_config.MINIO_BUCKET,
+        output_dir=app_config.OUTPUT_DIR,
+    )
+
+
+def get_classical_index_folder_use_case() -> ClassicalIndexFolderUseCase:
+    if classical_vector_store is None:
+        raise RuntimeError("Classical RAG unavailable: vector store not initialized")
+    return ClassicalIndexFolderUseCase(
+        vector_store=classical_vector_store,
+        storage=minio_adapter,
+        bucket=minio_config.MINIO_BUCKET,
+        output_dir=app_config.OUTPUT_DIR,
+    )
+
+
+def get_classical_query_use_case() -> ClassicalQueryUseCase:
+    if classical_vector_store is None or classical_llm is None:
+        raise RuntimeError(
+            "Classical RAG unavailable: vector store or LLM not initialized"
+        )
+    return ClassicalQueryUseCase(
+        vector_store=classical_vector_store,
+        llm=classical_llm,
+        config=classical_rag_config,
+    )
 
 
 def get_index_file_use_case() -> IndexFileUseCase:
@@ -101,7 +178,8 @@ def get_read_file_use_case() -> ReadFileUseCase:
 
 def get_upload_file_use_case() -> UploadFileUseCase:
     return UploadFileUseCase(storage=minio_adapter, bucket=minio_config.MINIO_BUCKET)
-  
+
+
 def get_liveness_check_use_case() -> LivenessCheckUseCase:
     return LivenessCheckUseCase(
         storage=minio_adapter,

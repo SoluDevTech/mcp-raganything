@@ -21,9 +21,26 @@ file_router = APIRouter(tags=["Files"])
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {
-    ".pdf", ".txt", ".docx", ".xlsx", ".pptx", ".md", ".csv",
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp",
-    ".html", ".xml", ".json", ".rtf", ".odt", ".ods",
+    ".pdf",
+    ".txt",
+    ".docx",
+    ".xlsx",
+    ".pptx",
+    ".md",
+    ".csv",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".bmp",
+    ".html",
+    ".xml",
+    ".json",
+    ".rtf",
+    ".odt",
+    ".ods",
 }
 
 ALLOWED_MIME_PREFIXES = (
@@ -50,9 +67,7 @@ def _sanitize_filename(filename: str | None) -> str:
 def _validate_file_type(filename: str, content_type: str) -> None:
     ext = posixpath.splitext(filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=422, detail=f"File type '{ext}' is not allowed"
-        )
+        raise HTTPException(status_code=422, detail=f"File type '{ext}' is not allowed")
     if not any(content_type.startswith(p) for p in ALLOWED_MIME_PREFIXES):
         raise HTTPException(
             status_code=422, detail=f"Content type '{content_type}' is not allowed"
@@ -145,9 +160,7 @@ async def upload_file(
     if normalized == ".":
         normalized = ""
     if normalized.startswith("..") or posixpath.isabs(normalized):
-        raise HTTPException(
-            status_code=422, detail="prefix must be a relative path"
-        )
+        raise HTTPException(status_code=422, detail="prefix must be a relative path")
     if prefix.endswith("/") and not normalized.endswith("/"):
         normalized += "/"
 

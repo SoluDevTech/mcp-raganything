@@ -112,6 +112,38 @@ class BM25Config(BaseSettings):
     )
 
 
+class ClassicalRAGConfig(BaseSettings):
+    """Configuration for the classical RAG pathway."""
+
+    CLASSICAL_CHUNK_SIZE: int = Field(
+        default=1000, description="Max characters per chunk (Kreuzberg ChunkingConfig)"
+    )
+    CLASSICAL_CHUNK_OVERLAP: int = Field(
+        default=200, description="Overlap characters between chunks"
+    )
+    CLASSICAL_NUM_QUERY_VARIATIONS: int = Field(
+        default=3,
+        description="Number of multi-query variations to generate",
+        ge=1,
+        le=10,
+    )
+    CLASSICAL_RELEVANCE_THRESHOLD: float = Field(
+        default=5.0,
+        description="Minimum LLM judge score (0-10) to include a chunk",
+        ge=0.0,
+        le=10.0,
+    )
+    CLASSICAL_TABLE_PREFIX: str = Field(
+        default="classical_rag_", description="Prefix for PGVectorStore table names"
+    )
+    CLASSICAL_LLM_TEMPERATURE: float = Field(
+        default=0.0,
+        description="Temperature for LLM calls (multi-query + judge)",
+        ge=0.0,
+        le=2.0,
+    )
+
+
 class MinioConfig(BaseSettings):
     """MinIO object storage configuration."""
 

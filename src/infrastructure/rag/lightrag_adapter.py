@@ -183,6 +183,18 @@ class LightRAGAdapter(RAGEnginePort):
                 error=str(e),
             )
 
+    @staticmethod
+    def _determine_folder_status(
+        total: int, succeeded: int, failed: int, folder_path: str
+    ) -> tuple[IndexingStatus, str]:
+        if total == 0:
+            return IndexingStatus.SUCCESS, f"No files found in '{folder_path}'"
+        if failed == 0:
+            return IndexingStatus.SUCCESS, f"Successfully indexed {succeeded} file(s) from '{folder_path}'"
+        if succeeded == 0:
+            return IndexingStatus.FAILED, f"Failed to index folder '{folder_path}'"
+        return IndexingStatus.PARTIAL, f"Partially indexed: {succeeded} succeeded, {failed} failed"
+
     async def index_folder(
         self,
         folder_path: str,
@@ -191,13 +203,6 @@ class LightRAGAdapter(RAGEnginePort):
         file_extensions: list[str] | None = None,
         working_dir: str = "",
     ) -> FolderIndexingResult:
-        """Index a folder by processing documents concurrently.
-
-        Uses ``asyncio.Semaphore`` bounded by ``MAX_CONCURRENT_FILES`` so
-        that at most *N* files are processed at the same time.  When
-        ``MAX_CONCURRENT_FILES <= 1`` behaviour is identical to the old
-        sequential loop.
-        """
         start_time = time.time()
         rag = self._ensure_initialized(working_dir)
         await rag._ensure_lightrag_initialized()
@@ -210,9 +215,39 @@ class LightRAGAdapter(RAGEnginePort):
             exts = set(file_extensions)
             all_files = [f for f in all_files if f.suffix in exts]
 
+        succeeded, failed, file_results = await self._process_files_concurrently(
+            rag, all_files, output_dir
+        )
+
+        processing_time_ms = (time.time() - start_time) * 1000
+        total = len(all_files)
+        status, message = self._determine_folder_status(
+            total, succeeded, failed, folder_path
+        )
+
+        return FolderIndexingResult(
+            status=status,
+            message=message,
+            folder_path=folder_path,
+            recursive=recursive,
+            stats=FolderIndexingStats(
+                total_files=total,
+                files_processed=succeeded,
+                files_failed=failed,
+                files_skipped=0,
+            ),
+            file_results=file_results,
+            processing_time_ms=round(processing_time_ms, 2),
+        )
+
+    async def _process_files_concurrently(
+        self,
+        rag: RAGAnything,
+        all_files: list[Path],
+        output_dir: str,
+    ) -> tuple[int, int, list[FileProcessingDetail]]:
         max_workers = max(1, self._rag_config.MAX_CONCURRENT_FILES)
         semaphore = asyncio.Semaphore(max_workers)
-
         succeeded = 0
         failed = 0
         file_results: list[FileProcessingDetail] = []
@@ -250,36 +285,7 @@ class LightRAGAdapter(RAGEnginePort):
                     )
 
         await asyncio.gather(*[_process_file(f) for f in all_files])
-
-        processing_time_ms = (time.time() - start_time) * 1000
-        total = len(all_files)
-        if total == 0:
-            status = IndexingStatus.SUCCESS
-            message = f"No files found in '{folder_path}'"
-        elif failed == 0:
-            status = IndexingStatus.SUCCESS
-            message = f"Successfully indexed {succeeded} file(s) from '{folder_path}'"
-        elif succeeded == 0:
-            status = IndexingStatus.FAILED
-            message = f"Failed to index folder '{folder_path}'"
-        else:
-            status = IndexingStatus.PARTIAL
-            message = f"Partially indexed: {succeeded} succeeded, {failed} failed"
-
-        return FolderIndexingResult(
-            status=status,
-            message=message,
-            folder_path=folder_path,
-            recursive=recursive,
-            stats=FolderIndexingStats(
-                total_files=total,
-                files_processed=succeeded,
-                files_failed=failed,
-                files_skipped=0,
-            ),
-            file_results=file_results,
-            processing_time_ms=round(processing_time_ms, 2),
-        )
+        return succeeded, failed, file_results
 
     # ------------------------------------------------------------------
     # Port implementation — query

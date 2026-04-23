@@ -8,22 +8,16 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies using uv
-RUN uv sync --frozen --no-dev
+# Install dependencies using uv (no pip cache, CPU-only PyTorch)
+RUN UV_TORCH_BACKEND=cpu uv sync --frozen --no-dev --no-cache
 
 # Stage 2: Runtime image
 FROM python:3.13-slim-bookworm
 
-# Install system dependencies required by docling
-# tesseract-ocr: required by docling PDF pipeline init
-# libgl1: required by cv2 (used by docling table structure model)
-RUN apt-get update && apt-get install -y \
-    libgomp1 \
-    libgl1 \
-    git \
-    tesseract-ocr \
-    tesseract-ocr-fra \
-    && rm -rf /var/lib/apt/lists/*
+# Install only critical runtime system deps, then clean up apt metadata to keep image slim.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # Set working directory
 WORKDIR /app
@@ -36,7 +30,7 @@ COPY src/ /app/src/
 COPY .env.example /app/.env
 
 # Set Python path to include src directory
-ENV PYTHONPATH=/app/src:$PYTHONPATH
+ENV PYTHONPATH=/app/src
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Create non-root user for security

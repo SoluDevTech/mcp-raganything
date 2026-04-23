@@ -51,15 +51,17 @@ class RRFCombiner:
             scores[chunk_id]["bm25_rank"] = min(scores[chunk_id]["bm25_rank"], rank)
         scores[chunk_id]["bm25_score"] = 1.0 / (self.k + scores[chunk_id]["bm25_rank"])
 
+    def _resolve_chunk_id(self, chunk: dict[str, Any]) -> tuple[str, str | None]:
+        raw_chunk_id = chunk.get("chunk_id")
+        raw_ref_id = chunk.get("reference_id")
+        return raw_chunk_id or raw_ref_id, raw_ref_id
+
     def _add_vector_result(
         self, scores: dict[str, dict[str, Any]], rank: int, chunk: dict[str, Any]
     ) -> None:
-        raw_chunk_id = chunk.get("chunk_id")
-        raw_ref_id = chunk.get("reference_id")
-        chunk_id = raw_chunk_id or raw_ref_id
+        chunk_id, reference_id = self._resolve_chunk_id(chunk)
         if not chunk_id:
             return
-        reference_id = raw_ref_id
         if chunk_id not in scores:
             scores[chunk_id] = {
                 "content": chunk.get("content", ""),

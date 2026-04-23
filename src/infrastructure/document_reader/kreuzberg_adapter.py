@@ -2,8 +2,10 @@
 
 import logging
 
+from config import LLMConfig
 from kreuzberg import (
     ExtractionConfig,
+    LlmConfig,
     OcrConfig,
     OutputFormat,
     ParsingError,
@@ -21,12 +23,21 @@ from domain.ports.document_reader_port import (
 
 logger = logging.getLogger(__name__)
 
+_llm_config = LLMConfig()
+
 _KREUZBERG_CONFIG = ExtractionConfig(
     use_cache=True,
     output_format=OutputFormat.MARKDOWN,
     enable_quality_processing=True,
     pdf_options=PdfConfig(extract_images=True, extract_metadata=True),
-    ocr=OcrConfig(backend="tesseract", language="fra"),
+    ocr=OcrConfig(
+        backend="vlm",
+        vlm_config=LlmConfig(
+            model=_llm_config.VISION_MODEL,
+            api_key=_llm_config.api_key,
+            base_url=_llm_config.api_base_url,
+        ),
+    ),
 )
 
 

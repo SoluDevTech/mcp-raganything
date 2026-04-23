@@ -13,8 +13,10 @@ from domain.ports.document_reader_port import (
     DocumentMetadata,
     DocumentReaderPort,
 )
+from domain.ports.llm_port import LLMPort
 from domain.ports.rag_engine import RAGEnginePort
 from domain.ports.storage_port import FileInfo, StoragePort
+from domain.ports.vector_store_port import SearchResult, VectorStorePort
 
 
 @pytest.fixture
@@ -79,4 +81,42 @@ def mock_document_reader() -> AsyncMock:
         metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
         tables=[],
     )
+    return mock
+
+
+@pytest.fixture
+def mock_vector_store() -> AsyncMock:
+    """Provide an AsyncMock of VectorStorePort for external adapter mocking."""
+    mock = AsyncMock(spec=VectorStorePort)
+    mock.ensure_table.return_value = None
+    mock.add_documents.return_value = ["chunk-1", "chunk-2", "chunk-3"]
+    mock.similarity_search.return_value = [
+        SearchResult(
+            chunk_id="chunk-abc123",
+            content="Relevant text about the query topic.",
+            file_path="/docs/report.pdf",
+            score=0.92,
+            metadata={"page": 1},
+        ),
+        SearchResult(
+            chunk_id="chunk-def456",
+            content="Another relevant chunk of text.",
+            file_path="/docs/notes.txt",
+            score=0.85,
+            metadata={"page": 3},
+        ),
+    ]
+    mock.delete_documents.return_value = 5
+    mock.close.return_value = None
+    return mock
+
+
+@pytest.fixture
+def mock_llm() -> AsyncMock:
+    """Provide an AsyncMock of LLMPort for external adapter mocking."""
+    mock = AsyncMock(spec=LLMPort)
+    mock.generate.return_value = (
+        '["alternative query 1", "alternative query 2", "alternative query 3"]'
+    )
+    mock.generate_chat.return_value = "LLM generated response text"
     return mock
