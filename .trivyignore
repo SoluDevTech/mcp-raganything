@@ -1,3 +1,13 @@
 # ecdsa: Minerva attack - no fixed version available (status: affected)
 # Transitive dependency via authlib. Monitor for upstream fix.
 CVE-2024-23342
+
+# libsqlite3-0: Fix upstream (SQLite 3.42.0) non backporté par Debian bookworm.
+# Pas de DSA émis. Integer overflow dans sqlite3KeyInfoFromExprList.
+# Review: 2026-04-24
+CVE-2025-7458
+
+# zlib1g: MiniZip n'est pas compilé dans le paquet zlib Debian.
+# Faux positif confirmé par le tracker Debian (will_not_fix).
+# Review: 2026-04-24
+CVE-2023-45853
