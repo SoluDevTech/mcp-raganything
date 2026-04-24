@@ -22,9 +22,11 @@ def upgrade() -> None:
         """
         DO $$
         BEGIN
-            CREATE EXTENSION IF NOT EXISTS pg_textsearch;
-        EXCEPTION WHEN OTHERS THEN
-            RAISE NOTICE 'pg_textsearch extension not available, skipping BM25 setup';
+            BEGIN
+                CREATE EXTENSION IF NOT EXISTS pg_textsearch;
+            EXCEPTION WHEN OTHERS THEN
+                RAISE NOTICE 'pg_textsearch extension not available, skipping BM25 setup';
+            END;
         END;
         $$
         """
@@ -32,7 +34,7 @@ def upgrade() -> None:
 
     # Guard: LightRAG creates lightrag_doc_chunks lazily on first use.
     # On a fresh database the table does not exist yet, so skip the
-    # column/index/trigger steps.  They will be applied on next run
+    # column/index/trigger steps. They will be applied on next run
     # after LightRAG has created the table.
     op.execute(
         """
