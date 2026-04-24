@@ -130,7 +130,7 @@ class TestClassicalQueryRoute:
         self,
         mock_classical_query_use_case: AsyncMock,
     ) -> None:
-        """Should return the ClassicalQueryResponse body."""
+        """Should return the chunks list from the ClassicalQueryResponse."""
         from dependencies import get_classical_query_use_case
 
         app.dependency_overrides[get_classical_query_use_case] = lambda: (
@@ -149,9 +149,8 @@ class TestClassicalQueryRoute:
             )
 
         body = response.json()
-        assert body["status"] == "success"
-        assert "queries" in body
-        assert "chunks" in body
+        assert isinstance(body, list)
+        assert "chunks" not in body
 
     async def test_query_rejects_missing_query(self) -> None:
         """Missing query field should return 422."""

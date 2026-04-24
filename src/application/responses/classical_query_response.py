@@ -15,11 +15,8 @@ class ClassicalChunkResponse(BaseModel):
 
 class ClassicalQueryResponse(BaseModel):
     status: str = Field(default="success", description="Response status")
-    message: str = Field(default="", description="Status message")
-    queries: list[str] = Field(
-        default_factory=list,
-        description="List of query variations used (original + generated)",
-    )
+    message: str = Field(default="", description="Optional message")
+    queries: list[str] = Field(default_factory=list, description="Query variations used")
     chunks: list[ClassicalChunkResponse] = Field(
         default_factory=list, description="Filtered and ranked chunks"
     )

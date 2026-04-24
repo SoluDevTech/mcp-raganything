@@ -59,6 +59,7 @@ class QueryUseCase:
         Returns:
             Search results
         """
+        working_dir = working_dir if working_dir.endswith("/") else f"{working_dir}/"
         self.rag_engine.init_project(working_dir)
 
         if mode == "bm25":
