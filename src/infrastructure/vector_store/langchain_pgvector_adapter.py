@@ -34,14 +34,15 @@ class LangchainPgvectorAdapter(VectorStorePort):
         table_name = self._get_table_name(working_dir)
 
         if working_dir not in self._stores:
-            store = PGVectorStore.create(
+            await self._engine.ainit_vectorstore_table(
+                table_name=table_name,
+                vector_size=self._embedding_dimension,
+            )
+            store = await PGVectorStore.create(
                 engine=self._engine,
                 table_name=table_name,
                 embedding_service=self._embedding_service,
-                embedding_dimension=self._embedding_dimension,
             )
-            if hasattr(store, "__await__"):
-                store = await store
             self._stores[working_dir] = store
             self._id_maps[working_dir] = {}
 
@@ -70,7 +71,11 @@ class LangchainPgvectorAdapter(VectorStorePort):
         return ids
 
     async def similarity_search(
-        self, working_dir: str, query: str, top_k: int = 10
+        self,
+        working_dir: str,
+        query: str,
+        top_k: int = 10,
+        score_threshold: float | None = None,
     ) -> list[SearchResult]:
         store = self._stores.get(working_dir)
         if store is None:
@@ -79,6 +84,11 @@ class LangchainPgvectorAdapter(VectorStorePort):
             )
 
         lc_results = await store.asimilarity_search_with_score(query, k=top_k)
+
+        filtered = lc_results
+        if score_threshold is not None:
+            filtered = [(doc, score) for doc, score in lc_results if score <= score_threshold]
+
         return [
             SearchResult(
                 chunk_id=str(doc.metadata.get("chunk_id", doc.id)),
@@ -91,7 +101,7 @@ class LangchainPgvectorAdapter(VectorStorePort):
                     if k not in ("chunk_id", "file_path")
                 },
             )
-            for doc, score in lc_results
+            for doc, score in filtered
         ]
 
     async def delete_documents(self, working_dir: str, file_path: str) -> int:

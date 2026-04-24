@@ -22,4 +22,6 @@ async def classical_query(
         top_k=request.top_k,
         num_variations=request.num_variations,
         relevance_threshold=request.relevance_threshold,
+        vector_distance_threshold=request.vector_distance_threshold,
+        enable_llm_judge=request.enable_llm_judge,
     )

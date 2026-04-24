@@ -47,6 +47,8 @@ async def classical_query(
     top_k: int = 10,
     num_variations: int = 3,
     relevance_threshold: float = 5.0,
+    vector_distance_threshold: float | None = None,
+    enable_llm_judge: bool = True,
 ):
     use_case = get_classical_query_use_case()
     return await use_case.execute(
@@ -55,4 +57,6 @@ async def classical_query(
         top_k=top_k,
         num_variations=num_variations,
         relevance_threshold=relevance_threshold,
+        vector_distance_threshold=vector_distance_threshold,
+        enable_llm_judge=enable_llm_judge,
     )

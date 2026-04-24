@@ -24,4 +24,4 @@ class MultimodalQueryUseCase:
             top_k=top_k,
             working_dir=working_dir,
         )
-        return {"status": "success", "data": result}
+        return {"data": result}

@@ -38,7 +38,7 @@ class TestClassicalIndexFolderUseCase:
         )
 
         mock_storage.list_objects.assert_called_once_with(
-            "test-bucket", prefix="project/docs", recursive=True
+            "test-bucket", prefix="project/docs/", recursive=True
         )
 
     async def test_execute_ensures_vector_store_table(
@@ -202,7 +202,7 @@ class TestClassicalIndexFolderUseCase:
         await use_case.execute(working_dir="project/docs")
 
         mock_storage.list_objects.assert_called_once_with(
-            "custom-folder-bucket", prefix="project/docs", recursive=True
+            "custom-folder-bucket", prefix="project/docs/", recursive=True
         )
 
     async def test_execute_non_recursive_listing(
@@ -218,7 +218,7 @@ class TestClassicalIndexFolderUseCase:
         )
 
         mock_storage.list_objects.assert_called_once_with(
-            "test-bucket", prefix="project/docs", recursive=False
+            "test-bucket", prefix="project/docs/", recursive=False
         )
 
     @patch("application.use_cases.classical_index_folder_use_case.extract_file")

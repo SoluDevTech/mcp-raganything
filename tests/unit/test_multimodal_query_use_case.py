@@ -66,7 +66,7 @@ class TestMultimodalQueryUseCase:
             multimodal_content=content,
         )
 
-        assert result == {"status": "success", "data": "Analysis of the image content"}
+        assert result == {"data": "Analysis of the image content"}
 
     async def test_execute_uses_default_mode_and_top_k(
         self,

@@ -4,6 +4,7 @@ import logging
 
 from config import LLMConfig
 from kreuzberg import (
+    ChunkingConfig,
     ExtractionConfig,
     LlmConfig,
     OcrConfig,
@@ -25,20 +26,31 @@ logger = logging.getLogger(__name__)
 
 _llm_config = LLMConfig()
 
-_KREUZBERG_CONFIG = ExtractionConfig(
-    use_cache=True,
-    output_format=OutputFormat.MARKDOWN,
-    enable_quality_processing=True,
-    pdf_options=PdfConfig(extract_images=True, extract_metadata=True),
-    ocr=OcrConfig(
-        backend="vlm",
-        vlm_config=LlmConfig(
-            model=_llm_config.VISION_MODEL,
-            api_key=_llm_config.api_key,
-            base_url=_llm_config.api_base_url,
-        ),
+_VLM_OCR_CONFIG = OcrConfig(
+    backend="vlm",
+    vlm_config=LlmConfig(
+        model=_llm_config.VISION_MODEL,
+        api_key=_llm_config.api_key,
+        base_url=_llm_config.api_base_url,
     ),
 )
+
+
+def make_extraction_config(
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200,
+) -> ExtractionConfig:
+    return ExtractionConfig(
+        use_cache=True,
+        output_format=OutputFormat.MARKDOWN,
+        enable_quality_processing=True,
+        pdf_options=PdfConfig(extract_images=True, extract_metadata=True),
+        ocr=_VLM_OCR_CONFIG,
+        chunking=ChunkingConfig(max_chars=chunk_size, max_overlap=chunk_overlap),
+    )
+
+
+_KREUZBERG_CONFIG = make_extraction_config()
 
 
 class KreuzbergAdapter(DocumentReaderPort):

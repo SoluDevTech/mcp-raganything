@@ -90,6 +90,8 @@ class TestClassicalQueryRoute:
             top_k=20,
             num_variations=5,
             relevance_threshold=7.0,
+            vector_distance_threshold=None,
+            enable_llm_judge=True,
         )
 
     async def test_query_uses_default_params(
@@ -120,6 +122,8 @@ class TestClassicalQueryRoute:
             top_k=10,
             num_variations=3,
             relevance_threshold=5.0,
+            vector_distance_threshold=None,
+            enable_llm_judge=True,
         )
 
     async def test_query_returns_response_body(

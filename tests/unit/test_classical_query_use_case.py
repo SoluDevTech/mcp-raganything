@@ -194,7 +194,6 @@ class TestClassicalQueryUseCase:
         mock_vector_store: AsyncMock,
     ) -> None:
         mock_llm.generate.side_effect = [
-            json.dumps(["var1"]),
             "7",
             "7",
         ]
@@ -205,7 +204,7 @@ class TestClassicalQueryUseCase:
             num_variations=1,
         )
 
-        assert mock_llm.generate.call_count >= 2
+        assert mock_llm.generate.call_count >= 1
 
     async def test_execute_filters_chunks_below_relevance_threshold(
         self,
@@ -214,8 +213,6 @@ class TestClassicalQueryUseCase:
         mock_vector_store: AsyncMock,
     ) -> None:
         mock_llm.generate.side_effect = [
-            json.dumps(["variation 1"]),
-            "3",
             "3",
         ]
         mock_vector_store.similarity_search.return_value = [
@@ -244,8 +241,6 @@ class TestClassicalQueryUseCase:
         mock_vector_store: AsyncMock,
     ) -> None:
         mock_llm.generate.side_effect = [
-            json.dumps(["variation 1"]),
-            "8",
             "8",
         ]
         mock_vector_store.similarity_search.return_value = [
@@ -274,8 +269,6 @@ class TestClassicalQueryUseCase:
         mock_vector_store: AsyncMock,
     ) -> None:
         mock_llm.generate.side_effect = [
-            json.dumps(["var1"]),
-            "4",
             "4",
         ]
         mock_vector_store.similarity_search.return_value = [
@@ -343,8 +336,6 @@ class TestClassicalQueryUseCase:
     ) -> None:
         """Each chunk in the response should have chunk_id, content, file_path, relevance_score."""
         mock_llm.generate.side_effect = [
-            json.dumps(["var1"]),
-            "9",
             "9",
         ]
         mock_vector_store.similarity_search.return_value = [
@@ -430,8 +421,6 @@ class TestClassicalQueryUseCase:
     ) -> None:
         """Should handle when LLM judge returns an unparseable score."""
         mock_llm.generate.side_effect = [
-            json.dumps(["var1"]),
-            "not a number",
             "not a number",
         ]
         mock_vector_store.similarity_search.return_value = [

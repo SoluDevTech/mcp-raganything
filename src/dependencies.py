@@ -84,7 +84,7 @@ try:
     )
 
     classical_vector_store = LangchainPgvectorAdapter(
-        connection_string=db_config.DATABASE_URL.replace("+asyncpg", ""),
+        connection_string=db_config.DATABASE_URL,
         table_prefix=classical_rag_config.CLASSICAL_TABLE_PREFIX,
         embedding_dimension=llm_config.EMBEDDING_DIM,
         embedding_service=_embedding,

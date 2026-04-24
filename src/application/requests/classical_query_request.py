@@ -26,3 +26,13 @@ class ClassicalQueryRequest(BaseModel):
         ge=0.0,
         le=10.0,
     )
+    vector_distance_threshold: float | None = Field(
+        default=None,
+        description="Maximum cosine distance for vector store filtering. Lower = more similar. None disables filtering.",
+        ge=0.0,
+        le=2.0,
+    )
+    enable_llm_judge: bool = Field(
+        default=True,
+        description="Enable LLM-as-judge scoring. When disabled, relevance_score = cosine similarity (1 - distance).",
+    )

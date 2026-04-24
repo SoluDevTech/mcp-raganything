@@ -48,7 +48,7 @@ class ClassicalQueryUseCase:
     async def _score_chunk(self, query: str, chunk: SearchResult) -> float:
         try:
             judge_system = "You are a relevance judge. Score how relevant the given chunk is to the query on a scale of 0 to 10. Return ONLY a number."
-            judge_user = f"Query: {query}\nChunk: {chunk.content[:500]}\nScore 0-10:"
+            judge_user = f"Query: {query}\nChunk: {chunk.content}\nScore 0-10:"
             score_response = await self.llm.generate(
                 system_prompt=judge_system, user_message=judge_user
             )
@@ -64,18 +64,24 @@ class ClassicalQueryUseCase:
         top_k: int = 10,
         num_variations: int | None = None,
         relevance_threshold: float | None = None,
+        vector_distance_threshold: float | None = None,
+        enable_llm_judge: bool = True,
     ) -> ClassicalQueryResponse:
         if num_variations is None:
             num_variations = self.config.CLASSICAL_NUM_QUERY_VARIATIONS
         if relevance_threshold is None:
             relevance_threshold = self.config.CLASSICAL_RELEVANCE_THRESHOLD
 
-        variations = await self._generate_variations(query, num_variations)
+        variations = await self._generate_variations(query, num_variations) if num_variations > 1 else []
+
         queries = [query] + variations
 
         search_tasks = [
             self.vector_store.similarity_search(
-                working_dir=working_dir, query=q, top_k=top_k
+                working_dir=working_dir,
+                query=q,
+                top_k=top_k,
+                score_threshold=vector_distance_threshold,
             )
             for q in queries
         ]
@@ -87,32 +93,48 @@ class ClassicalQueryUseCase:
                 if r.chunk_id and r.chunk_id not in all_results:
                     all_results[r.chunk_id] = r
 
-        sem = asyncio.Semaphore(5)
+        if enable_llm_judge:
+            sem = asyncio.Semaphore(5)
 
-        async def _bounded_score(c: SearchResult) -> tuple[SearchResult, float]:
-            async with sem:
-                score = await self._score_chunk(query, c)
-                return (c, score)
+            async def _bounded_score(c: SearchResult) -> tuple[SearchResult, float]:
+                async with sem:
+                    score = await self._score_chunk(query, c)
+                    return (c, score)
 
-        scored = await asyncio.gather(
-            *(_bounded_score(c) for c in all_results.values())
-        )
+            scored = await asyncio.gather(
+                *(_bounded_score(c) for c in all_results.values())
+            )
 
-        scored_chunks = sorted(
-            [
-                ClassicalChunkResponse(
-                    chunk_id=chunk.chunk_id,
-                    content=chunk.content,
-                    file_path=chunk.file_path,
-                    relevance_score=score,
-                    metadata=chunk.metadata,
-                )
-                for chunk, score in scored
-                if score >= relevance_threshold
-            ],
-            key=lambda c: c.relevance_score,
-            reverse=True,
-        )
+            scored_chunks = sorted(
+                [
+                    ClassicalChunkResponse(
+                        chunk_id=chunk.chunk_id,
+                        content=chunk.content,
+                        file_path=chunk.file_path,
+                        relevance_score=score,
+                        metadata=chunk.metadata,
+                    )
+                    for chunk, score in scored
+                    if score >= relevance_threshold
+                ],
+                key=lambda c: c.relevance_score,
+                reverse=True,
+            )
+        else:
+            scored_chunks = sorted(
+                [
+                    ClassicalChunkResponse(
+                        chunk_id=chunk.chunk_id,
+                        content=chunk.content,
+                        file_path=chunk.file_path,
+                        relevance_score=round(1.0 - chunk.score, 4),
+                        metadata=chunk.metadata,
+                    )
+                    for chunk in all_results.values()
+                ],
+                key=lambda c: c.relevance_score,
+                reverse=True,
+            )
 
         return ClassicalQueryResponse(
             status="success",
