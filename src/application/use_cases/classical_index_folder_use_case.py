@@ -3,12 +3,8 @@ import os
 from pathlib import Path
 
 import aiofiles
-from kreuzberg import ChunkingConfig, ExtractionConfig, extract_file
+from kreuzberg import extract_file
 
-from domain.services.classical_helpers import (
-    build_documents_from_extraction,
-    validate_path,
-)
 from domain.entities.indexing_result import (
     FileProcessingDetail,
     FolderIndexingResult,
@@ -17,6 +13,11 @@ from domain.entities.indexing_result import (
 )
 from domain.ports.storage_port import StoragePort
 from domain.ports.vector_store_port import VectorStorePort
+from domain.services.classical_helpers import (
+    build_documents_from_extraction,
+    validate_path,
+)
+from infrastructure.document_reader.kreuzberg_adapter import make_extraction_config
 
 
 class ClassicalIndexFolderUseCase:
@@ -42,8 +43,10 @@ class ClassicalIndexFolderUseCase:
     ) -> FolderIndexingResult:
         await self.vector_store.ensure_table(working_dir)
 
+        prefix = working_dir if working_dir.endswith("/") else f"{working_dir}/"
+
         files = await self.storage.list_objects(
-            self.bucket, prefix=working_dir, recursive=recursive
+            self.bucket, prefix=prefix, recursive=recursive
         )
 
         if file_extensions:
@@ -53,8 +56,8 @@ class ClassicalIndexFolderUseCase:
         processed = 0
         failed = 0
         file_results = []
-        config = ExtractionConfig(
-            chunking=ChunkingConfig(max_chars=chunk_size, max_overlap=chunk_overlap)
+        config = make_extraction_config(
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
 
         for file_name in files:

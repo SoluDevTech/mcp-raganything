@@ -19,7 +19,7 @@ class TestQueryUseCase:
             query="What are the findings?",
         )
 
-        mock_rag_engine.init_project.assert_called_once_with("/tmp/rag/project_42")
+        mock_rag_engine.init_project.assert_called_once_with("/tmp/rag/project_42/")
 
     async def test_execute_calls_query_with_correct_params(
         self,
@@ -40,7 +40,7 @@ class TestQueryUseCase:
             query="Tell me about X",
             mode="hybrid",
             top_k=20,
-            working_dir="/tmp/rag/test",
+            working_dir="/tmp/rag/test/",
         )
 
     async def test_execute_returns_result_from_rag_engine(
@@ -76,7 +76,7 @@ class TestQueryUseCase:
             query="test query",
             mode="naive",
             top_k=10,
-            working_dir="/tmp/rag/test",
+            working_dir="/tmp/rag/test/",
         )
 
     async def test_execute_with_mix_mode(
@@ -98,7 +98,7 @@ class TestQueryUseCase:
             query="test query",
             mode="mix",
             top_k=5,
-            working_dir="/tmp/rag/test",
+            working_dir="/tmp/rag/test/",
         )
 
     async def test_execute_hybrid_plus_with_bm25(
@@ -154,7 +154,7 @@ class TestQueryUseCase:
         )
 
         mock_rag_engine.query.assert_called_once_with(
-            query="search", mode="hybrid", top_k=10, working_dir="/tmp/rag/test"
+            query="search", mode="hybrid", top_k=10, working_dir="/tmp/rag/test/"
         )
 
     async def test_execute_bm25_only_mode(self, mock_rag_engine: AsyncMock) -> None:
@@ -171,7 +171,7 @@ class TestQueryUseCase:
             working_dir="/tmp/rag/test", query="search", mode="bm25", top_k=10
         )
 
-        mock_bm25.search.assert_called_once_with("search", "/tmp/rag/test", 10)
+        mock_bm25.search.assert_called_once_with("search", "/tmp/rag/test/", 10)
         mock_rag_engine.query.assert_not_called()
         assert result["status"] == "success"
         assert result["metadata"]["query_mode"] == "bm25"

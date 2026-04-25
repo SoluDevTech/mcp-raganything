@@ -16,6 +16,7 @@ class MultimodalQueryUseCase:
         mode: str = "hybrid",
         top_k: int = 10,
     ) -> dict:
+        working_dir = working_dir if working_dir.endswith("/") else f"{working_dir}/"
         self.rag_engine.init_project(working_dir)
         result = await self.rag_engine.query_multimodal(
             query=query,
@@ -24,4 +25,4 @@ class MultimodalQueryUseCase:
             top_k=top_k,
             working_dir=working_dir,
         )
-        return {"status": "success", "data": result}
+        return {"data": result}

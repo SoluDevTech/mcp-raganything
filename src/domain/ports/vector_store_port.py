@@ -42,7 +42,11 @@ class VectorStorePort(ABC):
 
     @abstractmethod
     async def similarity_search(
-        self, working_dir: str, query: str, top_k: int = 10
+        self,
+        working_dir: str,
+        query: str,
+        top_k: int = 10,
+        score_threshold: float | None = None,
     ) -> list[SearchResult]:
         """Search for similar documents using vector similarity.
 
@@ -50,6 +54,8 @@ class VectorStorePort(ABC):
             working_dir: Workspace identifier.
             query: The search query text.
             top_k: Maximum number of results to return.
+            score_threshold: Maximum cosine distance threshold. Results with
+                distance > threshold are excluded. None disables filtering.
 
         Returns:
             List of SearchResult objects sorted by relevance.

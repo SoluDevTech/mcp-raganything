@@ -133,9 +133,10 @@ class TestLangchainPgvectorAdapter:
     ) -> None:
         """Should create PGEngine and PGVectorStore on ensure_table."""
         mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
         mock_store = MagicMock()
-        mock_pgvector_store_cls.create.return_value = mock_store
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
 
         from infrastructure.vector_store.langchain_pgvector_adapter import (
             LangchainPgvectorAdapter,
@@ -168,10 +169,11 @@ class TestLangchainPgvectorAdapter:
     ) -> None:
         """Should call aadd_documents on the PGVectorStore."""
         mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
         mock_store = MagicMock()
         mock_store.aadd_documents = AsyncMock(return_value=["id-1", "id-2"])
-        mock_pgvector_store_cls.create.return_value = mock_store
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
 
         from infrastructure.vector_store.langchain_pgvector_adapter import (
             LangchainPgvectorAdapter,
@@ -215,6 +217,7 @@ class TestLangchainPgvectorAdapter:
         from langchain_core.documents import Document
 
         mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
         mock_store = MagicMock()
         mock_doc = Document(
@@ -228,7 +231,7 @@ class TestLangchainPgvectorAdapter:
         mock_store.asimilarity_search_with_score = AsyncMock(
             return_value=[(mock_doc, 0.92)]
         )
-        mock_pgvector_store_cls.create.return_value = mock_store
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
 
         from infrastructure.vector_store.langchain_pgvector_adapter import (
             LangchainPgvectorAdapter,
@@ -268,11 +271,12 @@ class TestLangchainPgvectorAdapter:
     ) -> None:
         """Should call adelete on the PGVectorStore for matching file_path."""
         mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
         mock_store = MagicMock()
         mock_store.aadd_documents = AsyncMock(return_value=None)
         mock_store.adelete = AsyncMock(return_value=None)
-        mock_pgvector_store_cls.create.return_value = mock_store
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
 
         from infrastructure.vector_store.langchain_pgvector_adapter import (
             LangchainPgvectorAdapter,
@@ -315,8 +319,11 @@ class TestLangchainPgvectorAdapter:
     ) -> None:
         """Should close the PGEngine connection pool."""
         mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_engine.close = AsyncMock()
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
+        mock_store = MagicMock()
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
 
         from infrastructure.vector_store.langchain_pgvector_adapter import (
             LangchainPgvectorAdapter,

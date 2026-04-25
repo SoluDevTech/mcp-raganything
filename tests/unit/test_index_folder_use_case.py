@@ -32,7 +32,7 @@ class TestIndexFolderUseCase:
         await use_case.execute(request)
 
         mock_storage.list_objects.assert_called_once_with(
-            "my-bucket", prefix="project/docs", recursive=True
+            "my-bucket", prefix="project/docs/", recursive=True
         )
 
     async def test_execute_downloads_all_listed_files(
@@ -120,7 +120,7 @@ class TestIndexFolderUseCase:
 
         await use_case.execute(request)
 
-        mock_rag_engine.init_project.assert_called_once_with("project/docs")
+        mock_rag_engine.init_project.assert_called_once_with("project/docs/")
 
     async def test_execute_calls_index_folder(
         self,
@@ -144,13 +144,13 @@ class TestIndexFolderUseCase:
 
         await use_case.execute(request)
 
-        expected_local_folder = os.path.join(output_dir, "project/docs")
+        expected_local_folder = os.path.join(output_dir, "project/docs/")
         mock_rag_engine.index_folder.assert_called_once_with(
             folder_path=expected_local_folder,
             output_dir=output_dir,
             recursive=False,
             file_extensions=[".pdf"],
-            working_dir="project/docs",
+            working_dir="project/docs/",
         )
 
     async def test_execute_returns_result(
@@ -408,7 +408,7 @@ class TestIndexFolderUseCase:
         mock_rag_engine.index_folder.assert_called_once()
         call_kwargs = mock_rag_engine.index_folder.call_args[1]
         assert call_kwargs["recursive"] is True
-        assert call_kwargs["working_dir"] == "project/recursive"
+        assert call_kwargs["working_dir"] == "project/recursive/"
 
         assert result.status == IndexingStatus.SUCCESS
         assert result.recursive is True

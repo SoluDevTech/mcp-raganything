@@ -76,3 +76,16 @@ jobs:
       with:
         args: >
           -Dsonar.qualitygate.wait=false
+
+    - name: Notify OpenClaw for Review
+      if: success()
+      run: |
+        curl -s -X POST "https://openclaw.soludev.tech/hooks/agent" \
+          -H "Authorization: Bearer ${{ secrets.OPENCLAW_WEBHOOK_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "message": "CI terminée pour PR \"${{ github.event.pull_request.title }}\" - ${{ github.event.pull_request.html_url }}. Fais une review du code de la PR. Analyse les changements, ensuite poste un commentaire de review sur la PR. Donne un score de 1 à 10 pour la qualité du code, et suggère des améliorations si nécessaire.",
+            "deliver": true,
+            "channel": "telegram",
+            "to": "1988394825"
+          }'

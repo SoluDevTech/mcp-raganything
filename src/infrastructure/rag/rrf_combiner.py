@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from domain.ports.bm25_engine import BM25SearchResult
+from domain.ports.vector_store_port import SearchResult
 
 
 @dataclass
@@ -48,7 +49,10 @@ class RRFCombiner:
                 "vector_rank": None,
             }
         else:
-            scores[chunk_id]["bm25_rank"] = min(scores[chunk_id]["bm25_rank"], rank)
+            existing = scores[chunk_id]["bm25_rank"]
+            scores[chunk_id]["bm25_rank"] = (
+                min(existing, rank) if existing is not None else rank
+            )
         scores[chunk_id]["bm25_score"] = 1.0 / (self.k + scores[chunk_id]["bm25_rank"])
 
     def _resolve_chunk_id(self, chunk: dict[str, Any]) -> tuple[str, str | None]:
@@ -111,6 +115,68 @@ class RRFCombiner:
                 combined_score=data["bm25_score"] + data["vector_score"],
                 metadata=data["metadata"],
                 reference_id=data["reference_id"],
+                bm25_rank=data["bm25_rank"],
+                vector_rank=data["vector_rank"],
+            )
+            for chunk_id, data in scores.items()
+        ]
+
+        results.sort(key=lambda x: x.combined_score, reverse=True)
+        return results[:top_k]
+
+    def _add_classical_vector_result(
+        self, scores: dict[str, dict[str, Any]], rank: int, result: SearchResult
+    ) -> None:
+        chunk_id = result.chunk_id
+        if chunk_id not in scores:
+            scores[chunk_id] = {
+                "content": result.content,
+                "file_path": result.file_path,
+                "metadata": result.metadata,
+                "bm25_score": 0.0,
+                "vector_score": 0.0,
+                "bm25_rank": None,
+                "vector_rank": rank,
+            }
+        else:
+            existing = scores[chunk_id]["vector_rank"]
+            scores[chunk_id]["vector_rank"] = (
+                min(existing, rank) if existing is not None else rank
+            )
+
+        actual_rank = scores[chunk_id]["vector_rank"]
+        if actual_rank is not None:
+            scores[chunk_id]["vector_score"] = 1.0 / (self.k + actual_rank)
+
+    def combine_classical(
+        self,
+        bm25_results: list[BM25SearchResult],
+        vector_results: list[SearchResult],
+        top_k: int = 10,
+    ) -> list[HybridSearchResult]:
+        """Combine BM25 and classical vector search results using RRF.
+
+        Same algorithm as combine() but accepts list[SearchResult] from the
+        classical vector store instead of the LightRAG dict format.
+        """
+        scores: dict[str, dict[str, Any]] = {}
+
+        for rank, result in enumerate(bm25_results, start=1):
+            self._add_bm25_result(scores, rank, result)
+
+        for rank, result in enumerate(vector_results, start=1):
+            self._add_classical_vector_result(scores, rank, result)
+
+        results = [
+            HybridSearchResult(
+                chunk_id=chunk_id,
+                content=data["content"],
+                file_path=data["file_path"],
+                vector_score=data["vector_score"],
+                bm25_score=data["bm25_score"],
+                combined_score=data["bm25_score"] + data["vector_score"],
+                metadata=data["metadata"],
+                reference_id=None,
                 bm25_rank=data["bm25_rank"],
                 vector_rank=data["vector_rank"],
             )

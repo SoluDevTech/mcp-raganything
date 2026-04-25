@@ -28,6 +28,11 @@ class IndexFolderUseCase:
         self.output_dir = output_dir
 
     async def execute(self, request: IndexFolderRequest) -> FolderIndexingResult:
+        request.working_dir = (
+            request.working_dir
+            if request.working_dir.endswith("/")
+            else f"{request.working_dir}/"
+        )
         local_folder = os.path.join(self.output_dir, request.working_dir)
 
         os.makedirs(local_folder, exist_ok=True)

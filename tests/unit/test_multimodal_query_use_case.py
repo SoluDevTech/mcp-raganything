@@ -21,7 +21,7 @@ class TestMultimodalQueryUseCase:
             multimodal_content=content,
         )
 
-        mock_rag_engine.init_project.assert_called_once_with("/tmp/rag/project_42")
+        mock_rag_engine.init_project.assert_called_once_with("/tmp/rag/project_42/")
 
     async def test_execute_calls_query_multimodal_with_correct_params(
         self,
@@ -48,7 +48,7 @@ class TestMultimodalQueryUseCase:
             multimodal_content=content,
             mode="global",
             top_k=20,
-            working_dir="/tmp/rag/test",
+            working_dir="/tmp/rag/test/",
         )
 
     async def test_execute_returns_success_with_result(
@@ -66,7 +66,7 @@ class TestMultimodalQueryUseCase:
             multimodal_content=content,
         )
 
-        assert result == {"status": "success", "data": "Analysis of the image content"}
+        assert result == {"data": "Analysis of the image content"}
 
     async def test_execute_uses_default_mode_and_top_k(
         self,
@@ -87,5 +87,5 @@ class TestMultimodalQueryUseCase:
             multimodal_content=content,
             mode="hybrid",
             top_k=10,
-            working_dir="/tmp/rag/test",
+            working_dir="/tmp/rag/test/",
         )

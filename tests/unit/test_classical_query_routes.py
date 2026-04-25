@@ -90,6 +90,9 @@ class TestClassicalQueryRoute:
             top_k=20,
             num_variations=5,
             relevance_threshold=7.0,
+            vector_distance_threshold=None,
+            enable_llm_judge=True,
+            mode="vector",
         )
 
     async def test_query_uses_default_params(
@@ -120,13 +123,16 @@ class TestClassicalQueryRoute:
             top_k=10,
             num_variations=3,
             relevance_threshold=5.0,
+            vector_distance_threshold=None,
+            enable_llm_judge=True,
+            mode="vector",
         )
 
     async def test_query_returns_response_body(
         self,
         mock_classical_query_use_case: AsyncMock,
     ) -> None:
-        """Should return the ClassicalQueryResponse body."""
+        """Should return the chunks list from ClassicalQueryResponse."""
         from dependencies import get_classical_query_use_case
 
         app.dependency_overrides[get_classical_query_use_case] = lambda: (
@@ -145,9 +151,7 @@ class TestClassicalQueryRoute:
             )
 
         body = response.json()
-        assert body["status"] == "success"
-        assert "queries" in body
-        assert "chunks" in body
+        assert isinstance(body, list)
 
     async def test_query_rejects_missing_query(self) -> None:
         """Missing query field should return 422."""
