@@ -1,5 +1,7 @@
 """Request model for classical RAG query endpoint."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -35,4 +37,8 @@ class ClassicalQueryRequest(BaseModel):
     enable_llm_judge: bool = Field(
         default=True,
         description="Enable LLM-as-judge scoring. When disabled, relevance_score = cosine similarity (1 - distance).",
+    )
+    mode: Literal["vector", "hybrid"] = Field(
+        default="vector",
+        description="Query mode: 'vector' for vector-only search, 'hybrid' for BM25+vector combined search.",
     )

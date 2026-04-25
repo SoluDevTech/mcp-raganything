@@ -34,17 +34,21 @@ class LangchainPgvectorAdapter(VectorStorePort):
         table_name = self._get_table_name(working_dir)
 
         if working_dir not in self._stores:
-            await self._engine.ainit_vectorstore_table(
-                table_name=table_name,
-                vector_size=self._embedding_dimension,
-            )
+            try:
+                await self._engine.ainit_vectorstore_table(
+                    table_name=table_name,
+                    vector_size=self._embedding_dimension,
+                )
+            except Exception as e:
+                if "already exists" not in str(e).lower():
+                    raise
             store = await PGVectorStore.create(
                 engine=self._engine,
                 table_name=table_name,
                 embedding_service=self._embedding_service,
             )
             self._stores[working_dir] = store
-            self._id_maps[working_dir] = {}
+            self._id_maps.setdefault(working_dir, {})
 
     async def add_documents(
         self,
@@ -77,6 +81,9 @@ class LangchainPgvectorAdapter(VectorStorePort):
         top_k: int = 10,
         score_threshold: float | None = None,
     ) -> list[SearchResult]:
+        if working_dir not in self._stores:
+            await self.ensure_table(working_dir)
+
         store = self._stores.get(working_dir)
         if store is None:
             raise ValueError(
@@ -87,7 +94,9 @@ class LangchainPgvectorAdapter(VectorStorePort):
 
         filtered = lc_results
         if score_threshold is not None:
-            filtered = [(doc, score) for doc, score in lc_results if score <= score_threshold]
+            filtered = [
+                (doc, score) for doc, score in lc_results if score <= score_threshold
+            ]
 
         return [
             SearchResult(
@@ -105,11 +114,12 @@ class LangchainPgvectorAdapter(VectorStorePort):
         ]
 
     async def delete_documents(self, working_dir: str, file_path: str) -> int:
+        if working_dir not in self._stores:
+            await self.ensure_table(working_dir)
+
         store = self._stores.get(working_dir)
         if store is None:
-            raise ValueError(
-                f"Vector store not initialized for working_dir: {working_dir}"
-            )
+            return 0
 
         id_map = self._id_maps.get(working_dir, {})
         ids_to_delete = [doc_id for doc_id, fp in id_map.items() if fp == file_path]

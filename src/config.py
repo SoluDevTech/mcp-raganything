@@ -142,6 +142,11 @@ class ClassicalRAGConfig(BaseSettings):
         ge=0.0,
         le=2.0,
     )
+    CLASSICAL_RRF_K: int = Field(
+        default=60,
+        ge=1,
+        description="RRF constant K for hybrid BM25+vector search",
+    )
 
 
 class MinioConfig(BaseSettings):

@@ -277,6 +277,7 @@ class TestClassicalQueryTool:
             relevance_threshold=5.0,
             vector_distance_threshold=None,
             enable_llm_judge=True,
+            mode="vector",
         )
 
     async def test_passes_custom_params(self) -> None:
@@ -310,6 +311,7 @@ class TestClassicalQueryTool:
             relevance_threshold=7.0,
             vector_distance_threshold=None,
             enable_llm_judge=True,
+            mode="vector",
         )
 
     async def test_returns_classical_query_response(self) -> None:

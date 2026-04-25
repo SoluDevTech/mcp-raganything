@@ -190,10 +190,16 @@ class LightRAGAdapter(RAGEnginePort):
         if total == 0:
             return IndexingStatus.SUCCESS, f"No files found in '{folder_path}'"
         if failed == 0:
-            return IndexingStatus.SUCCESS, f"Successfully indexed {succeeded} file(s) from '{folder_path}'"
+            return (
+                IndexingStatus.SUCCESS,
+                f"Successfully indexed {succeeded} file(s) from '{folder_path}'",
+            )
         if succeeded == 0:
             return IndexingStatus.FAILED, f"Failed to index folder '{folder_path}'"
-        return IndexingStatus.PARTIAL, f"Partially indexed: {succeeded} succeeded, {failed} failed"
+        return (
+            IndexingStatus.PARTIAL,
+            f"Partially indexed: {succeeded} succeeded, {failed} failed",
+        )
 
     async def index_folder(
         self,

@@ -32,6 +32,7 @@ from domain.ports.llm_port import LLMPort
 from domain.ports.vector_store_port import VectorStorePort
 from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
 from infrastructure.document_reader.kreuzberg_adapter import KreuzbergAdapter
+from infrastructure.rag.classical_bm25_adapter import ClassicalBM25Adapter
 from infrastructure.rag.lightrag_adapter import LightRAGAdapter
 from infrastructure.rag.pg_textsearch_adapter import PostgresBM25Adapter
 from infrastructure.storage.minio_adapter import MinioAdapter
@@ -68,6 +69,18 @@ kreuzberg_adapter = KreuzbergAdapter()
 postgres_health_adapter = AsyncpgHealthAdapter(db_config)
 
 classical_rag_config = ClassicalRAGConfig()
+
+classical_bm25_adapter: BM25EnginePort | None = None
+if bm25_config.BM25_ENABLED:
+    try:
+        classical_bm25_adapter = ClassicalBM25Adapter(
+            db_url=db_config.DATABASE_URL.replace("+asyncpg", ""),
+            table_prefix=classical_rag_config.CLASSICAL_TABLE_PREFIX,
+            text_config=bm25_config.BM25_TEXT_CONFIG,
+        )
+    except Exception as e:
+        print(f"WARNING: Classical BM25 adapter initialization failed: {e}")
+        classical_bm25_adapter = None
 
 classical_vector_store: VectorStorePort | None = None
 classical_llm: LLMPort | None = None
@@ -132,6 +145,8 @@ def get_classical_query_use_case() -> ClassicalQueryUseCase:
         vector_store=classical_vector_store,
         llm=classical_llm,
         config=classical_rag_config,
+        bm25_engine=classical_bm25_adapter,
+        rrf_k=classical_rag_config.CLASSICAL_RRF_K,
     )
 
 

@@ -2,7 +2,6 @@
 
 import logging
 
-from config import LLMConfig
 from kreuzberg import (
     ChunkingConfig,
     ExtractionConfig,
@@ -15,6 +14,7 @@ from kreuzberg import (
     extract_file,
 )
 
+from config import LLMConfig
 from domain.ports.document_reader_port import (
     DocumentContent,
     DocumentMetadata,

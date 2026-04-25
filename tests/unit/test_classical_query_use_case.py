@@ -1,9 +1,4 @@
-"""Tests for ClassicalQueryUseCase — TDD Red phase.
-
-These tests will FAIL until the production code is implemented.
-The use case orchestrates: generate multi-query variations → similarity search
-for each variation → deduplicate → LLM-as-judge scoring → filter → return response.
-"""
+"""Tests for ClassicalQueryUseCase."""
 
 import json
 from unittest.mock import AsyncMock
@@ -16,6 +11,7 @@ from application.responses.classical_query_response import (
 )
 from application.use_cases.classical_query_use_case import ClassicalQueryUseCase
 from config import ClassicalRAGConfig
+from domain.ports.bm25_engine import BM25SearchResult
 from domain.ports.vector_store_port import SearchResult
 
 
@@ -469,3 +465,232 @@ class TestClassicalQueryUseCase:
 
         # Should have generated 5 variations + original = 6 searches
         assert mock_vector_store.similarity_search.call_count == 6
+
+
+class TestClassicalQueryUseCaseHybrid:
+    """Tests for ClassicalQueryUseCase hybrid mode (BM25 + vector)."""
+
+    @pytest.fixture
+    def config(self) -> ClassicalRAGConfig:
+        return ClassicalRAGConfig(
+            CLASSICAL_CHUNK_SIZE=1000,
+            CLASSICAL_CHUNK_OVERLAP=200,
+            CLASSICAL_NUM_QUERY_VARIATIONS=2,
+            CLASSICAL_RELEVANCE_THRESHOLD=3.0,
+            CLASSICAL_TABLE_PREFIX="classical_rag_",
+            CLASSICAL_LLM_TEMPERATURE=0.0,
+            CLASSICAL_RRF_K=60,
+        )
+
+    @pytest.fixture
+    def mock_bm25_engine(self) -> AsyncMock:
+        mock = AsyncMock()
+        mock.search.return_value = [
+            BM25SearchResult(
+                chunk_id="bm25-chunk-1",
+                content="BM25 hit content",
+                file_path="/docs/bm25.pdf",
+                score=5.0,
+                metadata={},
+            ),
+        ]
+        return mock
+
+    @pytest.fixture
+    def use_case_hybrid(
+        self,
+        mock_vector_store: AsyncMock,
+        mock_llm: AsyncMock,
+        mock_bm25_engine: AsyncMock,
+        config: ClassicalRAGConfig,
+    ) -> ClassicalQueryUseCase:
+        return ClassicalQueryUseCase(
+            vector_store=mock_vector_store,
+            llm=mock_llm,
+            config=config,
+            bm25_engine=mock_bm25_engine,
+            rrf_k=config.CLASSICAL_RRF_K,
+        )
+
+    @pytest.fixture
+    def use_case_no_bm25(
+        self,
+        mock_vector_store: AsyncMock,
+        mock_llm: AsyncMock,
+        config: ClassicalRAGConfig,
+    ) -> ClassicalQueryUseCase:
+        return ClassicalQueryUseCase(
+            vector_store=mock_vector_store,
+            llm=mock_llm,
+            config=config,
+            bm25_engine=None,
+            rrf_k=config.CLASSICAL_RRF_K,
+        )
+
+    async def test_hybrid_mode_calls_bm25_search(
+        self,
+        use_case_hybrid: ClassicalQueryUseCase,
+        mock_bm25_engine: AsyncMock,
+    ) -> None:
+        """Hybrid mode should call bm25_engine.search()."""
+        await use_case_hybrid.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+            mode="hybrid",
+        )
+        mock_bm25_engine.search.assert_called_once()
+
+    async def test_hybrid_mode_calls_vector_search(
+        self,
+        use_case_hybrid: ClassicalQueryUseCase,
+        mock_vector_store: AsyncMock,
+        mock_llm: AsyncMock,
+    ) -> None:
+        """Hybrid mode should also call vector similarity_search."""
+        mock_llm.generate.return_value = json.dumps(["var1", "var2"])
+        await use_case_hybrid.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+            mode="hybrid",
+        )
+        assert mock_vector_store.similarity_search.call_count >= 1
+
+    async def test_hybrid_mode_combines_bm25_and_vector_results(
+        self,
+        use_case_hybrid: ClassicalQueryUseCase,
+        mock_llm: AsyncMock,
+        mock_vector_store: AsyncMock,
+    ) -> None:
+        """Hybrid mode should return combined results from both sources."""
+        mock_llm.generate.return_value = json.dumps(["var1"])
+        mock_vector_store.similarity_search.return_value = [
+            SearchResult(
+                chunk_id="vec-chunk-1",
+                content="Vector hit content",
+                file_path="/docs/vec.pdf",
+                score=0.1,
+            )
+        ]
+        result = await use_case_hybrid.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+            mode="hybrid",
+            enable_llm_judge=False,
+        )
+        assert isinstance(result, ClassicalQueryResponse)
+        chunk_ids = [c.chunk_id for c in result.chunks]
+        assert "bm25-chunk-1" in chunk_ids
+        assert "vec-chunk-1" in chunk_ids
+
+    async def test_hybrid_mode_response_includes_hybrid_scores(
+        self,
+        use_case_hybrid: ClassicalQueryUseCase,
+        mock_llm: AsyncMock,
+        mock_vector_store: AsyncMock,
+    ) -> None:
+        """Hybrid mode response should include bm25_score, vector_score, combined_score."""
+        mock_llm.generate.return_value = json.dumps(["var1"])
+        mock_vector_store.similarity_search.return_value = [
+            SearchResult(
+                chunk_id="vec-chunk-1",
+                content="vector hit",
+                file_path="/docs/vec.pdf",
+                score=0.1,
+            )
+        ]
+        result = await use_case_hybrid.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+            mode="hybrid",
+            enable_llm_judge=False,
+        )
+        if result.chunks:
+            chunk = result.chunks[0]
+            assert chunk.bm25_score is not None
+            assert chunk.vector_score is not None
+            assert chunk.combined_score is not None
+
+    async def test_hybrid_mode_response_mode_field(
+        self,
+        use_case_hybrid: ClassicalQueryUseCase,
+    ) -> None:
+        """Hybrid mode response should set mode='hybrid'."""
+        result = await use_case_hybrid.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+            mode="hybrid",
+            enable_llm_judge=False,
+        )
+        assert result.mode == "hybrid"
+
+    async def test_hybrid_mode_falls_back_to_vector_when_bm25_unavailable(
+        self,
+        use_case_no_bm25: ClassicalQueryUseCase,
+        mock_vector_store: AsyncMock,
+        mock_llm: AsyncMock,
+    ) -> None:
+        """When bm25_engine is None, hybrid mode should fall back to vector."""
+        mock_llm.generate.return_value = json.dumps(["var1"])
+        result = await use_case_no_bm25.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+            mode="hybrid",
+        )
+        assert isinstance(result, ClassicalQueryResponse)
+        assert result.mode == "vector"
+
+    async def test_hybrid_mode_with_llm_judge(
+        self,
+        use_case_hybrid: ClassicalQueryUseCase,
+        mock_llm: AsyncMock,
+        mock_vector_store: AsyncMock,
+    ) -> None:
+        """Hybrid mode with LLM judge should score combined results."""
+        call_count = 0
+
+        async def mock_generate(system_prompt, user_message):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return json.dumps(["var1"])
+            return "8"
+
+        mock_llm.generate.side_effect = mock_generate
+        result = await use_case_hybrid.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+            mode="hybrid",
+            enable_llm_judge=True,
+        )
+        assert isinstance(result, ClassicalQueryResponse)
+
+    async def test_vector_mode_default_unchanged(
+        self,
+        use_case_hybrid: ClassicalQueryUseCase,
+        mock_bm25_engine: AsyncMock,
+    ) -> None:
+        """Default mode='vector' should NOT call bm25_engine."""
+        await use_case_hybrid.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+        )
+        mock_bm25_engine.search.assert_not_called()
+
+    async def test_hybrid_mode_bm25_exception_fallback_to_vector(
+        self,
+        use_case_hybrid: ClassicalQueryUseCase,
+        mock_bm25_engine: AsyncMock,
+        mock_vector_store: AsyncMock,
+        mock_llm: AsyncMock,
+    ) -> None:
+        """If BM25 raises an exception in hybrid mode, should fall back to vector."""
+        mock_bm25_engine.search.side_effect = RuntimeError("BM25 connection failed")
+        mock_llm.generate.return_value = "7"
+        result = await use_case_hybrid.execute(
+            working_dir="/tmp/rag/project_1",
+            query="test query",
+            mode="hybrid",
+            enable_llm_judge=False,
+        )
+        assert isinstance(result, ClassicalQueryResponse)
+        assert result.mode == "hybrid"

@@ -4,13 +4,13 @@ import os
 import aiofiles
 from kreuzberg import extract_file
 
+from domain.entities.indexing_result import FileIndexingResult, IndexingStatus
+from domain.ports.storage_port import StoragePort
+from domain.ports.vector_store_port import VectorStorePort
 from domain.services.classical_helpers import (
     build_documents_from_extraction,
     validate_path,
 )
-from domain.entities.indexing_result import FileIndexingResult, IndexingStatus
-from domain.ports.storage_port import StoragePort
-from domain.ports.vector_store_port import VectorStorePort
 from infrastructure.document_reader.kreuzberg_adapter import make_extraction_config
 
 
@@ -45,7 +45,9 @@ class ClassicalIndexFileUseCase:
 
             await self.vector_store.ensure_table(working_dir)
 
-            config = make_extraction_config(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            config = make_extraction_config(
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap
+            )
             result = await extract_file(file_path, config=config)
 
             documents = build_documents_from_extraction(result, file_name)

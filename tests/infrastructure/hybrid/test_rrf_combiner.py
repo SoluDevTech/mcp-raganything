@@ -1,6 +1,7 @@
 """Tests for Reciprocal Rank Fusion combiner."""
 
 from domain.ports.bm25_engine import BM25SearchResult
+from domain.ports.vector_store_port import SearchResult
 from infrastructure.rag.rrf_combiner import RRFCombiner
 
 
@@ -312,3 +313,268 @@ def test_combine_no_chunk_id_falls_back_to_reference_id():
 
     assert len(combined) == 1
     assert combined[0].chunk_id == "5"
+
+
+# ------------------------------------------------------------------
+# combine_classical() tests
+# ------------------------------------------------------------------
+
+
+def test_combine_classical_with_both_results():
+    """combine_classical should merge BM25 and vector results via RRF."""
+    combiner = RRFCombiner(k=60)
+
+    bm25_results = [
+        BM25SearchResult(
+            chunk_id="1",
+            content="BM25 result 1",
+            file_path="/a.pdf",
+            score=5.0,
+            metadata={},
+        ),
+        BM25SearchResult(
+            chunk_id="2",
+            content="BM25 result 2",
+            file_path="/b.pdf",
+            score=4.0,
+            metadata={},
+        ),
+    ]
+
+    vector_results = [
+        SearchResult(
+            chunk_id="2",
+            content="Vector result 1",
+            file_path="/b.pdf",
+            score=0.1,
+            metadata={},
+        ),
+        SearchResult(
+            chunk_id="3",
+            content="Vector result 2",
+            file_path="/c.pdf",
+            score=0.2,
+            metadata={},
+        ),
+    ]
+
+    combined = combiner.combine_classical(bm25_results, vector_results, top_k=10)
+
+    assert len(combined) == 3
+
+    for result in combined:
+        assert result.combined_score > 0
+
+    chunk_2 = next(r for r in combined if r.chunk_id == "2")
+    assert chunk_2.bm25_score > 0
+    assert chunk_2.vector_score > 0
+    assert chunk_2.bm25_rank == 2
+    assert chunk_2.vector_rank == 1
+
+
+def test_combine_classical_respects_top_k():
+    """combine_classical should respect top_k."""
+    combiner = RRFCombiner()
+
+    bm25_results = [
+        BM25SearchResult(
+            chunk_id=str(i),
+            content=f"BM25 {i}",
+            file_path="/a.pdf",
+            score=1.0,
+            metadata={},
+        )
+        for i in range(20)
+    ]
+
+    vector_results = [
+        SearchResult(
+            chunk_id=f"v{i}",
+            content=f"Vector {i}",
+            file_path="/b.pdf",
+            score=0.1,
+            metadata={},
+        )
+        for i in range(20)
+    ]
+
+    combined = combiner.combine_classical(bm25_results, vector_results, top_k=5)
+    assert len(combined) == 5
+
+
+def test_combine_classical_sorted_by_combined_score():
+    """combine_classical results should be sorted by combined_score descending."""
+    combiner = RRFCombiner()
+
+    bm25_results = [
+        BM25SearchResult(
+            chunk_id="1", content="BM25", file_path="/a.pdf", score=5.0, metadata={}
+        ),
+        BM25SearchResult(
+            chunk_id="2", content="BM25", file_path="/b.pdf", score=4.0, metadata={}
+        ),
+    ]
+
+    vector_results = [
+        SearchResult(
+            chunk_id="2", content="Vector", file_path="/b.pdf", score=0.1, metadata={}
+        ),
+        SearchResult(
+            chunk_id="1", content="Vector", file_path="/a.pdf", score=0.2, metadata={}
+        ),
+    ]
+
+    combined = combiner.combine_classical(bm25_results, vector_results, top_k=10)
+
+    scores = [r.combined_score for r in combined]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_combine_classical_rrf_formula():
+    """combine_classical should use RRF formula: 1/(k+rank)."""
+    combiner = RRFCombiner(k=60)
+
+    bm25_results = [
+        BM25SearchResult(
+            chunk_id="1",
+            content="BM25 rank 1",
+            file_path="/a.pdf",
+            score=5.0,
+            metadata={},
+        ),
+    ]
+
+    vector_results = [
+        SearchResult(
+            chunk_id="other",
+            content="Vector rank 1",
+            file_path="/x.pdf",
+            score=0.1,
+            metadata={},
+        ),
+        SearchResult(
+            chunk_id="other2",
+            content="Vector rank 2",
+            file_path="/y.pdf",
+            score=0.2,
+            metadata={},
+        ),
+        SearchResult(
+            chunk_id="1",
+            content="Vector rank 3",
+            file_path="/a.pdf",
+            score=0.3,
+            metadata={},
+        ),
+    ]
+
+    combined = combiner.combine_classical(bm25_results, vector_results, top_k=10)
+
+    item = next(r for r in combined if r.chunk_id == "1")
+
+    expected_bm25_score = 1 / (60 + 1)
+    expected_vector_score = 1 / (60 + 3)
+
+    assert abs(item.bm25_score - expected_bm25_score) < 0.0001
+    assert abs(item.vector_score - expected_vector_score) < 0.0001
+    assert (
+        abs(item.combined_score - (expected_bm25_score + expected_vector_score))
+        < 0.0001
+    )
+
+
+def test_combine_classical_only_bm25():
+    """combine_classical should handle only BM25 results."""
+    combiner = RRFCombiner()
+
+    bm25_results = [
+        BM25SearchResult(
+            chunk_id="1",
+            content="BM25 only",
+            file_path="/a.pdf",
+            score=5.0,
+            metadata={},
+        )
+    ]
+
+    combined = combiner.combine_classical(bm25_results, [], top_k=10)
+
+    assert len(combined) == 1
+    assert combined[0].chunk_id == "1"
+    assert combined[0].bm25_score > 0
+    assert combined[0].vector_score == 0
+
+
+def test_combine_classical_only_vector():
+    """combine_classical should handle only vector results."""
+    combiner = RRFCombiner()
+
+    vector_results = [
+        SearchResult(
+            chunk_id="1",
+            content="Vector only",
+            file_path="/a.pdf",
+            score=0.1,
+            metadata={},
+        )
+    ]
+
+    combined = combiner.combine_classical([], vector_results, top_k=10)
+
+    assert len(combined) == 1
+    assert combined[0].chunk_id == "1"
+    assert combined[0].bm25_score == 0
+    assert combined[0].vector_score > 0
+
+
+def test_combine_classical_deduplicates_by_chunk_id():
+    """combine_classical should deduplicate by chunk_id across sources."""
+    combiner = RRFCombiner(k=60)
+
+    bm25_results = [
+        BM25SearchResult(
+            chunk_id="chunk-abc123",
+            content="shared result",
+            file_path="/doc.pdf",
+            score=5.0,
+            metadata={},
+        ),
+    ]
+
+    vector_results = [
+        SearchResult(
+            chunk_id="chunk-abc123",
+            content="shared result",
+            file_path="/doc.pdf",
+            score=0.1,
+            metadata={},
+        ),
+    ]
+
+    combined = combiner.combine_classical(bm25_results, vector_results, top_k=10)
+
+    assert len(combined) == 1
+    assert combined[0].chunk_id == "chunk-abc123"
+    assert combined[0].bm25_rank == 1
+    assert combined[0].vector_rank == 1
+    assert combined[0].combined_score == 1 / (60 + 1) + 1 / (60 + 1)
+
+
+def test_combine_classical_preserves_metadata():
+    """combine_classical should preserve metadata from vector results."""
+    combiner = RRFCombiner()
+
+    vector_results = [
+        SearchResult(
+            chunk_id="1",
+            content="Vector with metadata",
+            file_path="/a.pdf",
+            score=0.1,
+            metadata={"page": 5, "section": "intro"},
+        ),
+    ]
+
+    combined = combiner.combine_classical([], vector_results, top_k=10)
+
+    assert len(combined) == 1
+    assert combined[0].metadata.get("page") == 5

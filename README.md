@@ -498,7 +498,11 @@ Response (`202 Accepted`):
 
 ### Classical Query
 
-Query the classical RAG pipeline. The LLM generates query variations, runs vector similarity search for each, deduplicates results, then scores and filters them with an LLM judge.
+Query the classical RAG pipeline. Supports two modes: **vector** (default) and **hybrid** (BM25 + vector via Reciprocal Rank Fusion).
+
+#### Vector mode (default)
+
+The LLM generates query variations, runs vector similarity search for each, deduplicates results, then scores and filters them with an LLM judge.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/classical/query \
@@ -508,7 +512,22 @@ curl -X POST http://localhost:8000/api/v1/classical/query \
     "query": "What are the main findings of the report?",
     "top_k": 10,
     "num_variations": 3,
-    "relevance_threshold": 5.0
+    "relevance_threshold": 5.0,
+    "mode": "vector"
+  }'
+```
+
+#### Hybrid mode
+
+Runs BM25 full-text search and multi-query vector search in parallel, merges results using Reciprocal Rank Fusion (RRF), then scores with an LLM judge. Chunks include `bm25_score`, `vector_score`, and `combined_score` fields.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/classical/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "working_dir": "project-alpha",
+    "query": "What are the main findings of the report?",
+    "mode": "hybrid"
   }'
 ```
 
@@ -529,18 +548,17 @@ Response (`200 OK`):
       "content": "The primary finding indicates that...",
       "file_path": "project-alpha/report.pdf",
       "relevance_score": 8.5,
-      "metadata": {"chunk_index": 0}
-    },
-    {
-      "chunk_id": "e5f6g7h8-...",
-      "content": "Secondary findings suggest...",
-      "file_path": "project-alpha/report.pdf",
-      "relevance_score": 7.2,
-      "metadata": {"chunk_index": 3}
+      "metadata": {"chunk_index": 0},
+      "bm25_score": 0.0164,
+      "vector_score": 0.0164,
+      "combined_score": 0.0328
     }
-  ]
+  ],
+  "mode": "hybrid"
 }
 ```
+
+If BM25 is unavailable (`BM25_ENABLED=false` or pg_textsearch extension missing), hybrid mode falls back to vector mode and logs a warning.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -549,6 +567,7 @@ Response (`200 OK`):
 | `top_k` | integer | no | `10` | Maximum chunks to retrieve per query variation (1–100) |
 | `num_variations` | integer | no | `3` | Number of LLM-generated query variations (1–10) |
 | `relevance_threshold` | float | no | `5.0` | Minimum LLM judge score (0–10) to include a chunk |
+| `mode` | string | no | `"vector"` | Query mode: `vector` (vector-only) or `hybrid` (BM25+vector RRF) |
 
 ### LightRAG vs Classical RAG
 
@@ -556,7 +575,7 @@ Response (`200 OK`):
 |--------|----------------------|---------------|
 | Storage | Apache AGE knowledge graph + pgvector | PGVector tables only |
 | Indexing | Builds entity/relationship graph | Chunk + embed only |
-| Query modes | `naive`, `local`, `global`, `hybrid`, `hybrid+`, `mix`, `bm25`, `bypass` | Multi-query + LLM judge |
+| Query modes | `naive`, `local`, `global`, `hybrid`, `hybrid+`, `mix`, `bm25`, `bypass` | `vector` (multi-query + LLM judge), `hybrid` (BM25+vector RRF) |
 | Project isolation | Shared graph per `working_dir` | Separate PG table per `working_dir` |
 | Best for | Complex reasoning, relationship traversal | Straightforward document Q&A, simpler setup |
 
@@ -640,6 +659,7 @@ Classical RAG tools for indexing and querying without a knowledge graph.
 | `top_k` | integer | `10` | Maximum chunks to retrieve per query variation |
 | `num_variations` | integer | `3` | Number of LLM-generated query variations (1–10) |
 | `relevance_threshold` | float | `5.0` | Minimum LLM judge score (0–10) to include a chunk |
+| `mode` | string | `"vector"` | Query mode: `vector` (vector-only) or `hybrid` (BM25+vector RRF) |
 
 ### Transport
 
@@ -720,6 +740,7 @@ When `BM25_ENABLED` is `false` or the pg_textsearch extension is not available, 
 | `CLASSICAL_RELEVANCE_THRESHOLD` | `5.0` | Minimum LLM judge score (0–10) for a chunk to be included in results |
 | `CLASSICAL_TABLE_PREFIX` | `classical_rag_` | Prefix for PGVectorStore table names. Full name: `{prefix}{sha256(working_dir)[:16]}` |
 | `CLASSICAL_LLM_TEMPERATURE` | `0.0` | Temperature for LLM calls (multi-query generation + judge scoring) |
+| `CLASSICAL_RRF_K` | `60` | RRF constant K for hybrid BM25+vector search (must be >= 1) |
 
 The classical RAG adapters share the same `OPEN_ROUTER_API_KEY`, `OPEN_ROUTER_API_URL`/`BASE_URL`, `CHAT_MODEL`, `EMBEDDING_MODEL`, and `EMBEDDING_DIM` settings from the LLM config. If initialization fails (e.g. missing API key), the classical endpoints return `503 Service Unavailable` with a descriptive error.
 
@@ -825,7 +846,7 @@ src/
       query_use_case.py              -- Query with bm25/hybrid+ support
       classical_index_file_use_case.py  -- Classical: download → Kreuzberg chunk → PGVector
       classical_index_folder_use_case.py -- Classical: folder batch index
-      classical_query_use_case.py    -- Classical: multi-query + LLM judge scoring
+      classical_query_use_case.py    -- Classical: multi-query + LLM judge + hybrid BM25
       _classical_helpers.py          -- validate_path, build_documents_from_extraction
       list_files_use_case.py          -- Lists files with metadata from MinIO
       list_folders_use_case.py        -- Lists folder prefixes from MinIO
@@ -839,7 +860,8 @@ src/
     document_reader/
       kreuzberg_adapter.py            -- KreuzbergAdapter (kreuzberg, 91 formats)
     bm25/
-      pg_textsearch_adapter.py        -- PostgresBM25Adapter (pg_textsearch)
+      pg_textsearch_adapter.py        -- PostgresBM25Adapter (pg_textsearch, LightRAG tables)
+      classical_bm25_adapter.py        -- ClassicalBM25Adapter (pg_textsearch, classical_rag_* tables)
     hybrid/
       rrf_combiner.py                 -- RRFCombiner (Reciprocal Rank Fusion)
     vector_store/
