@@ -100,7 +100,7 @@ class RAGConfig(BaseSettings):
     )
     DOCUMENT_PARSER: str = Field(
         default="kreuzberg",
-        description="Document parser for RAGAnything: 'kreuzberg', 'docling', 'mineru', or custom registered name",
+        description="Document parser for RAGAnything: 'kreuzberg', 'mineru', 'paddleocr', or custom registered name",
     )
 
 

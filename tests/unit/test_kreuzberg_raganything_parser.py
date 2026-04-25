@@ -162,7 +162,7 @@ class TestEnsureParserRegistered:
         with pytest.raises(ValueError, match="Unknown document parser"):
             _ensure_parser_registered("unknown_parser")
 
-    @pytest.mark.parametrize("name", ["mineru", "docling", "paddleocr"])
+    @pytest.mark.parametrize("name", ["mineru", "paddleocr"])
     def test_builtin_parser_names_are_accepted(self, name):
         _ensure_parser_registered(name)
 
@@ -173,5 +173,5 @@ class TestRAGConfigDocumentParser:
         assert config.DOCUMENT_PARSER == "kreuzberg"
 
     def test_document_parser_can_be_overridden(self):
-        config = RAGConfig(DOCUMENT_PARSER="docling")
-        assert config.DOCUMENT_PARSER == "docling"
+        config = RAGConfig(DOCUMENT_PARSER="mineru")
+        assert config.DOCUMENT_PARSER == "mineru"

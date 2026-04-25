@@ -41,7 +41,7 @@ _LOCAL_STORAGE = {
 }
 
 
-_BUILTIN_PARSERS = {"mineru", "docling", "paddleocr"}
+_BUILTIN_PARSERS = {"mineru", "paddleocr"}
 
 
 def _ensure_parser_registered(parser_name: str) -> None:

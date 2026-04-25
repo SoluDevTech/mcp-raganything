@@ -714,7 +714,7 @@ All configuration is via environment variables, loaded through Pydantic Settings
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RAG_STORAGE_TYPE` | `postgres` | Storage backend: `postgres` or `local` |
-| `DOCUMENT_PARSER` | `kreuzberg` | Document parser for LightRAG pipeline: `kreuzberg` (VLM OCR via OpenRouter), `docling`, `mineru`, or `paddleocr` |
+| `DOCUMENT_PARSER` | `kreuzberg` | Document parser for LightRAG pipeline: `kreuzberg` (VLM OCR via OpenRouter), `mineru`, or `paddleocr` |
 | `COSINE_THRESHOLD` | `0.2` | Similarity threshold for vector search (0.0-1.0) |
 | `MAX_CONCURRENT_FILES` | `1` | Concurrent file processing limit |
 | `MAX_WORKERS` | `3` | Workers for folder processing |
