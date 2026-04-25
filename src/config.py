@@ -98,6 +98,10 @@ class RAGConfig(BaseSettings):
     RAG_STORAGE_TYPE: str = Field(
         default="postgres", description="Storage type for RAG system"
     )
+    DOCUMENT_PARSER: str = Field(
+        default="kreuzberg",
+        description="Document parser for RAGAnything: 'kreuzberg', 'mineru', 'paddleocr', or custom registered name",
+    )
 
 
 class BM25Config(BaseSettings):

@@ -11,6 +11,7 @@ from lightrag import QueryParam
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
 from raganything import RAGAnything, RAGAnythingConfig
+from raganything.parser import register_parser
 
 from application.requests.query_request import MultimodalContentItem
 from config import LLMConfig, RAGConfig
@@ -38,6 +39,27 @@ _LOCAL_STORAGE = {
     "graph_storage": "NetworkXStorage",
     "doc_status_storage": "JsonDocStatusStorage",
 }
+
+
+_BUILTIN_PARSERS = {"mineru", "paddleocr"}
+
+
+def _ensure_parser_registered(parser_name: str) -> None:
+    if parser_name == "kreuzberg":
+        from infrastructure.rag.kreuzberg_raganything_parser import (
+            KreuzbergRAGAnythingParser,
+        )
+
+        register_parser("kreuzberg", KreuzbergRAGAnythingParser)
+        return
+
+    if parser_name in _BUILTIN_PARSERS:
+        return
+
+    raise ValueError(
+        f"Unknown document parser: {parser_name!r}. "
+        f"Choose from: kreuzberg, {', '.join(sorted(_BUILTIN_PARSERS))}"
+    )
 
 
 class LightRAGAdapter(RAGEnginePort):
@@ -107,10 +129,12 @@ class LightRAGAdapter(RAGEnginePort):
         safe_working_dir = os.path.join(
             tempfile.gettempdir(), "raganything", working_dir.strip("/")
         )
+        parser_name = self._rag_config.DOCUMENT_PARSER
+        _ensure_parser_registered(parser_name)
         self.rag[working_dir] = RAGAnything(
             config=RAGAnythingConfig(
                 working_dir=safe_working_dir,
-                parser="docling",
+                parser=parser_name,
                 parse_method="txt",
                 enable_image_processing=self._rag_config.ENABLE_IMAGE_PROCESSING,
                 enable_table_processing=self._rag_config.ENABLE_TABLE_PROCESSING,
