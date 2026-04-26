@@ -151,7 +151,7 @@ class TestClassicalQueryRoute:
             )
 
         body = response.json()
-        assert isinstance(body, list)
+        assert isinstance(body, dict)
 
     async def test_query_rejects_missing_query(self) -> None:
         """Missing query field should return 422."""

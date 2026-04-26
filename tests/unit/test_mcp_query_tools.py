@@ -10,7 +10,7 @@ from application.api.mcp_query_tools import (
     query_knowledge_base_multimodal,
 )
 from application.requests.query_request import MultimodalContentItem
-from application.responses.query_response import ChunkResponse
+from application.responses.query_response import ChunkResponse, McpRagResponse, RagResponse
 
 
 class TestMCPQueryInstance:
@@ -57,10 +57,10 @@ class TestQueryKnowledgeBase:
                 query="What is the summary?",
             )
 
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], ChunkResponse)
-        assert result[0].content == "Relevant chunk content"
+        assert isinstance(result, McpRagResponse)
+        assert len(result.rag_response) == 1
+        assert isinstance(result.rag_response[0], RagResponse)
+        assert result.rag_response[0].content == "Relevant chunk content"
 
     async def test_calls_use_case_with_defaults(self, mock_query_result: dict) -> None:
         """Should pass default mode='hybrid' and top_k=5 to use case."""
@@ -123,7 +123,7 @@ class TestQueryKnowledgeBase:
                 mode="naive",
             )
 
-        assert isinstance(result, list)
+        assert isinstance(result, McpRagResponse)
         mock_use_case.execute.assert_called_once_with(
             working_dir="/tmp/rag/test",
             query="search",
@@ -222,7 +222,8 @@ class TestQueryKnowledgeBase:
                 query="nothing matches",
             )
 
-        assert result == []
+        assert isinstance(result, McpRagResponse)
+        assert result.rag_response == []
 
     async def test_propagates_use_case_error(self) -> None:
         """Should let exceptions from the use case propagate."""
