@@ -73,3 +73,12 @@ class MultimodalQueryResponse(BaseModel):
     data: str = Field(
         default="", description="Réponse textuelle de l'analyse multimodale"
     )
+
+class RagResponse(BaseModel):
+    content: str
+    file_path: str
+
+class McpRagResponse(BaseModel):
+    rag_response: list[RagResponse] = Field(
+        default_factory=list, description="List of retrieved content for MCP integration"
+    )

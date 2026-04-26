@@ -2,6 +2,7 @@ from typing import Literal
 
 from fastmcp import FastMCP
 
+from application.responses.classical_query_response import ClassicalRagResponse, McpClassicalRagResponse
 from dependencies import (
     get_classical_index_file_use_case,
     get_classical_index_folder_use_case,
@@ -21,7 +22,7 @@ async def classical_query(
     vector_distance_threshold: float = 0.5,
     enable_llm_judge: bool = True,
     mode: Literal["vector", "hybrid"] = "vector",
-):
+) -> McpClassicalRagResponse:
     """Query the classical RAG knowledge base.
 
     Args:
@@ -45,4 +46,10 @@ async def classical_query(
         enable_llm_judge=enable_llm_judge,
         mode=mode,
     )
-    return response.chunks
+    classical_response = McpClassicalRagResponse()
+    for chunk in response.chunks:
+        classical_response.rag_response.append(
+            ClassicalRagResponse(content=chunk.content, file_path=chunk.file_path)
+        )
+    return classical_response
+

@@ -32,3 +32,17 @@ class ClassicalQueryResponse(BaseModel):
         default_factory=list, description="Filtered and ranked chunks"
     )
     mode: str = Field(default="vector", description="Query mode used: vector or hybrid")
+
+
+class ClassicalRagResponse(BaseModel):
+    content: str = Field(
+         default="", description="Textual content retrieved from the knowledge base"
+    )
+    file_path: str = Field(
+        default="", description="Source file path of the retrieved content"
+    )
+
+class McpClassicalRagResponse(BaseModel):
+    rag_response: list[ClassicalRagResponse] = Field(
+        default_factory=list, description="List of retrieved content for MCP integration"
+    )

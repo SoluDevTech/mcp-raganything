@@ -111,7 +111,9 @@ class TestClassicalQueryTool:
                 query="What is ML?",
             )
 
-        assert isinstance(result, list)
+        import application.responses.classical_query_response as cqr
+        assert isinstance(result, cqr.McpClassicalRagResponse)
+        assert result.rag_response == []
 
     async def test_propagates_use_case_error(self) -> None:
         """Should let exceptions from the use case propagate."""
