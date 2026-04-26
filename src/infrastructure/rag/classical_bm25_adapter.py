@@ -147,9 +147,9 @@ class ClassicalBM25Adapter(BM25EnginePort):
                         langchain_id AS chunk_id,
                         content,
                         langchain_metadata->>'file_path' AS file_path,
-                        content <@> ag_catalog.to_bm25query($1, $3) as score
+                        content <@> to_bm25query($1, $3) as score
                     FROM {table_name}
-                    WHERE content <@> ag_catalog.to_bm25query($1, $3) < 0
+                    WHERE content <@> to_bm25query($1, $3) < 0
                     ORDER BY score
                     LIMIT $2
                 """
