@@ -141,7 +141,7 @@ class TestClassicalQueryUseCase:
         )
 
         for call_item in mock_vector_store.similarity_search.call_args_list:
-            assert call_item[1]["working_dir"] == "/tmp/rag/my_project"
+            assert call_item[1]["working_dir"] == "/tmp/rag/my_project/"
             assert call_item[1]["top_k"] == 5
 
     # ------------------------------------------------------------------
