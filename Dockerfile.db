@@ -26,10 +26,10 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /docker-entrypoint-initdb.d && \
     cat > /docker-entrypoint-initdb.d/10-init-extensions.sql << 'EOF'
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_textsearch;
 CREATE EXTENSION IF NOT EXISTS age;
 LOAD 'age';
 SET search_path = ag_catalog, "$user", public;
-CREATE EXTENSION IF NOT EXISTS pg_textsearch;
 EOF
 
 USER postgres
