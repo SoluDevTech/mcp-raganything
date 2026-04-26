@@ -41,7 +41,7 @@ def make_extraction_config(
     chunk_overlap: int = 200,
 ) -> ExtractionConfig:
     return ExtractionConfig(
-        use_cache=True,
+        use_cache=False,  # Disabled: cache namespace issue causing "Unknown namespace: parse_cache"
         output_format=OutputFormat.MARKDOWN,
         enable_quality_processing=True,
         pdf_options=PdfConfig(extract_images=True, extract_metadata=True),
