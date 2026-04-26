@@ -79,4 +79,6 @@ class RagResponse(BaseModel):
     file_path: str
 
 class McpRagResponse(BaseModel):
-    rag_response: list[RagResponse]
+    rag_response: list[RagResponse] = Field(
+        default_factory=list, description="List of retrieved content for MCP integration"
+    )

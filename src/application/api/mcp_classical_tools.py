@@ -47,11 +47,9 @@ async def classical_query(
         mode=mode,
     )
     classical_response = McpClassicalRagResponse()
-    for item in response.queries:
-        for chunk in response.chunks:
-            if chunk.chunk_id.startswith(item):
-                classical_response.rag_response.append(
-                    ClassicalRagResponse(content=chunk.content, file_path=chunk.file_path)
-                )
+    for chunk in response.chunks:
+        classical_response.rag_response.append(
+            ClassicalRagResponse(content=chunk.content, file_path=chunk.file_path)
+        )
     return classical_response
 
