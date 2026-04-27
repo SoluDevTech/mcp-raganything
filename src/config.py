@@ -102,6 +102,10 @@ class RAGConfig(BaseSettings):
         default="kreuzberg",
         description="Document parser for RAGAnything: 'kreuzberg', 'mineru', 'paddleocr', or custom registered name",
     )
+    KREUZBERG_OCR_MODE: str = Field(
+        default="vlm",
+        description="OCR backend for Kreuzberg: 'vlm' or 'tesseract'",
+    )
 
 
 class BM25Config(BaseSettings):

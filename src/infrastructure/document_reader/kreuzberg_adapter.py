@@ -5,7 +5,7 @@ import logging
 from kreuzberg import (
     ChunkingConfig,
     ExtractionConfig,
-    LlmConfig,
+    LlmConfig as KreuzbergLlmConfig,
     OcrConfig,
     OutputFormat,
     ParsingError,
@@ -24,39 +24,45 @@ from domain.ports.document_reader_port import (
 
 logger = logging.getLogger(__name__)
 
-_llm_config = LLMConfig()
-
-_VLM_OCR_CONFIG = OcrConfig(
-    backend="vlm",
-    vlm_config=LlmConfig(
-        model=_llm_config.VISION_MODEL,
-        api_key=_llm_config.api_key,
-        base_url=_llm_config.api_base_url,
-    ),
-)
-
 
 def make_extraction_config(
+    ocr_mode: str | None = None,
     chunk_size: int = 1000,
     chunk_overlap: int = 200,
 ) -> ExtractionConfig:
+    from config import RAGConfig
+
+    if ocr_mode is None:
+        ocr_mode = RAGConfig().KREUZBERG_OCR_MODE
+    llm_config = LLMConfig()
+    if ocr_mode == "vlm":
+        ocr = OcrConfig(
+            backend="vlm",
+            vlm_config=KreuzbergLlmConfig(
+                model=llm_config.VISION_MODEL,
+                api_key=llm_config.api_key,
+                base_url=llm_config.api_base_url,
+            ),
+        )
+    else:
+        ocr = OcrConfig(backend="tesseract")
     return ExtractionConfig(
         use_cache=True,
         output_format=OutputFormat.MARKDOWN,
         enable_quality_processing=True,
         pdf_options=PdfConfig(extract_images=True, extract_metadata=True),
-        ocr=_VLM_OCR_CONFIG,
+        ocr=ocr,
         chunking=ChunkingConfig(max_chars=chunk_size, max_overlap=chunk_overlap),
     )
 
 
-_KREUZBERG_CONFIG = make_extraction_config()
-
-
 class KreuzbergAdapter(DocumentReaderPort):
+    def __init__(self, ocr_mode: str | None = None) -> None:
+        self._config = make_extraction_config(ocr_mode=ocr_mode)
+
     async def extract_content(self, file_path: str) -> DocumentContent:
         try:
-            result = await extract_file(file_path, config=_KREUZBERG_CONFIG)
+            result = await extract_file(file_path, config=self._config)
             logger.debug("Full extraction result for %s: %s", file_path, result)
         except ParsingError as e:
             raise ValueError(f"Unsupported file format: {e}") from e
