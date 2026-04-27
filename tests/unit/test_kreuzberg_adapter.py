@@ -16,7 +16,7 @@ class TestKreuzbergAdapter:
         mock_result.tables = []
         mock_extract.return_value = mock_result
 
-        adapter = KreuzbergAdapter()
+        adapter = KreuzbergAdapter(ocr_mode="vlm")
         result = await adapter.extract_content("/tmp/test.pdf")
 
         assert isinstance(result, DocumentContent)
@@ -34,11 +34,29 @@ class TestKreuzbergAdapter:
         mock_result.tables = [mock_table]
         mock_extract.return_value = mock_result
 
-        adapter = KreuzbergAdapter()
+        adapter = KreuzbergAdapter(ocr_mode="vlm")
         result = await adapter.extract_content("/tmp/test.pdf")
 
         assert len(result.tables) == 1
         assert result.tables[0].markdown == "| A | B |\n|---|---|"
+
+    @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
+    async def test_extract_content_uses_tesseract_mode(self, mock_extract) -> None:
+        mock_result = AsyncMock()
+        mock_result.content = "ocr text"
+        mock_result.mime_type = "application/pdf"
+        mock_result.metadata = {}
+        mock_result.tables = []
+        mock_extract.return_value = mock_result
+
+        adapter = KreuzbergAdapter(ocr_mode="tesseract")
+        result = await adapter.extract_content("/tmp/test.pdf")
+
+        assert result.content == "ocr text"
+        # Verify that extract_file was called with the adapter's internal config.
+        # We can't easily inspect OcrConfig backend, but the test validates
+        # the constructor accepts tesseract mode and runs successfully.
+        mock_extract.assert_awaited_once()
 
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
     async def test_extract_content_raises_value_error_for_parsing_error(
@@ -47,7 +65,7 @@ class TestKreuzbergAdapter:
         from kreuzberg import ParsingError
 
         mock_extract.side_effect = ParsingError("unsupported format")
-        adapter = KreuzbergAdapter()
+        adapter = KreuzbergAdapter(ocr_mode="vlm")
 
         with pytest.raises(ValueError, match="Unsupported file format"):
             await adapter.extract_content("/tmp/test.xyz")
@@ -59,7 +77,7 @@ class TestKreuzbergAdapter:
         from kreuzberg import ValidationError
 
         mock_extract.side_effect = ValidationError("invalid file")
-        adapter = KreuzbergAdapter()
+        adapter = KreuzbergAdapter(ocr_mode="vlm")
 
         with pytest.raises(ValueError, match="Invalid file"):
             await adapter.extract_content("/tmp/test.bad")
@@ -71,7 +89,7 @@ class TestKreuzbergAdapter:
         from kreuzberg import KreuzbergError
 
         mock_extract.side_effect = KreuzbergError("some other error")
-        adapter = KreuzbergAdapter()
+        adapter = KreuzbergAdapter(ocr_mode="vlm")
 
         with pytest.raises(KreuzbergError):
             await adapter.extract_content("/tmp/test.pdf")

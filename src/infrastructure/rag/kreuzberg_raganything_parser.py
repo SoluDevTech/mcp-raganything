@@ -30,6 +30,7 @@ class KreuzbergRAGAnythingParser(Parser):
         super().__init__()
         self._config = make_extraction_config()
 
+
     def check_installation(self) -> bool:
         return importlib.util.find_spec("kreuzberg") is not None
 
