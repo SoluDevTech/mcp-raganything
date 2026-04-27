@@ -16,7 +16,7 @@ FROM python:3.13-slim-bookworm
 
 # Install only critical runtime system deps, then clean up apt metadata to keep image slim.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 \
+    && apt-get install -y --no-install-recommends libgomp1 tesseract-ocr tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # Set working directory
