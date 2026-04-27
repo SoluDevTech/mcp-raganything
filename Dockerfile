@@ -19,6 +19,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 tesseract-ocr tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
+# Set TESSDATA_PREFIX for Tesseract and create Kreuzberg cache symlink
+# Kreuzberg hardcodes linux-aarch64 path, so we symlink to the actual tessdata location
+ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
+RUN mkdir -p /io/.tesseract-cache/linux-aarch64 \
+    && ln -s ${TESSDATA_PREFIX} /io/.tesseract-cache/linux-aarch64/tessdata
+
 # Set working directory
 WORKDIR /app
 
