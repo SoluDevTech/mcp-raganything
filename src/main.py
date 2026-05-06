@@ -4,6 +4,8 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import uvicorn
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
