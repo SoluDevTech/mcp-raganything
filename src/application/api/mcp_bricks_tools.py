@@ -2,6 +2,7 @@ import logging
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from pydantic import BaseModel, Field
 
 from application.responses.file_response import FileContentResponse
 from dependencies import (
@@ -15,8 +16,16 @@ logger = logging.getLogger(__name__)
 mcp_bricks = FastMCP("RAGAnythingBricks")
 
 
+class DocumentSummary(BaseModel):
+    id: str = Field(description="Document ID — pass this to read_bricks_document")
+    file_name: str = Field(description="Nom du fichier")
+    mime_type: str = Field(default="", description="Type MIME du fichier")
+    size: int = Field(default=0, description="Taille en octets")
+    status: str = Field(default="", description="Statut du document")
+
+
 @mcp_bricks.tool()
-async def list_bricks_documents(project_unique_id: str) -> list:
+async def list_bricks_documents(project_unique_id: str) -> list[DocumentSummary]:
     """Liste les documents d'un projet Bricks.
 
     Args:
@@ -27,12 +36,22 @@ async def list_bricks_documents(project_unique_id: str) -> list:
     """
     use_case = get_list_bricks_documents_use_case()
     try:
-        return await use_case.execute(project_id=project_unique_id)
+        documents = await use_case.execute(project_id=project_unique_id)
     except Exception:
         logger.exception(
             "Failed to list bricks documents for project %s", project_unique_id
         )
         raise ToolError("Failed to list bricks documents") from None
+    return [
+        DocumentSummary(
+            id=doc.id,
+            file_name=doc.file_name,
+            mime_type=doc.mime_type,
+            size=doc.size,
+            status=doc.status,
+        )
+        for doc in documents
+    ]
 
 
 @mcp_bricks.tool()
