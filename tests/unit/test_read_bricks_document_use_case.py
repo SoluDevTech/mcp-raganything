@@ -25,7 +25,7 @@ class TestReadBricksDocumentUseCase:
         tmp_path,
     ) -> None:
         """Should call bricks_api.download_document with document_id and project_id."""
-        mock_bricks_api.download_document.return_value = (b"file content", "report.pdf")
+        mock_bricks_api.download_document.return_value = (b"file content", "report.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
             content="extracted text",
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
@@ -50,7 +50,7 @@ class TestReadBricksDocumentUseCase:
         tmp_path,
     ) -> None:
         """Should return DocumentContent from Kreuzberg extraction."""
-        mock_bricks_api.download_document.return_value = (b"pdf data", "doc.pdf")
+        mock_bricks_api.download_document.return_value = (b"pdf data", "doc.pdf", "application/pdf")
         expected = DocumentContent(
             content="extracted text from bricks document",
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
@@ -78,7 +78,7 @@ class TestReadBricksDocumentUseCase:
         tmp_path,
     ) -> None:
         """Should save temp file and pass its path to document_reader.extract_content."""
-        mock_bricks_api.download_document.return_value = (b"pdf binary", "report.pdf")
+        mock_bricks_api.download_document.return_value = (b"pdf binary", "report.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
             content="text",
             metadata=DocumentMetadata(format_type="pdf"),
@@ -104,7 +104,7 @@ class TestReadBricksDocumentUseCase:
         tmp_path,
     ) -> None:
         """Should use the filename extension from the download as temp file suffix."""
-        mock_bricks_api.download_document.return_value = (b"data", "spreadsheet.xlsx")
+        mock_bricks_api.download_document.return_value = (b"data", "spreadsheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         mock_document_reader.extract_content.return_value = DocumentContent(
             content="spreadsheet data",
             metadata=DocumentMetadata(format_type="xlsx"),
@@ -148,7 +148,7 @@ class TestReadBricksDocumentUseCase:
         tmp_path,
     ) -> None:
         """Should propagate errors when Kreuzberg extraction fails."""
-        mock_bricks_api.download_document.return_value = (b"corrupt data", "broken.pdf")
+        mock_bricks_api.download_document.return_value = (b"corrupt data", "broken.pdf", "application/pdf")
         mock_document_reader.extract_content.side_effect = ValueError(
             "Unsupported format"
         )
@@ -168,7 +168,7 @@ class TestReadBricksDocumentUseCase:
         tmp_path,
     ) -> None:
         """Should delete the temp file after successful extraction."""
-        mock_bricks_api.download_document.return_value = (b"data", "report.pdf")
+        mock_bricks_api.download_document.return_value = (b"data", "report.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
             content="text",
             metadata=DocumentMetadata(format_type="txt"),
@@ -193,7 +193,7 @@ class TestReadBricksDocumentUseCase:
         tmp_path,
     ) -> None:
         """Should delete the temp file even when Kreuzberg extraction fails."""
-        mock_bricks_api.download_document.return_value = (b"data", "report.pdf")
+        mock_bricks_api.download_document.return_value = (b"data", "report.pdf", "application/pdf")
         mock_document_reader.extract_content.side_effect = ValueError("bad format")
         use_case = ReadBricksDocumentUseCase(
             bricks_api=mock_bricks_api,
@@ -217,7 +217,7 @@ class TestReadBricksDocumentUseCase:
         """Should include tables in the returned DocumentContent."""
         from domain.ports.document_reader_port import TableData
 
-        mock_bricks_api.download_document.return_value = (b"data", "financials.pdf")
+        mock_bricks_api.download_document.return_value = (b"data", "financials.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
             content="text with table",
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
@@ -235,3 +235,27 @@ class TestReadBricksDocumentUseCase:
 
         assert len(result.tables) == 1
         assert result.tables[0].markdown == "| A | B |\n|---|---|\n| 1 | 2 |"
+
+    async def test_execute_passes_mime_type_to_document_reader(
+        self,
+        mock_bricks_api: AsyncMock,
+        mock_document_reader: AsyncMock,
+        tmp_path,
+    ) -> None:
+        """Should pass mime_type from Bricks API to document_reader.extract_content."""
+        mock_bricks_api.download_document.return_value = (b"data", "report.pdf", "application/pdf")
+        mock_document_reader.extract_content.return_value = DocumentContent(
+            content="text",
+            metadata=DocumentMetadata(format_type="pdf"),
+            tables=[],
+        )
+        use_case = ReadBricksDocumentUseCase(
+            bricks_api=mock_bricks_api,
+            document_reader=mock_document_reader,
+            output_dir=str(tmp_path),
+        )
+
+        await use_case.execute(document_id="doc-1", project_id="proj-1")
+
+        call_kwargs = mock_document_reader.extract_content.call_args
+        assert call_kwargs.kwargs.get("mime_type") == "application/pdf" or call_kwargs[1].get("mime_type") == "application/pdf"

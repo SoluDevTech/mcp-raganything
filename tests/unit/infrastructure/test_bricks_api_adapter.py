@@ -16,6 +16,7 @@ from domain.ports.bricks_api_port import BricksDocumentInfo, SectionVersionResul
 from infrastructure.bricks.bricks_api_adapter import (
     BricksApiAdapter,
     _extract_filename,
+    _normalize_extension,
 )
 
 
@@ -236,13 +237,14 @@ class TestDownloadDocument:
         file_resp = _mock_urlopen_response(file_body, headers={"Content-Disposition": 'attachment; filename="doc.pdf"'})
 
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", side_effect=[list_resp, file_resp]) as mock_urlopen:
-            content, filename = await adapter.download_document(document_id="doc-1", project_id="proj-1")
+            content, filename, mime_type = await adapter.download_document(document_id="doc-1", project_id="proj-1")
 
             assert mock_urlopen.call_count == 2
             list_req = mock_urlopen.call_args_list[0][0][0]
             assert "api/projects/proj-1/documents/ai" in list_req.full_url
         assert content == b"PDF content"
         assert filename == "doc.pdf"
+        assert mime_type == "application/pdf"
 
     async def test_extracts_filename_from_url_when_no_content_disposition(self, adapter: BricksApiAdapter) -> None:
         """Should extract filename from URL path when no Content-Disposition header."""
@@ -261,7 +263,7 @@ class TestDownloadDocument:
         file_resp = _mock_urlopen_response(b"data", headers={})
 
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", side_effect=[list_resp, file_resp]):
-            _, filename = await adapter.download_document(document_id="doc-2", project_id="proj-1")
+            _, filename, _ = await adapter.download_document(document_id="doc-2", project_id="proj-1")
 
         assert filename == "Dossier_Financement.pdf"
 
@@ -281,7 +283,7 @@ class TestDownloadDocument:
         file_resp = _mock_urlopen_response(b"data", headers={})
 
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", side_effect=[list_resp, file_resp]):
-            _, filename = await adapter.download_document(document_id="doc-3", project_id="proj-1")
+            _, filename, _ = await adapter.download_document(document_id="doc-3", project_id="proj-1")
 
         assert filename == "document.bin"
 
@@ -357,6 +359,28 @@ class TestExtractFilename:
 
     def test_url_without_extension_falls_back(self) -> None:
         assert _extract_filename("", "https://s3.example.com/path/noext") == "document.bin"
+
+
+class TestNormalizeExtension:
+    """Tests for _normalize_extension helper."""
+
+    def test_normal_dot_pdf(self) -> None:
+        assert _normalize_extension("report.pdf") == "report.pdf"
+
+    def test_dot_underscore_pdf(self) -> None:
+        assert _normalize_extension("report._pdf") == "report.pdf"
+
+    def test_double_dot_extension(self) -> None:
+        assert _normalize_extension("report..pdf") == "report..pdf"
+
+    def test_no_extension(self) -> None:
+        assert _normalize_extension("noext") == "noext"
+
+    def test_empty_extension(self) -> None:
+        assert _normalize_extension("report.") == "report."
+
+    def test_normal_dot_docx(self) -> None:
+        assert _normalize_extension("file.docx") == "file.docx"
 
 
 class TestPublishSectionVersion:

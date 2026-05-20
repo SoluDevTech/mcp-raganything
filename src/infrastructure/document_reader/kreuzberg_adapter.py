@@ -62,9 +62,12 @@ class KreuzbergAdapter(DocumentReaderPort):
     def __init__(self, ocr_mode: str | None = None) -> None:
         self._config = make_extraction_config(ocr_mode=ocr_mode)
 
-    async def extract_content(self, file_path: str) -> DocumentContent:
+    async def extract_content(self, file_path: str, mime_type: str = "") -> DocumentContent:
         try:
-            result = await extract_file(file_path, config=self._config)
+            kwargs = {"config": self._config}
+            if mime_type:
+                kwargs["mime_type"] = mime_type
+            result = await extract_file(file_path, **kwargs)
             logger.debug("Full extraction result for %s: %s", file_path, result)
         except ParsingError as e:
             raise ValueError(f"Unsupported file format: {e}") from e
