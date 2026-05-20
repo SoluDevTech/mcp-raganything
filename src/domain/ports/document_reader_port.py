@@ -20,5 +20,5 @@ class DocumentContent(BaseModel):
 
 class DocumentReaderPort(ABC):
     @abstractmethod
-    async def extract_content(self, file_path: str) -> DocumentContent:
+    async def extract_content(self, file_path: str, mime_type: str = "") -> DocumentContent:
         pass

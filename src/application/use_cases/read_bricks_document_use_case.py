@@ -24,7 +24,7 @@ class ReadBricksDocumentUseCase:
         document_id: str,
         project_id: str,
     ) -> DocumentContent:
-        data, filename = await self.bricks_api.download_document(
+        data, filename, mime_type = await self.bricks_api.download_document(
             document_id=document_id, project_id=project_id
         )
 
@@ -36,7 +36,7 @@ class ReadBricksDocumentUseCase:
             async with aiofiles.open(tmp_path, "wb") as f:
                 await f.write(data)
 
-            return await self.document_reader.extract_content(tmp_path)
+            return await self.document_reader.extract_content(tmp_path, mime_type=mime_type)
         finally:
             with contextlib.suppress(OSError):
                 os.unlink(tmp_path)

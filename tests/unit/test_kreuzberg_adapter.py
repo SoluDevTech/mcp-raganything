@@ -93,3 +93,34 @@ class TestKreuzbergAdapter:
 
         with pytest.raises(KreuzbergError):
             await adapter.extract_content("/tmp/test.pdf")
+
+    @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
+    async def test_extract_content_passes_mime_type(self, mock_extract) -> None:
+        mock_result = AsyncMock()
+        mock_result.content = "text"
+        mock_result.mime_type = "application/pdf"
+        mock_result.metadata = {}
+        mock_result.tables = []
+        mock_extract.return_value = mock_result
+
+        adapter = KreuzbergAdapter(ocr_mode="tesseract")
+        result = await adapter.extract_content("/tmp/doc.bin", mime_type="application/pdf")
+
+        mock_extract.assert_awaited_once()
+        call_kwargs = mock_extract.call_args.kwargs
+        assert call_kwargs.get("mime_type") == "application/pdf"
+
+    @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
+    async def test_extract_content_without_mime_type(self, mock_extract) -> None:
+        mock_result = AsyncMock()
+        mock_result.content = "text"
+        mock_result.mime_type = "application/pdf"
+        mock_result.metadata = {}
+        mock_result.tables = []
+        mock_extract.return_value = mock_result
+
+        adapter = KreuzbergAdapter(ocr_mode="tesseract")
+        await adapter.extract_content("/tmp/test.pdf")
+
+        call_kwargs = mock_extract.call_args.kwargs
+        assert "mime_type" not in call_kwargs

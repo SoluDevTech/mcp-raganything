@@ -203,8 +203,8 @@ class TestBricksApiPortAbstract:
 
             async def download_document(
                 self, document_id: str, project_id: str
-            ) -> tuple[bytes, str]:
-                return (b"", "file.pdf")
+            ) -> tuple[bytes, str, str]:
+                return (b"", "file.pdf", "application/pdf")
 
             async def publish_section_version(
                 self, payload: dict

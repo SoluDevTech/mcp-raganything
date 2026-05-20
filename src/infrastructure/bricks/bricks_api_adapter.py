@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 import urllib.error
 import urllib.parse
@@ -65,12 +66,14 @@ class BricksApiAdapter(BricksApiPort):
         self,
         document_id: str,
         project_id: str,
-    ) -> tuple[bytes, str]:
+    ) -> tuple[bytes, str, str]:
         documents = await self.list_project_documents(project_id)
         url = None
+        mime_type = ""
         for doc in documents:
             if doc.id == document_id and doc.url:
                 url = doc.url
+                mime_type = doc.mime_type
                 break
         if not url:
             raise FileNotFoundError(
@@ -96,7 +99,7 @@ class BricksApiAdapter(BricksApiPort):
             raise TimeoutError(f"Document download timed out: {e}") from e
 
         filename = _extract_filename(resp_headers.get("Content-Disposition", ""), url)
-        return body, filename
+        return body, filename, mime_type
 
     async def publish_section_version(self, payload: dict) -> SectionVersionResult:
         url = f"{self._base_url}/api/section-versions"
@@ -123,13 +126,30 @@ class BricksApiAdapter(BricksApiPort):
 def _extract_filename(content_disposition: str, url: str = "") -> str:
     match = re.search(r'filename="([^"]+)"', content_disposition)
     if match:
-        return match.group(1)
+        filename = match.group(1)
+        logger.debug("Filename from Content-Disposition (quoted): %s", filename)
+        return _normalize_extension(filename)
     match = re.search(r"filename=([^\s;]+)", content_disposition)
     if match:
-        return match.group(1)
+        filename = match.group(1)
+        logger.debug("Filename from Content-Disposition (unquoted): %s", filename)
+        return _normalize_extension(filename)
     if url:
         decoded_path = urllib.parse.unquote(urllib.parse.urlparse(url).path)
         path_filename = decoded_path.rsplit("/", 1)[-1]
         if path_filename and "." in path_filename:
-            return path_filename
+            logger.debug("Filename from URL path: %s (url=%s)", path_filename, url[:200])
+            return _normalize_extension(path_filename)
+    logger.warning("Could not extract filename, falling back to document.bin (url=%s)", url[:200] if url else "")
     return "document.bin"
+
+
+def _normalize_extension(filename: str) -> str:
+    name, ext = os.path.splitext(filename)
+    if not ext or ext == ".":
+        return filename
+    cleaned = re.sub(r"^[^a-zA-Z]+", ".", ext.lower())
+    if cleaned == ext.lower():
+        return filename
+    logger.warning("Normalized file extension: %s -> %s (filename=%s)", ext, cleaned, filename)
+    return name + cleaned

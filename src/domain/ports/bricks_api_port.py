@@ -49,7 +49,7 @@ class BricksApiPort(ABC):
         self,
         document_id: str,
         project_id: str,
-    ) -> tuple[bytes, str]:
+    ) -> tuple[bytes, str, str]:
         pass
 
     @abstractmethod
