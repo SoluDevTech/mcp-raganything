@@ -11,3 +11,8 @@ CVE-2025-7458
 # Faux positif confirmé par le tracker Debian (will_not_fix).
 # Review: 2026-04-24
 CVE-2023-45853
+
+# libssh2-1: integer overflow via large username/password - no fixed version available (status: affected).
+# Debian bookworm package not yet patched. Monitor for upstream fix.
+# Review: 2026-05-20
+CVE-2026-7598
