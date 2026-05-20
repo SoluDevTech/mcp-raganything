@@ -679,8 +679,7 @@ Publishes a structured section version back to the Bricks platform. When `BRICKS
     "workflow_id": "agent-haiku-files-v1",
     "workflow_name": "haiku-files",
     "workflow_metadata": {}
-  },
-  "target_url": "https://project-analysis-preprod.up.railway.app/api/section-versions"
+  }
 }
 ```
 
@@ -818,9 +817,8 @@ The classical RAG adapters share the same `OPEN_ROUTER_API_KEY`, `OPEN_ROUTER_AP
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BRICKS_API_BASE_URL` | `https://analyse.bricks.co` | Bricks platform base URL |
-| `BRICKS_API_KEY` | -- | X-API-Key for Bricks API authentication |
-| `BRICKS_BEARER_TOKEN` | -- | Bearer token for Bricks API (document listing) |
-| `BRICKS_PUBLISH_TARGET_URL` | -- | Target URL for publishing section versions |
+| `BRICKS_API_KEY` | -- | X-API-Key for Bricks API authentication (publish) |
+| `BRICKS_BEARER_TOKEN` | -- | Bearer token for Bricks API authentication (list documents) |
 | `BRICKS_PUBLISH_DRY_RUN` | `true` | When `true`, `publish_section_version` returns a payload preview without making an API call |
 
 ## Query Modes

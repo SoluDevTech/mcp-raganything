@@ -24,7 +24,7 @@ class TestReadBricksDocumentUseCase:
         mock_document_reader: AsyncMock,
         tmp_path,
     ) -> None:
-        """Should call bricks_api.download_document with the file URL."""
+        """Should call bricks_api.download_document with document_id and project_id."""
         mock_bricks_api.download_document.return_value = (b"file content", "report.pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
             content="extracted text",
@@ -37,10 +37,10 @@ class TestReadBricksDocumentUseCase:
             output_dir=str(tmp_path),
         )
 
-        await use_case.execute(file_url="https://s3.example.com/presigned/report.pdf")
+        await use_case.execute(document_id="doc-123", project_id="proj-456")
 
         mock_bricks_api.download_document.assert_called_once_with(
-            download_url="https://s3.example.com/presigned/report.pdf"
+            document_id="doc-123", project_id="proj-456"
         )
 
     async def test_execute_returns_document_content(
@@ -64,7 +64,7 @@ class TestReadBricksDocumentUseCase:
         )
 
         result = await use_case.execute(
-            file_url="https://s3.example.com/presigned/doc.pdf"
+            document_id="doc-456", project_id="proj-1"
         )
 
         assert result.content == "extracted text from bricks document"
@@ -90,7 +90,7 @@ class TestReadBricksDocumentUseCase:
             output_dir=str(tmp_path),
         )
 
-        await use_case.execute(file_url="https://s3.example.com/report.pdf")
+        await use_case.execute(document_id="doc-1", project_id="proj-1")
 
         call_args = mock_document_reader.extract_content.call_args
         tmp_file_path = call_args[0][0]
@@ -116,7 +116,7 @@ class TestReadBricksDocumentUseCase:
             output_dir=str(tmp_path),
         )
 
-        await use_case.execute(file_url="https://s3.example.com/spreadsheet.xlsx")
+        await use_case.execute(document_id="doc-xlsx", project_id="proj-1")
 
         call_args = mock_document_reader.extract_content.call_args
         tmp_file_path = call_args[0][0]
@@ -139,7 +139,7 @@ class TestReadBricksDocumentUseCase:
         )
 
         with pytest.raises(ConnectionError, match="S3 download failed"):
-            await use_case.execute(file_url="https://s3.example.com/missing.pdf")
+            await use_case.execute(document_id="doc-missing", project_id="proj-1")
 
     async def test_execute_propagates_kreuzberg_failure(
         self,
@@ -159,7 +159,7 @@ class TestReadBricksDocumentUseCase:
         )
 
         with pytest.raises(ValueError, match="Unsupported format"):
-            await use_case.execute(file_url="https://s3.example.com/broken.pdf")
+            await use_case.execute(document_id="doc-broken", project_id="proj-1")
 
     async def test_execute_cleans_up_temp_file(
         self,
@@ -180,7 +180,7 @@ class TestReadBricksDocumentUseCase:
             output_dir=str(tmp_path),
         )
 
-        await use_case.execute(file_url="https://s3.example.com/report.pdf")
+        await use_case.execute(document_id="doc-report", project_id="proj-1")
 
         call_args = mock_document_reader.extract_content.call_args
         tmp_file_path = call_args[0][0]
@@ -202,7 +202,7 @@ class TestReadBricksDocumentUseCase:
         )
 
         with pytest.raises(ValueError):
-            await use_case.execute(file_url="https://s3.example.com/report.pdf")
+            await use_case.execute(document_id="doc-1", project_id="proj-1")
 
         call_args = mock_document_reader.extract_content.call_args
         tmp_file_path = call_args[0][0]
@@ -230,7 +230,7 @@ class TestReadBricksDocumentUseCase:
         )
 
         result = await use_case.execute(
-            file_url="https://s3.example.com/financials.pdf"
+            document_id="doc-financials", project_id="proj-1"
         )
 
         assert len(result.tables) == 1

@@ -139,7 +139,6 @@ class TestSectionVersionResult:
         assert result.data is None
         assert result.dry_run is False
         assert result.payload_preview is None
-        assert result.target_url is None
 
     def test_creates_with_all_fields(self) -> None:
         result = SectionVersionResult(
@@ -148,7 +147,6 @@ class TestSectionVersionResult:
             data={"id": "sv-123"},
             dry_run=True,
             payload_preview={"section_key": "intro", "content": "Hello"},
-            target_url="https://api.example.com/section-versions",
         )
 
         assert result.success is True
@@ -156,7 +154,6 @@ class TestSectionVersionResult:
         assert result.data == {"id": "sv-123"}
         assert result.dry_run is True
         assert result.payload_preview == {"section_key": "intro", "content": "Hello"}
-        assert result.target_url == "https://api.example.com/section-versions"
 
     def test_dry_run_result(self) -> None:
         result = SectionVersionResult(
@@ -164,7 +161,6 @@ class TestSectionVersionResult:
             message="Dry run — no API call made",
             dry_run=True,
             payload_preview={"key": "value"},
-            target_url="https://api.example.com/section-versions",
         )
 
         assert result.dry_run is True
@@ -205,7 +201,9 @@ class TestBricksApiPortAbstract:
             ) -> list[BricksDocumentInfo]:
                 return []
 
-            async def download_document(self, download_url: str) -> tuple[bytes, str]:
+            async def download_document(
+                self, document_id: str, project_id: str
+            ) -> tuple[bytes, str]:
                 return (b"", "file.pdf")
 
             async def publish_section_version(

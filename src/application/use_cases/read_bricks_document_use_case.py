@@ -19,8 +19,14 @@ class ReadBricksDocumentUseCase:
         self.document_reader = document_reader
         self.output_dir = output_dir
 
-    async def execute(self, file_url: str) -> DocumentContent:
-        data, filename = await self.bricks_api.download_document(download_url=file_url)
+    async def execute(
+        self,
+        document_id: str,
+        project_id: str,
+    ) -> DocumentContent:
+        data, filename = await self.bricks_api.download_document(
+            document_id=document_id, project_id=project_id
+        )
 
         os.makedirs(self.output_dir, exist_ok=True)
         suffix = os.path.splitext(filename)[1] or ".bin"

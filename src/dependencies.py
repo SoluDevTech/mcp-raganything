@@ -232,5 +232,4 @@ def get_publish_section_version_use_case() -> PublishSectionVersionUseCase:
     return PublishSectionVersionUseCase(
         bricks_api=bricks_api_adapter,
         dry_run=bricks_config.BRICKS_PUBLISH_DRY_RUN,
-        target_url=bricks_config.BRICKS_PUBLISH_TARGET_URL,
     )

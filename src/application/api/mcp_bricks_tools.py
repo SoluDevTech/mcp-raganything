@@ -36,20 +36,26 @@ async def list_bricks_documents(project_unique_id: str) -> list:
 
 
 @mcp_bricks.tool()
-async def read_bricks_document(file_url: str) -> FileContentResponse:
+async def read_bricks_document(
+    document_id: str,
+    project_unique_id: str,
+) -> FileContentResponse:
     """Télécharge un document Bricks et extrait son contenu textuel.
 
+    Résoud automatiquement l'URL pré-signée à partir du document_id et project_unique_id.
+
     Args:
-        file_url: L'URL de téléchargement du document Bricks
+        document_id: L'identifiant du document (champ 'id' de list_bricks_documents)
+        project_unique_id: L'identifiant du projet Bricks
 
     Returns:
         Contenu extrait avec métadonnées et tables détectées
     """
     use_case = get_read_bricks_document_use_case()
     try:
-        result = await use_case.execute(file_url=file_url)
+        result = await use_case.execute(document_id=document_id, project_id=project_unique_id)
     except Exception:
-        logger.exception("Failed to read bricks document: %s", file_url)
+        logger.exception("Failed to read bricks document: %s in project %s", document_id, project_unique_id)
         raise ToolError("Failed to read bricks document") from None
     return FileContentResponse(
         content=result.content,
@@ -64,7 +70,7 @@ async def publish_section_version(
     section_key: str,
     content: dict,
     workflow_id: str = "agent-haiku-files-v1",
-    workflow_name: str = "haiku-files",
+    workflow_name: str = "agent-haiku-files-v1",
     workflow_metadata: dict | None = None,
 ) -> dict:
     """Publie la réponse structurée d'une section d'un projet Bricks.

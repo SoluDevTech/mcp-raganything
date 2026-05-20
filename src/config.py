@@ -161,9 +161,6 @@ class BricksConfig(BaseSettings):
     BRICKS_API_BASE_URL: str = Field(default="https://analyse.bricks.co")
     BRICKS_API_KEY: str = Field(default="")
     BRICKS_BEARER_TOKEN: str = Field(default="")
-    BRICKS_PUBLISH_TARGET_URL: str = Field(
-        default="https://project-analysis-preprod.up.railway.app/api/section-versions"
-    )
     BRICKS_PUBLISH_DRY_RUN: bool = Field(default=True)
 
 

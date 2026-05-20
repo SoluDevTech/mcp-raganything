@@ -6,11 +6,9 @@ class PublishSectionVersionUseCase:
         self,
         bricks_api: BricksApiPort,
         dry_run: bool,
-        target_url: str,
     ) -> None:
         self.bricks_api = bricks_api
         self.dry_run = dry_run
-        self.target_url = target_url
 
     async def execute(
         self,
@@ -38,7 +36,6 @@ class PublishSectionVersionUseCase:
                 message="DRY RUN — no API call made",
                 dry_run=True,
                 payload_preview=payload,
-                target_url=self.target_url,
             )
 
         return await self.bricks_api.publish_section_version(payload=payload)

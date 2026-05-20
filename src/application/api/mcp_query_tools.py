@@ -6,7 +6,11 @@ These tools are registered with FastMCP for Claude Desktop integration.
 from fastmcp import FastMCP
 
 from application.requests.query_request import MultimodalContentItem
-from application.responses.query_response import McpRagResponse, QueryResponse, RagResponse
+from application.responses.query_response import (
+    McpRagResponse,
+    QueryResponse,
+    RagResponse,
+)
 from dependencies import (
     get_multimodal_query_use_case,
     get_query_use_case,
@@ -45,7 +49,9 @@ async def query_knowledge_base(
     chunks = response.data.chunks
     mcp_response = McpRagResponse(rag_response=[])
     for chunk in chunks:
-        mcp_response.rag_response.append(RagResponse(content=chunk.content, file_path=chunk.file_path))
+        mcp_response.rag_response.append(
+            RagResponse(content=chunk.content, file_path=chunk.file_path)
+        )
     return mcp_response
 
 

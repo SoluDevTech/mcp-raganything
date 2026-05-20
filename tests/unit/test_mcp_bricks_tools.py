@@ -134,7 +134,7 @@ class TestReadBricksDocument:
             return_value=mock_use_case,
         ):
             result = await read_bricks_document(
-                file_url="https://s3.example.com/presigned/report.pdf"
+                document_id="doc-abc123", project_unique_id="proj-456"
             )
 
         assert result.content == "Extracted text from bricks document."
@@ -153,7 +153,7 @@ class TestReadBricksDocument:
             pytest.raises(ToolError, match="Failed to read bricks document"),
         ):
             await read_bricks_document(
-                file_url="https://s3.example.com/expired-url.pdf"
+                document_id="doc-expired", project_unique_id="proj-1"
             )
 
     async def test_raises_tool_error_for_generic_failure(self) -> None:
@@ -168,7 +168,7 @@ class TestReadBricksDocument:
             ),
             pytest.raises(ToolError, match="Failed to read bricks document"),
         ):
-            await read_bricks_document(file_url="https://s3.example.com/broken.pdf")
+            await read_bricks_document(document_id="doc-broken", project_unique_id="proj-1")
 
     async def test_includes_tables_in_response(self) -> None:
         """Should include tables in the response."""
@@ -186,7 +186,7 @@ class TestReadBricksDocument:
             return_value=mock_use_case,
         ):
             result = await read_bricks_document(
-                file_url="https://s3.example.com/table.pdf"
+                document_id="doc-table", project_unique_id="proj-1"
             )
 
         assert len(result.tables) == 1
@@ -204,7 +204,6 @@ class TestPublishSectionVersion:
             message="Dry run — no API call made",
             dry_run=True,
             payload_preview={"section_key": "intro", "content": "Hello"},
-            target_url="https://api.bricks.example.com/api/section-versions",
         )
 
         with patch(
@@ -304,7 +303,6 @@ class TestPublishSectionVersion:
                 "workflow_name": "draft",
                 "workflow_metadata": {},
             },
-            target_url="https://api.bricks.example.com/api/section-versions",
         )
 
         with patch(

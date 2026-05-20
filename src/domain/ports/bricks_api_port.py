@@ -37,7 +37,6 @@ class SectionVersionResult(BaseModel):
     data: dict | None = None
     dry_run: bool = False
     payload_preview: dict | None = None
-    target_url: str | None = None
 
 
 class BricksApiPort(ABC):
@@ -46,7 +45,11 @@ class BricksApiPort(ABC):
         pass
 
     @abstractmethod
-    async def download_document(self, download_url: str) -> tuple[bytes, str]:
+    async def download_document(
+        self,
+        document_id: str,
+        project_id: str,
+    ) -> tuple[bytes, str]:
         pass
 
     @abstractmethod

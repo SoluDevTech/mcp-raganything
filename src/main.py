@@ -73,7 +73,7 @@ def _run_alembic_upgrade() -> None:
 
 @asynccontextmanager
 async def db_lifespan(_app: FastAPI):
-    """Closes BM25 connection pool and Bricks HTTP client on shutdown."""
+    """Closes BM25 connection pool on shutdown."""
     yield
 
     logger.info("Application shutdown initiated")
@@ -87,10 +87,6 @@ async def db_lifespan(_app: FastAPI):
             await classical_vector_store.close()
         except Exception:
             logger.exception("Failed to close classical vector store")
-    try:
-        await bricks_api_adapter.close()
-    except Exception:
-        logger.exception("Failed to close Bricks API adapter")
     logger.info("Application shutdown complete")
 
 

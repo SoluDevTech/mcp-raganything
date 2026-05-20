@@ -21,7 +21,6 @@ class TestPublishSectionVersionUseCase:
         return PublishSectionVersionUseCase(
             bricks_api=mock_bricks_api,
             dry_run=True,
-            target_url="https://api.bricks.example.com/api/section-versions",
         )
 
     @pytest.fixture
@@ -30,7 +29,6 @@ class TestPublishSectionVersionUseCase:
         return PublishSectionVersionUseCase(
             bricks_api=mock_bricks_api,
             dry_run=False,
-            target_url="https://api.bricks.example.com/api/section-versions",
         )
 
     async def test_dry_run_does_not_call_api(
@@ -74,23 +72,6 @@ class TestPublishSectionVersionUseCase:
         assert result.payload_preview["workflow_id"] == "wf-2"
         assert result.payload_preview["workflow_name"] == "review"
         assert result.payload_preview["workflow_metadata"] == {"version": 1}
-
-    async def test_dry_run_includes_target_url(
-        self,
-        use_case_dry_run: PublishSectionVersionUseCase,
-    ) -> None:
-        """When dry_run=True, should include target_url in the result."""
-        result = await use_case_dry_run.execute(
-            project_unique_id="proj-123",
-            section_key="intro",
-            content="Hello",
-            workflow_id="wf-1",
-            workflow_name="draft",
-        )
-
-        assert (
-            result.target_url == "https://api.bricks.example.com/api/section-versions"
-        )
 
     async def test_live_calls_bricks_api(
         self,
@@ -198,7 +179,6 @@ class TestPublishSectionVersionUseCase:
         use_case = PublishSectionVersionUseCase(
             bricks_api=mock_bricks_api,
             dry_run=False,
-            target_url="https://api.bricks.example.com/api/section-versions",
         )
 
         with pytest.raises(ConnectionError, match="API connection failed"):

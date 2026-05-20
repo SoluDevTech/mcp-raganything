@@ -1,7 +1,10 @@
+import asyncio
+import json
 import logging
 import re
-
-import httpx
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from domain.ports.bricks_api_port import (
     BricksApiPort,
@@ -11,92 +14,122 @@ from domain.ports.bricks_api_port import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TIMEOUT = httpx.Timeout(30.0)
+_DEFAULT_TIMEOUT = 30
 
 
 class BricksApiAdapter(BricksApiPort):
     def __init__(self, config) -> None:
-        self._base_url = config.BRICKS_API_BASE_URL
+        self._base_url = config.BRICKS_API_BASE_URL.rstrip("/")
         self._api_key = config.BRICKS_API_KEY
         self._bearer_token = config.BRICKS_BEARER_TOKEN
-        self._publish_target_url = config.BRICKS_PUBLISH_TARGET_URL
-        self._client = httpx.AsyncClient(
-            base_url=self._base_url, timeout=_DEFAULT_TIMEOUT
-        )
 
     async def close(self) -> None:
-        await self._client.aclose()
+        pass
+
+    def _get(self, url: str, headers: dict | None = None) -> tuple[bytes, dict]:
+        req = urllib.request.Request(url, headers=headers or {})
+        with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+            return resp.read(), dict(resp.headers)
+
+    def _post(self, url: str, payload: dict, headers: dict) -> bytes:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+            return resp.read()
 
     async def list_project_documents(self, project_id: str) -> list[BricksDocumentInfo]:
-        url = f"api/projects/{project_id}/documents/ai"
+        url = f"{self._base_url}/api/projects/{project_id}/documents/ai"
         try:
-            response = await self._client.get(
-                url,
-                headers={"Authorization": f"Bearer {self._bearer_token}"},
+            body, _ = await asyncio.to_thread(
+                self._get, url, {"Authorization": f"Bearer {self._bearer_token}"}
             )
-            response.raise_for_status()
-        except httpx.TimeoutException as e:
-            raise TimeoutError(f"Bricks API request timed out: {e}") from e
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code in (401, 403):
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
                 raise PermissionError(
-                    f"Bricks API authentication failed (HTTP {e.response.status_code})"
+                    f"Bricks API authentication failed (HTTP {e.code})"
                 ) from e
-            if e.response.status_code == 404:
+            if e.code == 404:
                 raise FileNotFoundError(
                     f"Bricks project not found: {project_id}"
                 ) from e
-            raise RuntimeError(
-                f"Bricks API error (HTTP {e.response.status_code})"
-            ) from e
-        except httpx.RequestError as e:
-            raise ConnectionError(f"Bricks API connection failed: {e}") from e
-        items = response.json().get("items", [])
-        return [BricksDocumentInfo(**item) for item in items]
+            raise RuntimeError(f"Bricks API error (HTTP {e.code})") from e
+        except urllib.error.URLError as e:
+            raise ConnectionError(f"Bricks API connection failed: {e.reason}") from e
+        except TimeoutError as e:
+            raise TimeoutError(f"Bricks API request timed out: {e}") from e
+        items = json.loads(body).get("items", [])
+        documents = [BricksDocumentInfo(**item) for item in items]
+        return documents
 
-    async def download_document(self, download_url: str) -> tuple[bytes, str]:
+    async def download_document(
+        self,
+        document_id: str,
+        project_id: str,
+    ) -> tuple[bytes, str]:
+        documents = await self.list_project_documents(project_id)
+        url = None
+        for doc in documents:
+            if doc.id == document_id and doc.url:
+                url = doc.url
+                break
+        if not url:
+            raise FileNotFoundError(
+                f"Document {document_id} not found in project {project_id}"
+            )
         try:
-            response = await self._client.get(download_url)
-            response.raise_for_status()
-        except httpx.TimeoutException as e:
-            raise TimeoutError(f"Document download timed out: {e}") from e
-        except httpx.HTTPStatusError as e:
+            body, resp_headers = await asyncio.to_thread(self._get, url)
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                raise PermissionError(
+                    f"Document download authentication failed (HTTP {e.code})"
+                ) from e
+            if e.code == 404:
+                raise FileNotFoundError(
+                    f"Document {document_id} not found (project {project_id})"
+                ) from e
             raise RuntimeError(
-                f"Failed to download document (HTTP {e.response.status_code})"
+                f"Failed to download document (HTTP {e.code})"
             ) from e
-        except httpx.RequestError as e:
-            raise ConnectionError(f"Document download connection failed: {e}") from e
-        content_disposition = response.headers.get("content-disposition", "")
-        filename = "document.bin"
-        match = re.search(r'filename="([^"]+)"', content_disposition)
-        if match:
-            filename = match.group(1)
-        else:
-            match = re.search(r"filename=([^\s;]+)", content_disposition)
-            if match:
-                filename = match.group(1)
-        return response.content, filename
+        except urllib.error.URLError as e:
+            raise ConnectionError(f"Document download connection failed: {e.reason}") from e
+        except TimeoutError as e:
+            raise TimeoutError(f"Document download timed out: {e}") from e
+
+        filename = _extract_filename(resp_headers.get("Content-Disposition", ""), url)
+        return body, filename
 
     async def publish_section_version(self, payload: dict) -> SectionVersionResult:
+        url = f"{self._base_url}/api/section-versions"
+        headers = {
+            "X-API-Key": self._api_key,
+            "Content-Type": "application/json",
+        }
         try:
-            response = await self._client.post(
-                self._publish_target_url,
-                headers={
-                    "X-API-Key": self._api_key,
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            response.raise_for_status()
-        except httpx.TimeoutException as e:
-            raise TimeoutError(f"Publish request timed out: {e}") from e
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code in (401, 403):
+            body = await asyncio.to_thread(self._post, url, payload, headers)
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
                 raise PermissionError(
-                    f"Publish authentication failed (HTTP {e.response.status_code})"
+                    f"Publish authentication failed (HTTP {e.code})"
                 ) from e
-            raise RuntimeError(f"Publish failed (HTTP {e.response.status_code})") from e
-        except httpx.RequestError as e:
-            raise ConnectionError(f"Publish connection failed: {e}") from e
-        data = response.json()
+            raise RuntimeError(f"Publish failed (HTTP {e.code})") from e
+        except urllib.error.URLError as e:
+            raise ConnectionError(f"Publish connection failed: {e.reason}") from e
+        except TimeoutError as e:
+            raise TimeoutError(f"Publish request timed out: {e}") from e
+        data = json.loads(body)
         return SectionVersionResult(success=True, message="Published", data=data)
+
+
+def _extract_filename(content_disposition: str, url: str = "") -> str:
+    match = re.search(r'filename="([^"]+)"', content_disposition)
+    if match:
+        return match.group(1)
+    match = re.search(r"filename=([^\s;]+)", content_disposition)
+    if match:
+        return match.group(1)
+    if url:
+        decoded_path = urllib.parse.unquote(urllib.parse.urlparse(url).path)
+        path_filename = decoded_path.rsplit("/", 1)[-1]
+        if path_filename and "." in path_filename:
+            return path_filename
+    return "document.bin"
