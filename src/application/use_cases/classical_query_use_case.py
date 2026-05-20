@@ -79,7 +79,7 @@ class ClassicalQueryUseCase:
         mode: Literal["vector", "hybrid"] = "vector",
     ) -> ClassicalQueryResponse:
         working_dir = working_dir if working_dir.endswith("/") else f"{working_dir}/"
-        
+
         if num_variations is None:
             num_variations = self.config.CLASSICAL_NUM_QUERY_VARIATIONS
         if relevance_threshold is None:

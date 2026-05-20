@@ -10,7 +10,10 @@ from application.api.mcp_query_tools import (
     query_knowledge_base_multimodal,
 )
 from application.requests.query_request import MultimodalContentItem
-from application.responses.query_response import ChunkResponse, McpRagResponse, RagResponse
+from application.responses.query_response import (
+    McpRagResponse,
+    RagResponse,
+)
 
 
 class TestMCPQueryInstance:

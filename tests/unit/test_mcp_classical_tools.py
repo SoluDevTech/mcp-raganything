@@ -112,6 +112,7 @@ class TestClassicalQueryTool:
             )
 
         import application.responses.classical_query_response as cqr
+
         assert isinstance(result, cqr.McpClassicalRagResponse)
         assert result.rag_response == []
 

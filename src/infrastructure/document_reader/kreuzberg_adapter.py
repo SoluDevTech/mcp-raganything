@@ -5,13 +5,15 @@ import logging
 from kreuzberg import (
     ChunkingConfig,
     ExtractionConfig,
-    LlmConfig as KreuzbergLlmConfig,
     OcrConfig,
     OutputFormat,
     ParsingError,
     PdfConfig,
     ValidationError,
     extract_file,
+)
+from kreuzberg import (
+    LlmConfig as KreuzbergLlmConfig,
 )
 
 from config import LLMConfig

@@ -30,7 +30,9 @@ class TestKreuzbergRAGAnythingParserFormat:
     def _make_parser(self):
         return KreuzbergRAGAnythingParser()
 
-    def _mock_extraction_result(self, content="Hello world", tables=None, metadata=None):
+    def _mock_extraction_result(
+        self, content="Hello world", tables=None, metadata=None
+    ):
         result = MagicMock()
         result.content = content
         result.metadata = metadata or {}
@@ -52,8 +54,12 @@ class TestKreuzbergRAGAnythingParserFormat:
             ("parse_image", "/tmp/photo.png", "Extracted image text"),
         ],
     )
-    def test_parse_returns_content_list(self, mock_extract_sync, method, path, expected_content):
-        mock_extract_sync.return_value = self._mock_extraction_result(content=expected_content)
+    def test_parse_returns_content_list(
+        self, mock_extract_sync, method, path, expected_content
+    ):
+        mock_extract_sync.return_value = self._mock_extraction_result(
+            content=expected_content
+        )
         parser = self._make_parser()
         result = getattr(parser, method)(path, output_dir="/tmp/output")
 
@@ -87,8 +93,12 @@ class TestKreuzbergRAGAnythingParserFormat:
             ("/tmp/photo.png", "Image content"),
         ],
     )
-    def test_parse_document_routes_files(self, mock_extract_sync, path, expected_content):
-        mock_extract_sync.return_value = self._mock_extraction_result(content=expected_content)
+    def test_parse_document_routes_files(
+        self, mock_extract_sync, path, expected_content
+    ):
+        mock_extract_sync.return_value = self._mock_extraction_result(
+            content=expected_content
+        )
         parser = self._make_parser()
         result = parser.parse_document(path, method="auto", output_dir="/tmp/output")
 
@@ -98,7 +108,9 @@ class TestKreuzbergRAGAnythingParserFormat:
 
     @patch("infrastructure.rag.kreuzberg_raganything_parser.extract_file_sync")
     @pytest.mark.parametrize("content", ["", "   \n\n  "])
-    def test_empty_or_whitespace_content_returns_empty_list(self, mock_extract_sync, content):
+    def test_empty_or_whitespace_content_returns_empty_list(
+        self, mock_extract_sync, content
+    ):
         mock_extract_sync.return_value = self._mock_extraction_result(content=content)
         parser = self._make_parser()
         result = parser.parse_pdf("/tmp/empty.pdf", output_dir="/tmp/output")

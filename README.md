@@ -14,57 +14,61 @@ Multi-modal RAG service exposing a REST API and MCP server for document indexing
                                |
                +---------------+---------------+
                |                               |
-       Application Layer            MCP Servers (FastMCP)
-       +------------------------------+       |
-       | api/                         |   +---+--------+  +--+-----------+  +--+-------------+
-       |   indexing_routes.py         |   | RAGAnything |  | RAGAnything |  | RAGAnything    |
-       |   query_routes.py            |   | Query       |  | Files       |  | Classical      |
-       |   file_routes.py             |   |  /rag/mcp   |  |  /files/mcp |  |  /classical/mcp|
-       |   health_routes.py           |   +---+--------+  +--+-----------+  +--+-------------+
-       |   classical_indexing_routes   |       |               |                 |
-       |   classical_query_routes      |       |               |         classical_index_file
-       | use_cases/                   |       |               |         classical_index_folder
-       |   IndexFileUseCase           |       |               |         classical_query
-       |   IndexFolderUseCase         |
-       |   QueryUseCase               |
-       |   ClassicalIndexFileUseCase   |
-       |   ClassicalIndexFolderUseCase |
-       |   ClassicalQueryUseCase       |
-       |   ListFilesUseCase           |
-       |   ListFoldersUseCase         |
-       |   ReadFileUseCase            |
-       | requests/ responses/         |
-       +------------------------------+
-                |         |          |
-                v         v          v
-     Domain Layer (ports)
-     +----------------------------------------------------------+
-     | RAGEnginePort  StoragePort  BM25EnginePort              |
-     | DocumentReaderPort  VectorStorePort  LLMPort            |
-     +----------------------------------------------------------+
-              |         |          |            |      |
-              v         v          v            v      v
-     Infrastructure Layer (adapters)
-     +----------------------------------------------------------+
-      | LightRAGAdapter       MinioAdapter                        |
-      | (RAGAnything/         (minio-py)                          |
-      |  KreuzbergParser)                                         |
-     |                                                            |
-     | PostgresBM25Adapter       RRFCombiner                      |
-     | (pg_textsearch)            (hybrid+ fusion)                |
-     |                                                            |
-     | KreuzbergAdapter          LangchainPgvectorAdapter         |
-     | (kreuzberg - 91 formats) (langchain-postgres PGVector)    |
-     |                                                            |
-     | LangchainOpenAIAdapter                                     |
-     | (langchain-openai ChatOpenAI)                             |
-     +----------------------------------------------------------+
-              |         |          |            |      |
-              v         v          v            v      v
-        PostgreSQL        MinIO       Kreuzberg    OpenAI-compatible
-        (pgvector +     (object     (document     (LLM API)
-         Apache AGE      storage)    extraction)
-         pg_textsearch)
+        Application Layer            MCP Servers (FastMCP)
+        +------------------------------+       |
+        | api/                         |   +---+--------+  +--+-----------+  +--+-------------+  +--+----------+
+        |   indexing_routes.py         |   | RAGAnything |  | RAGAnything |  | RAGAnything    |  | RAGAnything |
+        |   query_routes.py            |   | Query       |  | Files       |  | Classical      |  | Bricks     |
+        |   file_routes.py             |   |  /rag/mcp   |  |  /files/mcp |  |  /classical/mcp|  | /bricks/mcp|
+        |   health_routes.py           |   +---+--------+  +--+-----------+  +--+-------------+  +--+----------+
+        |   classical_indexing_routes   |       |               |                 |                  |
+        |   classical_query_routes      |       |               |         classical_index_file   list_bricks_documents
+        | use_cases/                   |       |               |         classical_index_folder  read_bricks_document
+        |   IndexFileUseCase           |       |               |         classical_query         publish_section_version
+        |   IndexFolderUseCase         |
+        |   QueryUseCase               |
+        |   ClassicalIndexFileUseCase   |
+        |   ClassicalIndexFolderUseCase |
+        |   ClassicalQueryUseCase       |
+        |   ListFilesUseCase           |
+        |   ListFoldersUseCase         |
+        |   ReadFileUseCase            |
+        |   ListBricksDocumentsUseCase |
+        |   ReadBricksDocumentUseCase  |
+        |   PublishSectionVersionUseCase|
+        | requests/ responses/         |
+        +------------------------------+
+                 |         |          |
+                 v         v          v
+      Domain Layer (ports)
+      +----------------------------------------------------------+
+      | RAGEnginePort  StoragePort  BM25EnginePort              |
+      | DocumentReaderPort  VectorStorePort  LLMPort            |
+      | BricksApiPort                                            |
+      +----------------------------------------------------------+
+               |         |          |            |      |
+               v         v          v            v      v
+      Infrastructure Layer (adapters)
+      +----------------------------------------------------------+
+       | LightRAGAdapter       MinioAdapter                        |
+       | (RAGAnything/         (minio-py)                          |
+       |  KreuzbergParser)                                         |
+      |                                                            |
+      | PostgresBM25Adapter       RRFCombiner                      |
+      | (pg_textsearch)            (hybrid+ fusion)                |
+      |                                                            |
+      | KreuzbergAdapter          LangchainPgvectorAdapter         |
+      | (kreuzberg - 91 formats) (langchain-postgres PGVector)    |
+      |                                                            |
+      | LangchainOpenAIAdapter    BricksApiAdapter                 |
+      | (langchain-openai ChatOpenAI)  (httpx, Bricks REST API)   |
+      +----------------------------------------------------------+
+               |         |          |            |      |
+               v         v          v            v      v
+         PostgreSQL        MinIO       Kreuzberg    OpenAI-compatible    Bricks API
+         (pgvector +     (object     (document     (LLM API)          (analyse.bricks.co
+          Apache AGE      storage)    extraction)                      + section-versions)
+          pg_textsearch)
 ```
 
 ## Prerequisites
@@ -584,7 +588,7 @@ If BM25 is unavailable (`BM25_ENABLED=false` or pg_textsearch extension missing)
 
 ## MCP Servers
 
-The service exposes **three MCP servers**, all using streamable HTTP transport:
+The service exposes **four MCP servers**, all using streamable HTTP transport:
 
 ### RAGAnythingQuery — `/rag/mcp`
 
@@ -628,6 +632,57 @@ File browsing tools for listing and reading files from MinIO storage.
 
 Downloads the file from MinIO, extracts its text content using Kreuzberg, and returns the extracted text along with metadata and any detected tables.
 
+### RAGAnythingBricks — `/bricks/mcp`
+
+Bricks integration tools for accessing project documents from the Bricks platform and publishing structured section versions.
+
+#### Tool: `list_bricks_documents`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `project_unique_id` | string | required | Bricks project unique identifier |
+
+Returns a list of documents for the specified Bricks project, including metadata like file name, MIME type, size, status, and presigned download URLs.
+
+#### Tool: `read_bricks_document`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `file_url` | string | required | Presigned S3 URL from `list_bricks_documents` |
+
+Downloads the document from the presigned S3 URL, extracts its text content using Kreuzberg, and returns the extracted text, metadata, and detected tables. No authentication is required — the URL is already signed.
+
+#### Tool: `publish_section_version`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `project_unique_id` | string | required | Bricks project unique identifier |
+| `section_key` | string | required | Section key to publish (e.g. `"summary"`, `"analysis"`) |
+| `content` | dict | required | Structured content for the section |
+| `workflow_id` | string | `"agent-haiku-files-v1"` | Workflow identifier |
+| `workflow_name` | string | `"haiku-files"` | Workflow display name |
+| `workflow_metadata` | dict | `null` | Additional workflow metadata |
+
+Publishes a structured section version back to the Bricks platform. When `BRICKS_PUBLISH_DRY_RUN=true` (default), the tool returns a preview of the payload without making an API call. Set `BRICKS_PUBLISH_DRY_RUN=false` to enable real publishing.
+
+**Dry-run response example:**
+
+```json
+{
+  "success": true,
+  "message": "DRY RUN — no API call made",
+  "dry_run": true,
+  "payload_preview": {
+    "project_unique_id": "abc-123",
+    "section_key": "summary",
+    "content": {"title": "Analysis Summary"},
+    "workflow_id": "agent-haiku-files-v1",
+    "workflow_name": "haiku-files",
+    "workflow_metadata": {}
+  }
+}
+```
+
 ### RAGAnythingClassical — `/classical/mcp`
 
 Classical RAG tools for indexing and querying without a knowledge graph.
@@ -670,6 +725,7 @@ All MCP servers use **streamable HTTP** transport exclusively. Connect MCP clien
 http://localhost:8000/rag/mcp          # RAGAnythingQuery
 http://localhost:8000/files/mcp        # RAGAnythingFiles
 http://localhost:8000/classical/mcp    # RAGAnythingClassical
+http://localhost:8000/bricks/mcp       # RAGAnythingBricks
 ```
 
 ## Configuration
@@ -756,6 +812,15 @@ The classical RAG adapters share the same `OPEN_ROUTER_API_KEY`, `OPEN_ROUTER_AP
 | `MINIO_BUCKET` | `raganything` | Default bucket name |
 | `MINIO_SECURE` | `false` | Use HTTPS for MinIO |
 
+### Bricks API (`BricksConfig`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BRICKS_API_BASE_URL` | `https://analyse.bricks.co` | Bricks platform base URL |
+| `BRICKS_API_KEY` | -- | X-API-Key for Bricks API authentication (publish) |
+| `BRICKS_BEARER_TOKEN` | -- | Bearer token for Bricks API authentication (list documents) |
+| `BRICKS_PUBLISH_DRY_RUN` | `true` | When `true`, `publish_section_version` returns a payload preview without making an API call |
+
 ## Query Modes
 
 | Mode | Description |
@@ -821,6 +886,7 @@ src/
       document_reader_port.py        -- DocumentReaderPort (abstract) + DocumentContent
       vector_store_port.py          -- VectorStorePort (abstract) + SearchResult
       llm_port.py                   -- LLMPort (abstract)
+      bricks_api_port.py             -- BricksApiPort (abstract) + BricksDocumentInfo + SectionVersionResult
   application/
     api/
       health_routes.py               -- GET /health
@@ -832,6 +898,7 @@ src/
       mcp_query_tools.py              -- MCP tools: query_knowledge_base, query_knowledge_base_multimodal
       mcp_file_tools.py               -- MCP tools: list_files, read_file
       mcp_classical_tools.py          -- MCP tools: classical_index_file, classical_index_folder, classical_query
+      mcp_bricks_tools.py             -- MCP tools: list_bricks_documents, read_bricks_document, publish_section_version
     requests/
       indexing_request.py            -- IndexFileRequest, IndexFolderRequest
       classical_indexing_request.py  -- ClassicalIndexFileRequest, ClassicalIndexFolderRequest
@@ -854,6 +921,9 @@ src/
       list_folders_use_case.py        -- Lists folder prefixes from MinIO
       read_file_use_case.py           -- Reads file from MinIO, extracts content via Kreuzberg
       upload_file_use_case.py          -- Uploads file to MinIO storage
+      list_bricks_documents_use_case.py   -- Lists documents from Bricks API
+      read_bricks_document_use_case.py    -- Downloads Bricks document via presigned URL, extracts via Kreuzberg
+      publish_section_version_use_case.py -- Publishes section version (dry-run aware)
   infrastructure/
     rag/
       lightrag_adapter.py            -- LightRAGAdapter (RAGAnything/LightRAG)
@@ -871,6 +941,8 @@ src/
       langchain_pgvector_adapter.py -- LangchainPgvectorAdapter (langchain-postgres PGVectorStore)
     llm/
       langchain_openai_adapter.py    -- LangchainOpenAIAdapter (langchain-openai ChatOpenAI)
+    bricks/
+      bricks_api_adapter.py           -- BricksApiAdapter (httpx, Bricks REST API + section-versions)
   alembic/
     env.py                            -- Alembic migration environment (async)
     versions/

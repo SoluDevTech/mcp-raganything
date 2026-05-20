@@ -16,11 +16,17 @@ from application.api.classical_query_routes import classical_query_router
 from application.api.file_routes import file_router
 from application.api.health_routes import health_router
 from application.api.indexing_routes import indexing_router
+from application.api.mcp_bricks_tools import mcp_bricks
 from application.api.mcp_classical_tools import mcp_classical
 from application.api.mcp_file_tools import mcp_files
 from application.api.mcp_query_tools import mcp_query
 from application.api.query_routes import query_router
-from dependencies import app_config, bm25_adapter, classical_vector_store
+from dependencies import (
+    app_config,
+    bm25_adapter,
+    bricks_api_adapter,
+    classical_vector_store,
+)
 
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s [%(name)s] %(message)s"
 
@@ -87,6 +93,7 @@ async def db_lifespan(_app: FastAPI):
 mcp_query_app = mcp_query.http_app(path="/")
 mcp_files_app = mcp_files.http_app(path="/")
 mcp_classical_app = mcp_classical.http_app(path="/")
+mcp_bricks_app = mcp_bricks.http_app(path="/")
 
 
 @asynccontextmanager
@@ -97,6 +104,7 @@ async def combined_lifespan(app: FastAPI):
         mcp_query_app.lifespan(app),
         mcp_files_app.lifespan(app),
         mcp_classical_app.lifespan(app),
+        mcp_bricks_app.lifespan(app),
     ):
         yield
 
@@ -125,6 +133,7 @@ app.include_router(classical_query_router, prefix=REST_PATH)
 app.mount("/rag/mcp", mcp_query_app)
 app.mount("/files/mcp", mcp_files_app)
 app.mount("/classical/mcp", mcp_classical_app)
+app.mount("/bricks/mcp", mcp_bricks_app)
 
 
 def run_fastapi():
