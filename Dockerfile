@@ -17,6 +17,7 @@ FROM python:3.13-slim-bookworm
 # Install only critical runtime system deps, then clean up apt metadata to keep image slim.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 tesseract-ocr tesseract-ocr-fra \
+    && apt-get upgrade -y libgnutls30 libssh2-1 \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # Set TESSDATA_PREFIX for Tesseract and create Kreuzberg cache symlink
