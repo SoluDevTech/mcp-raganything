@@ -1,16 +1,15 @@
 """Main entry point for the RAGAnything API."""
 
 import logging
-import logging.config
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from alembic import command
+from alembic.config import Config
 from application.api.classical_indexing_routes import classical_indexing_router
 from application.api.classical_query_routes import classical_query_router
 from application.api.file_routes import file_router
@@ -28,37 +27,11 @@ from dependencies import (
     classical_vector_store,
 )
 
-_LOG_FORMAT = "%(asctime)s %(levelname)-8s [%(name)s] %(message)s"
-
-LOG_CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "standard": {"format": _LOG_FORMAT},
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "standard",
-            "stream": "ext://sys.stderr",
-        },
-    },
-    "loggers": {
-        "uvicorn": {"handlers": ["console"], "level": "INFO", "propagate": False},
-        "uvicorn.error": {"handlers": ["console"], "level": "INFO", "propagate": False},
-        "uvicorn.access": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-    },
-    "root": {
-        "level": "INFO",
-        "handlers": ["console"],
-    },
-}
-
-logging.config.dictConfig(LOG_CONFIG)
+logging.basicConfig(
+    level=app_config.UVICORN_LOG_LEVEL.upper(),
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +120,6 @@ def run_fastapi():
         host=app_config.HOST,
         port=app_config.PORT,
         log_level=app_config.UVICORN_LOG_LEVEL,
-        log_config=LOG_CONFIG,
         access_log=True,
         ws="none",
     )
