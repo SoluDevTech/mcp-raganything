@@ -20,12 +20,12 @@ class PublishSectionVersionUseCase:
         workflow_metadata: dict | None = None,
     ) -> SectionVersionResult:
         payload = {
-            "project_unique_id": project_unique_id,
-            "section_key": section_key,
+            "projectUniqueId": project_unique_id,
+            "sectionKey": section_key,
             "content": content,
-            "workflow_id": workflow_id,
-            "workflow_name": workflow_name,
-            "workflow_metadata": workflow_metadata
+            "workflowId": workflow_id,
+            "workflowName": workflow_name,
+            "workflowMetadata": workflow_metadata
             if workflow_metadata is not None
             else {},
         }

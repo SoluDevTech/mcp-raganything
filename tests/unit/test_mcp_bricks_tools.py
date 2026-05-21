@@ -106,7 +106,7 @@ class TestListBricksDocuments:
                 "application.api.mcp_bricks_tools.get_list_bricks_documents_use_case",
                 return_value=mock_use_case,
             ),
-            pytest.raises(ToolError, match="Failed to list bricks documents"),
+            pytest.raises(ToolError, match="API unreachable"),
         ):
             await list_bricks_documents(project_unique_id="proj-123")
 
@@ -150,7 +150,7 @@ class TestReadBricksDocument:
                 "application.api.mcp_bricks_tools.get_read_bricks_document_use_case",
                 return_value=mock_use_case,
             ),
-            pytest.raises(ToolError, match="Failed to read bricks document"),
+            pytest.raises(ToolError, match="S3 download failed"),
         ):
             await read_bricks_document(
                 document_id="doc-expired", project_unique_id="proj-1"
@@ -232,14 +232,16 @@ class TestPublishSectionVersion:
                 content="Summary content",
             )
 
-        mock_use_case.execute.assert_called_once_with(
-            project_unique_id="proj-abc",
-            section_key="consolidated_data",
-            content="Summary content",
-            workflow_id="agent-haiku-files-v1",
-            workflow_name="agent-haiku-files-v1",
-            workflow_metadata=None,
-        )
+        call_args = mock_use_case.execute.call_args
+        assert call_args.kwargs["project_unique_id"] == "proj-abc"
+        assert call_args.kwargs["section_key"] == "consolidated_data"
+        assert call_args.kwargs["content"] == "Summary content"
+        assert call_args.kwargs["workflow_id"] == "agent-haiku-files-v1"
+        assert call_args.kwargs["workflow_name"] == "agent-haiku-files-v1"
+        assert call_args.kwargs["workflow_metadata"] is not None
+        assert "execution_id" in call_args.kwargs["workflow_metadata"]
+        assert "executed_at" in call_args.kwargs["workflow_metadata"]
+        assert call_args.kwargs["workflow_metadata"]["version"] == "1.0.0"
 
     async def test_raises_tool_error_for_api_failure(self) -> None:
         """Should convert API errors to ToolError."""
@@ -251,7 +253,7 @@ class TestPublishSectionVersion:
                 "application.api.mcp_bricks_tools.get_publish_section_version_use_case",
                 return_value=mock_use_case,
             ),
-            pytest.raises(ToolError, match="Failed to publish section version"),
+            pytest.raises(ToolError, match="API connection failed"),
         ):
             await publish_section_version(
                 project_unique_id="proj-123",
@@ -268,7 +270,7 @@ class TestPublishSectionVersion:
                 "application.api.mcp_bricks_tools.get_publish_section_version_use_case",
                 return_value=mock_use_case,
             ),
-            pytest.raises(ToolError, match="Failed to publish section version"),
+            pytest.raises(ToolError, match="Failed to publish section version: Unexpected error"),
         ):
             await publish_section_version(
                 project_unique_id="proj-123",
@@ -283,12 +285,12 @@ class TestPublishSectionVersion:
             message="Dry run",
             dry_run=True,
             payload_preview={
-                "project_unique_id": "proj-123",
-                "section_key": "consolidated_data",
+                "projectUniqueId": "proj-123",
+                "sectionKey": "consolidated_data",
                 "content": "Hello",
-                "workflow_id": "agent-haiku-files-v1",
-                "workflow_name": "agent-haiku-files-v1",
-                "workflow_metadata": None,
+                "workflowId": "agent-haiku-files-v1",
+                "workflowName": "agent-haiku-files-v1",
+                "workflowMetadata": {},
             },
         )
 
@@ -303,4 +305,4 @@ class TestPublishSectionVersion:
 
         assert result.dry_run is True
         assert result.payload_preview is not None
-        assert result.payload_preview["section_key"] == "consolidated_data"
+        assert result.payload_preview["sectionKey"] == "consolidated_data"

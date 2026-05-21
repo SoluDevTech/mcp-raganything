@@ -28,18 +28,42 @@ class BricksApiAdapter(BricksApiPort):
         pass
 
     def _get(self, url: str, headers: dict | None = None) -> tuple[bytes, dict]:
+        logger.debug("GET %s", url)
         req = urllib.request.Request(url, headers=headers or {})
-        with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
-            return resp.read(), dict(resp.headers)
+        try:
+            with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+                body = resp.read()
+                resp_headers = dict(resp.headers)
+                logger.debug("GET %s -> %d bytes (status=%s)", url, len(body), resp.status)
+                return body, resp_headers
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            logger.error("GET %s -> HTTP %d: %s", url, e.code, error_body[:500])
+            raise
+        except Exception as e:
+            logger.error("GET %s -> error: %s", url, e)
+            raise
 
     def _post(self, url: str, payload: dict, headers: dict) -> bytes:
         data = json.dumps(payload).encode("utf-8")
+        logger.debug("POST %s (body=%d bytes)", url, len(data))
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
-            return resp.read()
+        try:
+            with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+                body = resp.read()
+                logger.debug("POST %s -> %d bytes (status=%s)", url, len(body), resp.status)
+                return body
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            logger.error("POST %s -> HTTP %d: %s", url, e.code, error_body[:500])
+            raise
+        except Exception as e:
+            logger.error("POST %s -> error: %s", url, e)
+            raise
 
     async def list_project_documents(self, project_id: str) -> list[BricksDocumentInfo]:
         url = f"{self._base_url}/api/projects/{project_id}/documents/ai"
+        logger.info("Listing Bricks documents for project %s", project_id)
         try:
             body, _ = await asyncio.to_thread(
                 self._get, url, {"Authorization": f"Bearer {self._bearer_token}"}
@@ -59,6 +83,7 @@ class BricksApiAdapter(BricksApiPort):
         except TimeoutError as e:
             raise TimeoutError(f"Bricks API request timed out: {e}") from e
         items = json.loads(body).get("items", [])
+        logger.info("Found %d Bricks documents for project %s", len(items), project_id)
         documents = [BricksDocumentInfo(**item) for item in items]
         return documents
 
@@ -67,6 +92,7 @@ class BricksApiAdapter(BricksApiPort):
         document_id: str,
         project_id: str,
     ) -> tuple[bytes, str, str]:
+        logger.info("Downloading Bricks document %s from project %s", document_id, project_id)
         documents = await self.list_project_documents(project_id)
         url = None
         mime_type = ""
@@ -99,6 +125,7 @@ class BricksApiAdapter(BricksApiPort):
             raise TimeoutError(f"Document download timed out: {e}") from e
 
         filename = _extract_filename(resp_headers.get("Content-Disposition", ""), url)
+        logger.info("Downloaded Bricks document %s (%d bytes, mime=%s, filename=%s)", document_id, len(body), mime_type, filename)
         return body, filename, mime_type
 
     async def publish_section_version(self, payload: dict) -> SectionVersionResult:
@@ -107,6 +134,13 @@ class BricksApiAdapter(BricksApiPort):
             "X-API-Key": self._api_key,
             "Content-Type": "application/json",
         }
+        logger.info(
+            "Publishing section version: project=%s section=%s workflow=%s",
+            payload.get("project_unique_id"),
+            payload.get("section_key"),
+            payload.get("workflow_id"),
+        )
+        logger.info("Publish payload: %s", json.dumps(payload, ensure_ascii=False, default=str))
         try:
             body = await asyncio.to_thread(self._post, url, payload, headers)
         except urllib.error.HTTPError as e:
@@ -120,6 +154,7 @@ class BricksApiAdapter(BricksApiPort):
         except TimeoutError as e:
             raise TimeoutError(f"Publish request timed out: {e}") from e
         data = json.loads(body)
+        logger.info("Published section version successfully: %s", data)
         return SectionVersionResult(success=True, message="Published", data=data)
 
 
