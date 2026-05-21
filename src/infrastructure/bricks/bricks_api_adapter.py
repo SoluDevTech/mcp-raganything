@@ -136,9 +136,9 @@ class BricksApiAdapter(BricksApiPort):
         }
         logger.info(
             "Publishing section version: project=%s section=%s workflow=%s",
-            payload.get("project_unique_id"),
-            payload.get("section_key"),
-            payload.get("workflow_id"),
+            payload.get("projectUniqueId"),
+            payload.get("sectionKey"),
+            payload.get("workflowId"),
         )
         logger.info("Publish payload: %s", json.dumps(payload, ensure_ascii=False, default=str))
         try:
