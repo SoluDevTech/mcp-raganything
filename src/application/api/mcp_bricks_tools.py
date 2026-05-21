@@ -28,6 +28,9 @@ class DocumentSummary(BaseModel):
 async def list_bricks_documents(project_unique_id: str) -> list[DocumentSummary]:
     """Liste les documents d'un projet Bricks.
 
+    IMPORTANT: This tool ONLY accepts project_unique_id.
+    Do NOT pass any other parameters (e.g., limit, offset, etc.) — they are not supported.
+
     Args:
         project_unique_id: L'identifiant unique du projet Bricks
 
@@ -63,6 +66,9 @@ async def read_bricks_document(
 
     Résoud automatiquement l'URL pré-signée à partir du document_id et project_unique_id.
 
+    IMPORTANT: This tool ONLY accepts document_id and project_unique_id.
+    Do NOT pass any other parameters (e.g., limit, offset, etc.) — they are not supported.
+
     Args:
         document_id: L'identifiant du document (champ 'id' de list_bricks_documents)
         project_unique_id: L'identifiant du projet Bricks
@@ -86,21 +92,16 @@ async def read_bricks_document(
 @mcp_bricks.tool()
 async def publish_section_version(
     project_unique_id: str,
-    section_key: str,
-    content: dict,
-    workflow_id: str = "agent-haiku-files-v1",
-    workflow_name: str = "agent-haiku-files-v1",
-    workflow_metadata: dict | None = None,
+    content: dict
 ) -> dict:
     """Publie la réponse structurée d'une section d'un projet Bricks.
 
+    IMPORTANT: This tool ONLY accepts project_unique_id and content.
+    Do NOT pass any other parameters (e.g., limit, offset, etc.) — they are not supported.
+
     Args:
         project_unique_id: L'identifiant unique du projet
-        section_key: La clé de la section à publier
-        content: Le contenu structuré de la section
-        workflow_id: L'identifiant du workflow
-        workflow_name: Le nom du workflow
-        workflow_metadata: Métadonnées additionnelles du workflow
+        content: Le contenu structuré de la section à publier, typiquement un dict avec les données extraites et analysées
 
     Returns:
         Résultat de la publication avec statut et aperçu du payload
@@ -109,11 +110,11 @@ async def publish_section_version(
     try:
         return await use_case.execute(
             project_unique_id=project_unique_id,
-            section_key=section_key,
+            section_key="consolidated_data",
             content=content,
-            workflow_id=workflow_id,
-            workflow_name=workflow_name,
-            workflow_metadata=workflow_metadata,
+            workflow_id="agent-haiku-files-v1",
+            workflow_name="agent-haiku-files-v1",
+            workflow_metadata=None,
         )
     except Exception:
         logger.exception(

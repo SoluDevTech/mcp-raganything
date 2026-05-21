@@ -203,7 +203,7 @@ class TestPublishSectionVersion:
             success=True,
             message="Dry run — no API call made",
             dry_run=True,
-            payload_preview={"section_key": "intro", "content": "Hello"},
+            payload_preview={"section_key": "consolidated_data", "content": "Hello"},
         )
 
         with patch(
@@ -212,17 +212,14 @@ class TestPublishSectionVersion:
         ):
             result = await publish_section_version(
                 project_unique_id="proj-123",
-                section_key="intro",
                 content="Hello world",
-                workflow_id="wf-1",
-                workflow_name="draft",
             )
 
         assert result.success is True
         assert result.dry_run is True
 
     async def test_forward_all_params_to_use_case(self) -> None:
-        """Should forward all parameters to the use case."""
+        """Should forward all parameters to the use case with hardcoded defaults."""
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = SectionVersionResult(success=True)
 
@@ -232,20 +229,16 @@ class TestPublishSectionVersion:
         ):
             await publish_section_version(
                 project_unique_id="proj-abc",
-                section_key="summary",
                 content="Summary content",
-                workflow_id="wf-final",
-                workflow_name="final_review",
-                workflow_metadata={"approved": True},
             )
 
         mock_use_case.execute.assert_called_once_with(
             project_unique_id="proj-abc",
-            section_key="summary",
+            section_key="consolidated_data",
             content="Summary content",
-            workflow_id="wf-final",
-            workflow_name="final_review",
-            workflow_metadata={"approved": True},
+            workflow_id="agent-haiku-files-v1",
+            workflow_name="agent-haiku-files-v1",
+            workflow_metadata=None,
         )
 
     async def test_raises_tool_error_for_api_failure(self) -> None:
@@ -262,10 +255,7 @@ class TestPublishSectionVersion:
         ):
             await publish_section_version(
                 project_unique_id="proj-123",
-                section_key="intro",
                 content="Hello",
-                workflow_id="wf-1",
-                workflow_name="draft",
             )
 
     async def test_raises_tool_error_for_generic_failure(self) -> None:
@@ -282,10 +272,7 @@ class TestPublishSectionVersion:
         ):
             await publish_section_version(
                 project_unique_id="proj-123",
-                section_key="intro",
                 content="Hello",
-                workflow_id="wf-1",
-                workflow_name="draft",
             )
 
     async def test_returns_dry_run_result_with_preview(self) -> None:
@@ -297,11 +284,11 @@ class TestPublishSectionVersion:
             dry_run=True,
             payload_preview={
                 "project_unique_id": "proj-123",
-                "section_key": "intro",
+                "section_key": "consolidated_data",
                 "content": "Hello",
-                "workflow_id": "wf-1",
-                "workflow_name": "draft",
-                "workflow_metadata": {},
+                "workflow_id": "agent-haiku-files-v1",
+                "workflow_name": "agent-haiku-files-v1",
+                "workflow_metadata": None,
             },
         )
 
@@ -311,12 +298,9 @@ class TestPublishSectionVersion:
         ):
             result = await publish_section_version(
                 project_unique_id="proj-123",
-                section_key="intro",
                 content="Hello",
-                workflow_id="wf-1",
-                workflow_name="draft",
             )
 
         assert result.dry_run is True
         assert result.payload_preview is not None
-        assert result.payload_preview["section_key"] == "intro"
+        assert result.payload_preview["section_key"] == "consolidated_data"
