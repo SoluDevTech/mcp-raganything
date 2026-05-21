@@ -66,12 +66,12 @@ class TestPublishSectionVersionUseCase:
         assert result.success is True
         assert result.dry_run is True
         assert result.payload_preview is not None
-        assert result.payload_preview["project_unique_id"] == "proj-123"
-        assert result.payload_preview["section_key"] == "summary"
+        assert result.payload_preview["projectUniqueId"] == "proj-123"
+        assert result.payload_preview["sectionKey"] == "summary"
         assert result.payload_preview["content"] == "Summary text"
-        assert result.payload_preview["workflow_id"] == "wf-2"
-        assert result.payload_preview["workflow_name"] == "review"
-        assert result.payload_preview["workflow_metadata"] == {"version": 1}
+        assert result.payload_preview["workflowId"] == "wf-2"
+        assert result.payload_preview["workflowName"] == "review"
+        assert result.payload_preview["workflowMetadata"] == {"version": 1}
 
     async def test_live_calls_bricks_api(
         self,
@@ -122,12 +122,12 @@ class TestPublishSectionVersionUseCase:
         payload = call_args[1].get("payload", call_args[0][0] if call_args[0] else None)
         if payload is None:
             payload = call_args.kwargs.get("payload")
-        assert payload["project_unique_id"] == "proj-abc"
-        assert payload["section_key"] == "results"
+        assert payload["projectUniqueId"] == "proj-abc"
+        assert payload["sectionKey"] == "results"
         assert payload["content"] == "Final results"
-        assert payload["workflow_id"] == "wf-final"
-        assert payload["workflow_name"] == "final_review"
-        assert payload["workflow_metadata"] == {"approved_by": "admin"}
+        assert payload["workflowId"] == "wf-final"
+        assert payload["workflowName"] == "final_review"
+        assert payload["workflowMetadata"] == {"approved_by": "admin"}
 
     async def test_workflow_metadata_defaults_to_empty_dict(
         self,
@@ -142,7 +142,7 @@ class TestPublishSectionVersionUseCase:
             workflow_name="draft",
         )
 
-        assert result.payload_preview["workflow_metadata"] == {}
+        assert result.payload_preview["workflowMetadata"] == {}
 
     async def test_workflow_metadata_none_in_live_payload(
         self,
@@ -166,7 +166,7 @@ class TestPublishSectionVersionUseCase:
         payload = call_args[1].get("payload", call_args[0][0] if call_args[0] else None)
         if payload is None:
             payload = call_args.kwargs.get("payload")
-        assert payload["workflow_metadata"] == {}
+        assert payload["workflowMetadata"] == {}
 
     async def test_live_propagates_api_errors(
         self,
