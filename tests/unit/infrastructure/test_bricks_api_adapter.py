@@ -13,6 +13,7 @@ import pytest
 import urllib.error
 
 from domain.ports.bricks_api_port import BricksDocumentInfo, SectionVersionResult
+from infrastructure.bricks.bricks_api_adapter import _MAX_RETRIES
 from infrastructure.bricks.bricks_api_adapter import (
     BricksApiAdapter,
     _extract_filename,
@@ -199,17 +200,19 @@ class TestListProjectDocuments:
                 await adapter.list_project_documents(project_id="nonexistent")
 
     async def test_raises_on_connection_error(self, adapter: BricksApiAdapter) -> None:
-        """Should raise ConnectionError on URLError."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.URLError(reason="Connection refused")
+        """Should raise ConnectionError on URLError after retries."""
+        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen, \
+             patch("infrastructure.bricks.bricks_api_adapter.time.sleep"):
+            mock_urlopen.side_effect = [urllib.error.URLError(reason="Connection refused")] * _MAX_RETRIES
 
             with pytest.raises(ConnectionError):
                 await adapter.list_project_documents(project_id="proj-123")
 
     async def test_raises_on_timeout(self, adapter: BricksApiAdapter) -> None:
-        """Should raise TimeoutError on socket timeout."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = TimeoutError("Request timed out")
+        """Should raise TimeoutError on socket timeout after retries."""
+        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen, \
+             patch("infrastructure.bricks.bricks_api_adapter.time.sleep"):
+            mock_urlopen.side_effect = [TimeoutError("Request timed out")] * _MAX_RETRIES
 
             with pytest.raises(TimeoutError):
                 await adapter.list_project_documents(project_id="proj-123")
@@ -320,8 +323,9 @@ class TestDownloadDocument:
         doc_list_body = json.dumps({"items": [{"id": "doc-1", "fileName": "doc.pdf", "url": presigned_url, "mimeType": "application/pdf", "size": 100, "status": "PROCESSED"}]}).encode()
         list_resp = _mock_urlopen_response(doc_list_body)
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = [list_resp, urllib.error.URLError(reason="Connection refused")]
+        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen, \
+             patch("infrastructure.bricks.bricks_api_adapter.time.sleep"):
+            mock_urlopen.side_effect = [list_resp] + [urllib.error.URLError(reason="Connection refused")] * _MAX_RETRIES
 
             with pytest.raises(ConnectionError):
                 await adapter.download_document(document_id="doc-1", project_id="proj-1")
@@ -332,8 +336,9 @@ class TestDownloadDocument:
         doc_list_body = json.dumps({"items": [{"id": "doc-1", "fileName": "doc.pdf", "url": presigned_url, "mimeType": "application/pdf", "size": 100, "status": "PROCESSED"}]}).encode()
         list_resp = _mock_urlopen_response(doc_list_body)
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = [list_resp, TimeoutError("Download timed out")]
+        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen, \
+             patch("infrastructure.bricks.bricks_api_adapter.time.sleep"):
+            mock_urlopen.side_effect = [list_resp] + [TimeoutError("Download timed out")] * _MAX_RETRIES
 
             with pytest.raises(TimeoutError):
                 await adapter.download_document(document_id="doc-1", project_id="proj-1")
@@ -439,17 +444,19 @@ class TestPublishSectionVersion:
                 await adapter.publish_section_version(payload={"section_key": "intro"})
 
     async def test_raises_on_connection_error(self, adapter: BricksApiAdapter) -> None:
-        """Should raise ConnectionError on URLError when publishing."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.URLError(reason="Connection refused")
+        """Should raise ConnectionError on URLError when publishing after retries."""
+        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen, \
+             patch("infrastructure.bricks.bricks_api_adapter.time.sleep"):
+            mock_urlopen.side_effect = [urllib.error.URLError(reason="Connection refused")] * _MAX_RETRIES
 
             with pytest.raises(ConnectionError):
                 await adapter.publish_section_version(payload={"section_key": "intro"})
 
     async def test_raises_on_timeout(self, adapter: BricksApiAdapter) -> None:
-        """Should raise TimeoutError on publish timeout."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = TimeoutError("Publish timed out")
+        """Should raise TimeoutError on publish timeout after retries."""
+        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen, \
+             patch("infrastructure.bricks.bricks_api_adapter.time.sleep"):
+            mock_urlopen.side_effect = [TimeoutError("Publish timed out")] * _MAX_RETRIES
 
             with pytest.raises(TimeoutError):
                 await adapter.publish_section_version(payload={"section_key": "intro"})

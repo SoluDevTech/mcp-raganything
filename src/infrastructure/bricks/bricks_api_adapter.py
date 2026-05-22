@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,6 +17,8 @@ from domain.ports.bricks_api_port import (
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 30
+_MAX_RETRIES = 3
+_RETRY_BACKOFF = 2
 
 
 class BricksApiAdapter(BricksApiPort):
@@ -27,39 +30,73 @@ class BricksApiAdapter(BricksApiPort):
     async def close(self) -> None:
         pass
 
+    @staticmethod
+    def _is_retryable(exc: Exception) -> bool:
+        if isinstance(exc, (urllib.error.URLError, ConnectionError, TimeoutError, OSError)):
+            return True
+        if isinstance(exc, urllib.error.HTTPError) and exc.code >= 500:
+            return True
+        return False
+
     def _get(self, url: str, headers: dict | None = None) -> tuple[bytes, dict]:
-        logger.debug("GET %s", url)
-        req = urllib.request.Request(url, headers=headers or {})
-        try:
-            with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
-                body = resp.read()
-                resp_headers = dict(resp.headers)
-                logger.debug("GET %s -> %d bytes (status=%s)", url, len(body), resp.status)
-                return body, resp_headers
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
-            logger.error("GET %s -> HTTP %d: %s", url, e.code, error_body[:500])
-            raise
-        except Exception as e:
-            logger.error("GET %s -> error: %s", url, e)
-            raise
+        logger.info("GET %s", url)
+        last_exc = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                req = urllib.request.Request(url, headers=headers or {})
+                with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+                    body = resp.read()
+                    resp_headers = dict(resp.headers)
+                    logger.info("GET %s -> %d bytes (status=%s)", url, len(body), resp.status)
+                    return body, resp_headers
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+                if e.code >= 500 and attempt < _MAX_RETRIES:
+                    logger.warning("GET %s -> HTTP %d (attempt %d/%d), retrying", url, e.code, attempt, _MAX_RETRIES)
+                    last_exc = e
+                    time.sleep(_RETRY_BACKOFF ** attempt)
+                    continue
+                logger.exception("GET %s -> HTTP %d: %s", url, e.code, error_body[:500])
+                raise
+            except Exception as e:
+                if attempt < _MAX_RETRIES:
+                    logger.warning("GET %s -> error (attempt %d/%d): %s, retrying", url, attempt, _MAX_RETRIES, e)
+                    last_exc = e
+                    time.sleep(_RETRY_BACKOFF ** attempt)
+                    continue
+                logger.exception("GET %s -> error: %s", url, e)
+                raise
+        raise last_exc
 
     def _post(self, url: str, payload: dict, headers: dict) -> bytes:
         data = json.dumps(payload).encode("utf-8")
-        logger.debug("POST %s (body=%d bytes)", url, len(data))
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
-                body = resp.read()
-                logger.debug("POST %s -> %d bytes (status=%s)", url, len(body), resp.status)
-                return body
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
-            logger.error("POST %s -> HTTP %d: %s", url, e.code, error_body[:500])
-            raise
-        except Exception as e:
-            logger.error("POST %s -> error: %s", url, e)
-            raise
+        logger.info("POST %s (body=%d bytes)", url, len(data))
+        last_exc = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+                    body = resp.read()
+                    logger.info("POST %s -> %d bytes (status=%s)", url, len(body), resp.status)
+                    return body
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+                if e.code >= 500 and attempt < _MAX_RETRIES:
+                    logger.warning("POST %s -> HTTP %d (attempt %d/%d), retrying", url, e.code, attempt, _MAX_RETRIES)
+                    last_exc = e
+                    time.sleep(_RETRY_BACKOFF ** attempt)
+                    continue
+                logger.exception("POST %s -> HTTP %d: %s", url, e.code, error_body[:500])
+                raise
+            except Exception as e:
+                if attempt < _MAX_RETRIES:
+                    logger.warning("POST %s -> error (attempt %d/%d): %s, retrying", url, attempt, _MAX_RETRIES, e)
+                    last_exc = e
+                    time.sleep(_RETRY_BACKOFF ** attempt)
+                    continue
+                logger.exception("POST %s -> error: %s", url, e)
+                raise
+        raise last_exc
 
     async def list_project_documents(self, project_id: str) -> list[BricksDocumentInfo]:
         url = f"{self._base_url}/api/projects/{project_id}/documents/ai"
@@ -162,18 +199,18 @@ def _extract_filename(content_disposition: str, url: str = "") -> str:
     match = re.search(r'filename="([^"]+)"', content_disposition)
     if match:
         filename = match.group(1)
-        logger.debug("Filename from Content-Disposition (quoted): %s", filename)
+        logger.info("Filename from Content-Disposition (quoted): %s", filename)
         return _normalize_extension(filename)
     match = re.search(r"filename=([^\s;]+)", content_disposition)
     if match:
         filename = match.group(1)
-        logger.debug("Filename from Content-Disposition (unquoted): %s", filename)
+        logger.info("Filename from Content-Disposition (unquoted): %s", filename)
         return _normalize_extension(filename)
     if url:
         decoded_path = urllib.parse.unquote(urllib.parse.urlparse(url).path)
         path_filename = decoded_path.rsplit("/", 1)[-1]
         if path_filename and "." in path_filename:
-            logger.debug("Filename from URL path: %s (url=%s)", path_filename, url[:200])
+            logger.info("Filename from URL path: %s (url=%s)", path_filename, url[:200])
             return _normalize_extension(path_filename)
     logger.warning("Could not extract filename, falling back to document.bin (url=%s)", url[:200] if url else "")
     return "document.bin"
