@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import re
 import time
 import urllib.error
@@ -32,15 +33,14 @@ class BricksApiAdapter(BricksApiPort):
 
     @staticmethod
     def _is_retryable(exc: Exception) -> bool:
+        if isinstance(exc, urllib.error.HTTPError):
+            return exc.code >= 500
         if isinstance(exc, (urllib.error.URLError, ConnectionError, TimeoutError, OSError)):
-            return True
-        if isinstance(exc, urllib.error.HTTPError) and exc.code >= 500:
             return True
         return False
 
     def _get(self, url: str, headers: dict | None = None) -> tuple[bytes, dict]:
         logger.info("GET %s", url)
-        last_exc = None
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
                 req = urllib.request.Request(url, headers=headers or {})
@@ -51,27 +51,24 @@ class BricksApiAdapter(BricksApiPort):
                     return body, resp_headers
             except urllib.error.HTTPError as e:
                 error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
-                if e.code >= 500 and attempt < _MAX_RETRIES:
+                if self._is_retryable(e) and attempt < _MAX_RETRIES:
                     logger.warning("GET %s -> HTTP %d (attempt %d/%d), retrying", url, e.code, attempt, _MAX_RETRIES)
-                    last_exc = e
-                    time.sleep(_RETRY_BACKOFF ** attempt)
+                    time.sleep(_RETRY_BACKOFF ** attempt + random.uniform(0, 1))
                     continue
                 logger.exception("GET %s -> HTTP %d: %s", url, e.code, error_body[:500])
                 raise
             except Exception as e:
-                if attempt < _MAX_RETRIES:
+                if self._is_retryable(e) and attempt < _MAX_RETRIES:
                     logger.warning("GET %s -> error (attempt %d/%d): %s, retrying", url, attempt, _MAX_RETRIES, e)
-                    last_exc = e
-                    time.sleep(_RETRY_BACKOFF ** attempt)
+                    time.sleep(_RETRY_BACKOFF ** attempt + random.uniform(0, 1))
                     continue
                 logger.exception("GET %s -> error: %s", url, e)
                 raise
-        raise last_exc
+        raise RuntimeError(f"GET {url} failed after {_MAX_RETRIES} retries")
 
     def _post(self, url: str, payload: dict, headers: dict) -> bytes:
         data = json.dumps(payload).encode("utf-8")
         logger.info("POST %s (body=%d bytes)", url, len(data))
-        last_exc = None
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
                 req = urllib.request.Request(url, data=data, headers=headers, method="POST")
@@ -81,22 +78,20 @@ class BricksApiAdapter(BricksApiPort):
                     return body
             except urllib.error.HTTPError as e:
                 error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
-                if e.code >= 500 and attempt < _MAX_RETRIES:
+                if self._is_retryable(e) and attempt < _MAX_RETRIES:
                     logger.warning("POST %s -> HTTP %d (attempt %d/%d), retrying", url, e.code, attempt, _MAX_RETRIES)
-                    last_exc = e
-                    time.sleep(_RETRY_BACKOFF ** attempt)
+                    time.sleep(_RETRY_BACKOFF ** attempt + random.uniform(0, 1))
                     continue
                 logger.exception("POST %s -> HTTP %d: %s", url, e.code, error_body[:500])
                 raise
             except Exception as e:
-                if attempt < _MAX_RETRIES:
+                if self._is_retryable(e) and attempt < _MAX_RETRIES:
                     logger.warning("POST %s -> error (attempt %d/%d): %s, retrying", url, attempt, _MAX_RETRIES, e)
-                    last_exc = e
-                    time.sleep(_RETRY_BACKOFF ** attempt)
+                    time.sleep(_RETRY_BACKOFF ** attempt + random.uniform(0, 1))
                     continue
                 logger.exception("POST %s -> error: %s", url, e)
                 raise
-        raise last_exc
+        raise RuntimeError(f"POST {url} failed after {_MAX_RETRIES} retries")
 
     async def list_project_documents(self, project_id: str) -> list[BricksDocumentInfo]:
         url = f"{self._base_url}/api/projects/{project_id}/documents/ai"
@@ -114,6 +109,8 @@ class BricksApiAdapter(BricksApiPort):
                 raise FileNotFoundError(
                     f"Bricks project not found: {project_id}"
                 ) from e
+            if e.code == 429:
+                logger.warning("Bricks API rate limited (HTTP 429) for project %s", project_id)
             raise RuntimeError(f"Bricks API error (HTTP {e.code})") from e
         except urllib.error.URLError as e:
             raise ConnectionError(f"Bricks API connection failed: {e.reason}") from e
@@ -153,6 +150,8 @@ class BricksApiAdapter(BricksApiPort):
                 raise FileNotFoundError(
                     f"Document {document_id} not found (project {project_id})"
                 ) from e
+            if e.code == 429:
+                logger.warning("Bricks API rate limited (HTTP 429) for document %s download", document_id)
             raise RuntimeError(
                 f"Failed to download document (HTTP {e.code})"
             ) from e
@@ -185,6 +184,8 @@ class BricksApiAdapter(BricksApiPort):
                 raise PermissionError(
                     f"Publish authentication failed (HTTP {e.code})"
                 ) from e
+            if e.code == 429:
+                logger.warning("Bricks API rate limited (HTTP 429) for publish: project=%s section=%s", payload.get("projectUniqueId"), payload.get("sectionKey"))
             raise RuntimeError(f"Publish failed (HTTP {e.code})") from e
         except urllib.error.URLError as e:
             raise ConnectionError(f"Publish connection failed: {e.reason}") from e
@@ -199,18 +200,18 @@ def _extract_filename(content_disposition: str, url: str = "") -> str:
     match = re.search(r'filename="([^"]+)"', content_disposition)
     if match:
         filename = match.group(1)
-        logger.info("Filename from Content-Disposition (quoted): %s", filename)
+        logger.debug("Filename from Content-Disposition (quoted): %s", filename)
         return _normalize_extension(filename)
     match = re.search(r"filename=([^\s;]+)", content_disposition)
     if match:
         filename = match.group(1)
-        logger.info("Filename from Content-Disposition (unquoted): %s", filename)
+        logger.debug("Filename from Content-Disposition (unquoted): %s", filename)
         return _normalize_extension(filename)
     if url:
         decoded_path = urllib.parse.unquote(urllib.parse.urlparse(url).path)
         path_filename = decoded_path.rsplit("/", 1)[-1]
         if path_filename and "." in path_filename:
-            logger.info("Filename from URL path: %s (url=%s)", path_filename, url[:200])
+            logger.debug("Filename from URL path: %s (url=%s)", path_filename, url[:200])
             return _normalize_extension(path_filename)
     logger.warning("Could not extract filename, falling back to document.bin (url=%s)", url[:200] if url else "")
     return "document.bin"
