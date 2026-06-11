@@ -40,7 +40,8 @@ class TestPublishSectionVersionUseCase:
         result = await use_case_dry_run.execute(
             project_unique_id="proj-123",
             section_key="intro",
-            content="Hello world",
+            content={"text": "Hello world"},
+            field_sources=[],
             workflow_id="wf-1",
             workflow_name="draft",
             workflow_metadata={"source": "test"},
@@ -57,7 +58,8 @@ class TestPublishSectionVersionUseCase:
         result = await use_case_dry_run.execute(
             project_unique_id="proj-123",
             section_key="summary",
-            content="Summary text",
+            content={"text": "Summary text"},
+            field_sources=[],
             workflow_id="wf-2",
             workflow_name="review",
             workflow_metadata={"version": 1},
@@ -68,7 +70,8 @@ class TestPublishSectionVersionUseCase:
         assert result.payload_preview is not None
         assert result.payload_preview["projectUniqueId"] == "proj-123"
         assert result.payload_preview["sectionKey"] == "summary"
-        assert result.payload_preview["content"] == "Summary text"
+        assert result.payload_preview["content"] == {"text": "Summary text"}
+        assert result.payload_preview["fieldSources"] == []
         assert result.payload_preview["workflowId"] == "wf-2"
         assert result.payload_preview["workflowName"] == "review"
         assert result.payload_preview["workflowMetadata"] == {"version": 1}
@@ -88,7 +91,8 @@ class TestPublishSectionVersionUseCase:
         result = await use_case_live.execute(
             project_unique_id="proj-123",
             section_key="intro",
-            content="Hello world",
+            content={"text": "Hello world"},
+            field_sources=[],
             workflow_id="wf-1",
             workflow_name="draft",
             workflow_metadata={},
@@ -112,7 +116,8 @@ class TestPublishSectionVersionUseCase:
         await use_case_live.execute(
             project_unique_id="proj-abc",
             section_key="results",
-            content="Final results",
+            content={"text": "Final results"},
+            field_sources=[{"field": "text", "source": "doc-1"}],
             workflow_id="wf-final",
             workflow_name="final_review",
             workflow_metadata={"approved_by": "admin"},
@@ -124,7 +129,8 @@ class TestPublishSectionVersionUseCase:
             payload = call_args.kwargs.get("payload")
         assert payload["projectUniqueId"] == "proj-abc"
         assert payload["sectionKey"] == "results"
-        assert payload["content"] == "Final results"
+        assert payload["content"] == {"text": "Final results"}
+        assert payload["fieldSources"] == [{"field": "text", "source": "doc-1"}]
         assert payload["workflowId"] == "wf-final"
         assert payload["workflowName"] == "final_review"
         assert payload["workflowMetadata"] == {"approved_by": "admin"}
@@ -137,7 +143,8 @@ class TestPublishSectionVersionUseCase:
         result = await use_case_dry_run.execute(
             project_unique_id="proj-123",
             section_key="intro",
-            content="Hello",
+            content={"text": "Hello"},
+            field_sources=[],
             workflow_id="wf-1",
             workflow_name="draft",
         )
@@ -157,7 +164,8 @@ class TestPublishSectionVersionUseCase:
         await use_case_live.execute(
             project_unique_id="proj-123",
             section_key="intro",
-            content="Hello",
+            content={"text": "Hello"},
+            field_sources=[],
             workflow_id="wf-1",
             workflow_name="draft",
         )
@@ -185,7 +193,8 @@ class TestPublishSectionVersionUseCase:
             await use_case.execute(
                 project_unique_id="proj-123",
                 section_key="intro",
-                content="Hello",
+                content={"text": "Hello"},
+                field_sources=[],
                 workflow_id="wf-1",
                 workflow_name="draft",
             )
@@ -198,7 +207,8 @@ class TestPublishSectionVersionUseCase:
         result = await use_case_dry_run.execute(
             project_unique_id="proj-123",
             section_key="intro",
-            content="Hello",
+            content={"text": "Hello"},
+            field_sources=[],
             workflow_id="wf-1",
             workflow_name="draft",
         )

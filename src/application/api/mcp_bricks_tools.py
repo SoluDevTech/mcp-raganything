@@ -103,17 +103,18 @@ async def read_bricks_document(
 @mcp_bricks.tool()
 async def publish_section_version(
     project_unique_id: str,
-    content: dict
+    content: dict,
+    field_sources: list[dict]
 ) -> dict:
     """Publie la réponse structurée d'une section d'un projet Bricks.
 
-    IMPORTANT: This tool ONLY accepts project_unique_id and content.
+    IMPORTANT: This tool ONLY accepts project_unique_id, content and field_sources.
     Do NOT pass any other parameters (e.g., limit, offset, etc.) — they are not supported.
 
     Args:
         project_unique_id: L'identifiant unique du projet
         content: Le contenu structuré de la section à publier, typiquement un dict avec les données extraites et analysées
-
+        field_sources: Sources justifiant chaque champ du contenu 
     Returns:
         Résultat de la publication avec statut et aperçu du payload
     """
@@ -129,6 +130,7 @@ async def publish_section_version(
             project_unique_id=project_unique_id,
             section_key="consolidated_data",
             content=content,
+            field_sources=field_sources,
             workflow_id="agent-haiku-files-v1",
             workflow_name="agent-haiku-files-v1",
             workflow_metadata=workflow_metadata,

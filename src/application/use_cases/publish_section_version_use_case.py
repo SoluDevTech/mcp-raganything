@@ -1,5 +1,7 @@
 from domain.ports.bricks_api_port import BricksApiPort, SectionVersionResult
+import logging
 
+logger = logging.getLogger(__name__)
 
 class PublishSectionVersionUseCase:
     def __init__(
@@ -15,6 +17,7 @@ class PublishSectionVersionUseCase:
         project_unique_id: str,
         section_key: str,
         content: dict,
+        field_sources: list[dict],
         workflow_id: str,
         workflow_name: str,
         workflow_metadata: dict | None = None,
@@ -23,6 +26,7 @@ class PublishSectionVersionUseCase:
             "projectUniqueId": project_unique_id,
             "sectionKey": section_key,
             "content": content,
+            "fieldSources": field_sources,
             "workflowId": workflow_id,
             "workflowName": workflow_name,
             "workflowMetadata": workflow_metadata
@@ -31,6 +35,7 @@ class PublishSectionVersionUseCase:
         }
 
         if self.dry_run:
+            logger.info(f"Payload : {payload}")
             return SectionVersionResult(
                 success=True,
                 message="DRY RUN — no API call made",

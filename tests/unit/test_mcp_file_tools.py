@@ -184,7 +184,7 @@ class TestReadFile:
     @pytest.fixture
     def mock_document_content(self) -> DocumentContent:
         return DocumentContent(
-            content="Extracted text from the document.",
+            content=["Extracted text from the document."],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[],
         )
@@ -202,7 +202,7 @@ class TestReadFile:
         ):
             result = await read_file(file_path="documents/report.pdf")
 
-        assert result.content == "Extracted text from the document."
+        assert result.content == ["Extracted text from the document."]
         assert result.metadata.mime_type == "application/pdf"
 
     async def test_raises_tool_error_for_file_not_found(self) -> None:
@@ -239,7 +239,7 @@ class TestReadFile:
 
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = DocumentContent(
-            content="Report with table",
+            content=["Report with table"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[TableData(markdown="| A | B |\n|---|---|")],
         )
@@ -250,5 +250,5 @@ class TestReadFile:
         ):
             result = await read_file(file_path="docs/table.pdf")
 
-        assert len(result.tables) == 1
-        assert result.tables[0].markdown == "| A | B |\n|---|---|"
+        assert len(result.tables or []) == 1
+        assert (result.tables or [])[0].markdown == "| A | B |\n|---|---|"

@@ -4,6 +4,7 @@ import logging
 
 from kreuzberg import (
     ChunkingConfig,
+    PageConfig,
     ExtractionConfig,
     OcrConfig,
     OutputFormat,
@@ -18,6 +19,7 @@ from kreuzberg import (
 
 from config import LLMConfig
 from domain.ports.document_reader_port import (
+    ContentPages,
     DocumentContent,
     DocumentMetadata,
     DocumentReaderPort,
@@ -49,6 +51,11 @@ def make_extraction_config(
     else:
         ocr = OcrConfig(backend="tesseract")
     return ExtractionConfig(
+        pages=PageConfig(
+            extract_pages=True,
+            insert_page_markers=True,
+            marker_format="\n\n<!-- PAGE {page_num} -->\n\n"
+        ),
         use_cache=True,
         output_format=OutputFormat.MARKDOWN,
         enable_quality_processing=True,
@@ -75,14 +82,7 @@ class KreuzbergAdapter(DocumentReaderPort):
             raise ValueError(f"Invalid file: {e}") from e
 
         metadata = result.metadata if isinstance(result.metadata, dict) else {}
+
         return DocumentContent(
-            content=result.content or "",
-            metadata=DocumentMetadata(
-                format_type=metadata.get("format_type", ""),
-                mime_type=result.mime_type or "",
-            ),
-            tables=[
-                TableData(markdown=getattr(t, "markdown", str(t)))
-                for t in (result.tables or [])
-            ],
+            content=result.pages or [],
         )

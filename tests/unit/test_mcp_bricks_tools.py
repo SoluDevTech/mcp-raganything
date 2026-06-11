@@ -117,7 +117,7 @@ class TestReadBricksDocument:
     @pytest.fixture
     def mock_document_content(self) -> DocumentContent:
         return DocumentContent(
-            content="Extracted text from bricks document.",
+            content=["Extracted text from bricks document."],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[],
         )
@@ -137,7 +137,7 @@ class TestReadBricksDocument:
                 document_id="doc-abc123", project_unique_id="proj-456"
             )
 
-        assert result.content == "Extracted text from bricks document."
+        assert result.content == ["Extracted text from bricks document."]
         assert result.metadata.mime_type == "application/pdf"
 
     async def test_raises_tool_error_for_download_failure(self) -> None:
@@ -176,7 +176,7 @@ class TestReadBricksDocument:
 
         mock_use_case = AsyncMock()
         mock_use_case.execute.return_value = DocumentContent(
-            content="Report with table",
+            content=["Report with table"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[TableData(markdown="| A | B |\n|---|---|")],
         )
@@ -189,8 +189,8 @@ class TestReadBricksDocument:
                 document_id="doc-table", project_unique_id="proj-1"
             )
 
-        assert len(result.tables) == 1
-        assert result.tables[0].markdown == "| A | B |\n|---|---|"
+        assert len(result.tables or []) == 1
+        assert (result.tables or [])[0].markdown == "| A | B |\n|---|---|"
 
 
 class TestPublishSectionVersion:
@@ -203,7 +203,7 @@ class TestPublishSectionVersion:
             success=True,
             message="Dry run — no API call made",
             dry_run=True,
-            payload_preview={"section_key": "consolidated_data", "content": "Hello"},
+            payload_preview={"section_key": "consolidated_data", "content": {"text": "Hello"}},
         )
 
         with patch(
@@ -212,7 +212,8 @@ class TestPublishSectionVersion:
         ):
             result = await publish_section_version(
                 project_unique_id="proj-123",
-                content="Hello world",
+                content={"text": "Hello world"},
+                field_sources=[],
             )
 
         assert result.success is True
@@ -229,13 +230,15 @@ class TestPublishSectionVersion:
         ):
             await publish_section_version(
                 project_unique_id="proj-abc",
-                content="Summary content",
+                content={"text": "Summary content"},
+                field_sources=[{"field": "text", "source": "doc-1"}],
             )
 
         call_args = mock_use_case.execute.call_args
         assert call_args.kwargs["project_unique_id"] == "proj-abc"
         assert call_args.kwargs["section_key"] == "consolidated_data"
-        assert call_args.kwargs["content"] == "Summary content"
+        assert call_args.kwargs["content"] == {"text": "Summary content"}
+        assert call_args.kwargs["field_sources"] == [{"field": "text", "source": "doc-1"}]
         assert call_args.kwargs["workflow_id"] == "agent-haiku-files-v1"
         assert call_args.kwargs["workflow_name"] == "agent-haiku-files-v1"
         assert call_args.kwargs["workflow_metadata"] is not None
@@ -257,7 +260,8 @@ class TestPublishSectionVersion:
         ):
             await publish_section_version(
                 project_unique_id="proj-123",
-                content="Hello",
+                content={"text": "Hello"},
+                field_sources=[],
             )
 
     async def test_raises_tool_error_for_generic_failure(self) -> None:
@@ -274,7 +278,8 @@ class TestPublishSectionVersion:
         ):
             await publish_section_version(
                 project_unique_id="proj-123",
-                content="Hello",
+                content={"text": "Hello"},
+                field_sources=[],
             )
 
     async def test_returns_dry_run_result_with_preview(self) -> None:
@@ -287,7 +292,8 @@ class TestPublishSectionVersion:
             payload_preview={
                 "projectUniqueId": "proj-123",
                 "sectionKey": "consolidated_data",
-                "content": "Hello",
+                "content": {"text": "Hello"},
+                "fieldSources": [],
                 "workflowId": "agent-haiku-files-v1",
                 "workflowName": "agent-haiku-files-v1",
                 "workflowMetadata": {},
@@ -300,7 +306,8 @@ class TestPublishSectionVersion:
         ):
             result = await publish_section_version(
                 project_unique_id="proj-123",
-                content="Hello",
+                content={"text": "Hello"},
+                field_sources=[],
             )
 
         assert result.dry_run is True
