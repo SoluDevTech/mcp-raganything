@@ -23,7 +23,6 @@ from application.api.query_routes import query_router
 from dependencies import (
     app_config,
     bm25_adapter,
-    bricks_api_adapter,
     classical_vector_store,
 )
 
@@ -121,6 +120,7 @@ def run_fastapi():
         port=app_config.PORT,
         log_level=app_config.UVICORN_LOG_LEVEL,
         access_log=True,
+        log_config=None,
         ws="none",
     )
 

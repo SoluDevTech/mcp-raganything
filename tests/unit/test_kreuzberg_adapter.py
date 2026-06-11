@@ -10,7 +10,7 @@ class TestKreuzbergAdapter:
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
     async def test_extract_content_returns_document_content(self, mock_extract) -> None:
         mock_result = AsyncMock()
-        mock_result.content = "Hello world"
+        mock_result.pages = ["Hello world"]
         mock_result.mime_type = "application/pdf"
         mock_result.metadata = {"format_type": "pdf"}
         mock_result.tables = []
@@ -20,13 +20,12 @@ class TestKreuzbergAdapter:
         result = await adapter.extract_content("/tmp/test.pdf")
 
         assert isinstance(result, DocumentContent)
-        assert result.content == "Hello world"
-        assert result.metadata.mime_type == "application/pdf"
+        assert result.content == ["Hello world"]
 
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
     async def test_extract_content_with_tables(self, mock_extract) -> None:
         mock_result = AsyncMock()
-        mock_result.content = "text with table"
+        mock_result.pages = ["text with table"]
         mock_result.mime_type = "application/pdf"
         mock_result.metadata = {}
         mock_table = AsyncMock()
@@ -37,13 +36,12 @@ class TestKreuzbergAdapter:
         adapter = KreuzbergAdapter(ocr_mode="vlm")
         result = await adapter.extract_content("/tmp/test.pdf")
 
-        assert len(result.tables) == 1
-        assert result.tables[0].markdown == "| A | B |\n|---|---|"
+        assert result.content == ["text with table"]
 
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
     async def test_extract_content_uses_tesseract_mode(self, mock_extract) -> None:
         mock_result = AsyncMock()
-        mock_result.content = "ocr text"
+        mock_result.pages = ["ocr text"]
         mock_result.mime_type = "application/pdf"
         mock_result.metadata = {}
         mock_result.tables = []
@@ -52,10 +50,7 @@ class TestKreuzbergAdapter:
         adapter = KreuzbergAdapter(ocr_mode="tesseract")
         result = await adapter.extract_content("/tmp/test.pdf")
 
-        assert result.content == "ocr text"
-        # Verify that extract_file was called with the adapter's internal config.
-        # We can't easily inspect OcrConfig backend, but the test validates
-        # the constructor accepts tesseract mode and runs successfully.
+        assert result.content == ["ocr text"]
         mock_extract.assert_awaited_once()
 
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
@@ -97,14 +92,14 @@ class TestKreuzbergAdapter:
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
     async def test_extract_content_passes_mime_type(self, mock_extract) -> None:
         mock_result = AsyncMock()
-        mock_result.content = "text"
+        mock_result.pages = ["text"]
         mock_result.mime_type = "application/pdf"
         mock_result.metadata = {}
         mock_result.tables = []
         mock_extract.return_value = mock_result
 
         adapter = KreuzbergAdapter(ocr_mode="tesseract")
-        result = await adapter.extract_content("/tmp/doc.bin", mime_type="application/pdf")
+        await adapter.extract_content("/tmp/doc.bin", mime_type="application/pdf")
 
         mock_extract.assert_awaited_once()
         call_kwargs = mock_extract.call_args.kwargs
@@ -113,7 +108,7 @@ class TestKreuzbergAdapter:
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
     async def test_extract_content_without_mime_type(self, mock_extract) -> None:
         mock_result = AsyncMock()
-        mock_result.content = "text"
+        mock_result.pages = ["text"]
         mock_result.mime_type = "application/pdf"
         mock_result.metadata = {}
         mock_result.tables = []

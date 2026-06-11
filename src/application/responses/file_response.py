@@ -10,6 +10,6 @@ class FileInfoResponse(BaseModel):
 
 
 class FileContentResponse(BaseModel):
-    content: str
-    metadata: DocumentMetadata
-    tables: list[TableData] = Field(default_factory=list)
+    content: list
+    metadata: DocumentMetadata | None = None
+    tables: list[TableData] | None = None

@@ -27,7 +27,7 @@ class TestReadBricksDocumentUseCase:
         """Should call bricks_api.download_document with document_id and project_id."""
         mock_bricks_api.download_document.return_value = (b"file content", "report.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="extracted text",
+            content=["extracted text"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[],
         )
@@ -52,7 +52,7 @@ class TestReadBricksDocumentUseCase:
         """Should return DocumentContent from Kreuzberg extraction."""
         mock_bricks_api.download_document.return_value = (b"pdf data", "doc.pdf", "application/pdf")
         expected = DocumentContent(
-            content="extracted text from bricks document",
+            content=["extracted text from bricks document"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[],
         )
@@ -67,7 +67,7 @@ class TestReadBricksDocumentUseCase:
             document_id="doc-456", project_id="proj-1"
         )
 
-        assert result.content == "extracted text from bricks document"
+        assert result.content == ["extracted text from bricks document"]
         assert result.metadata.format_type == "pdf"
         assert result.metadata.mime_type == "application/pdf"
 
@@ -80,7 +80,7 @@ class TestReadBricksDocumentUseCase:
         """Should save temp file and pass its path to document_reader.extract_content."""
         mock_bricks_api.download_document.return_value = (b"pdf binary", "report.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="text",
+            content=["text"],
             metadata=DocumentMetadata(format_type="pdf"),
             tables=[],
         )
@@ -106,7 +106,7 @@ class TestReadBricksDocumentUseCase:
         """Should use the filename extension from the download as temp file suffix."""
         mock_bricks_api.download_document.return_value = (b"data", "spreadsheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="spreadsheet data",
+            content=["spreadsheet data"],
             metadata=DocumentMetadata(format_type="xlsx"),
             tables=[],
         )
@@ -170,7 +170,7 @@ class TestReadBricksDocumentUseCase:
         """Should delete the temp file after successful extraction."""
         mock_bricks_api.download_document.return_value = (b"data", "report.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="text",
+            content=["text"],
             metadata=DocumentMetadata(format_type="txt"),
             tables=[],
         )
@@ -219,7 +219,7 @@ class TestReadBricksDocumentUseCase:
 
         mock_bricks_api.download_document.return_value = (b"data", "financials.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="text with table",
+            content=["text with table"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[TableData(markdown="| A | B |\n|---|---|\n| 1 | 2 |")],
         )
@@ -233,8 +233,8 @@ class TestReadBricksDocumentUseCase:
             document_id="doc-financials", project_id="proj-1"
         )
 
-        assert len(result.tables) == 1
-        assert result.tables[0].markdown == "| A | B |\n|---|---|\n| 1 | 2 |"
+        assert len(result.tables or []) == 1
+        assert (result.tables or [])[0].markdown == "| A | B |\n|---|---|\n| 1 | 2 |"
 
     async def test_execute_passes_mime_type_to_document_reader(
         self,
@@ -245,7 +245,7 @@ class TestReadBricksDocumentUseCase:
         """Should pass mime_type from Bricks API to document_reader.extract_content."""
         mock_bricks_api.download_document.return_value = (b"data", "report.pdf", "application/pdf")
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="text",
+            content=["text"],
             metadata=DocumentMetadata(format_type="pdf"),
             tables=[],
         )

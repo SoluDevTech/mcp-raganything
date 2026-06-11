@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-
+from proto import Field
 from pydantic import BaseModel
 
 
@@ -11,11 +11,15 @@ class DocumentMetadata(BaseModel):
 class TableData(BaseModel):
     markdown: str = ""
 
+class ContentPages(BaseModel):
+    page: int
+    content: str
+
 
 class DocumentContent(BaseModel):
-    content: str
-    metadata: DocumentMetadata
-    tables: list[TableData] = []
+    content: list
+    metadata: DocumentMetadata | None = None
+    tables: list[TableData] | None = None
 
 
 class DocumentReaderPort(ABC):

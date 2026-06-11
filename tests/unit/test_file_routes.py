@@ -129,7 +129,7 @@ class TestReadFileRoute:
     def mock_read_file_use_case(self) -> AsyncMock:
         mock = AsyncMock(spec=ReadFileUseCase)
         mock.execute.return_value = DocumentContent(
-            content="Extracted text from PDF",
+            content=["Extracted text from PDF"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[],
         )
@@ -168,7 +168,7 @@ class TestReadFileRoute:
             )
 
         body = response.json()
-        assert body["content"] == "Extracted text from PDF"
+        assert body["content"] == ["Extracted text from PDF"]
         assert body["metadata"]["mime_type"] == "application/pdf"
 
     async def test_read_file_returns_404_for_missing_file(

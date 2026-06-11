@@ -16,7 +16,7 @@ class TestReadFileUseCase:
     ) -> None:
         mock_storage.get_object.return_value = b"file content"
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="extracted text",
+            content=["extracted text"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[],
         )
@@ -39,7 +39,7 @@ class TestReadFileUseCase:
     ) -> None:
         mock_storage.get_object.return_value = b"file content"
         expected = DocumentContent(
-            content="extracted text",
+            content=["extracted text"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[],
         )
@@ -53,7 +53,7 @@ class TestReadFileUseCase:
 
         result = await use_case.execute(file_path="docs/report.pdf")
 
-        assert result.content == "extracted text"
+        assert result.content == ["extracted text"]
         assert result.metadata.format_type == "pdf"
 
     async def test_execute_calls_document_reader_with_temp_file(
@@ -64,7 +64,7 @@ class TestReadFileUseCase:
     ) -> None:
         mock_storage.get_object.return_value = b"pdf binary data"
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="text",
+            content=["text"],
             metadata=DocumentMetadata(format_type="pdf"),
             tables=[],
         )
@@ -107,7 +107,7 @@ class TestReadFileUseCase:
     ) -> None:
         mock_storage.get_object.return_value = b"data"
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="text",
+            content=["text"],
             metadata=DocumentMetadata(format_type="txt"),
             tables=[],
         )
@@ -156,7 +156,7 @@ class TestReadFileUseCase:
 
         mock_storage.get_object.return_value = b"data"
         mock_document_reader.extract_content.return_value = DocumentContent(
-            content="text with table",
+            content=["text with table"],
             metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
             tables=[TableData(markdown="| A | B |\n|---|---|\n| 1 | 2 |")],
         )
@@ -169,5 +169,5 @@ class TestReadFileUseCase:
 
         result = await use_case.execute(file_path="report.pdf")
 
-        assert len(result.tables) == 1
-        assert result.tables[0].markdown == "| A | B |\n|---|---|\n| 1 | 2 |"
+        assert len(result.tables or []) == 1
+        assert (result.tables or [])[0].markdown == "| A | B |\n|---|---|\n| 1 | 2 |"

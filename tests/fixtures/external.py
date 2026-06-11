@@ -82,7 +82,7 @@ def mock_storage() -> AsyncMock:
 def mock_document_reader() -> AsyncMock:
     mock = AsyncMock(spec=DocumentReaderPort)
     mock.extract_content.return_value = DocumentContent(
-        content="Extracted text content from document.",
+        content=["Extracted text content from document."],
         metadata=DocumentMetadata(format_type="pdf", mime_type="application/pdf"),
         tables=[],
     )
