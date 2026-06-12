@@ -29,3 +29,20 @@ CVE-2026-48710
 # RC. Re-evaluate when 5.0.0 stable is released.
 # Review: 2026-06-12
 CVE-2026-1839
+
+# perl-base (bookworm & trixie): Archive::Tar symlink path-traversal.
+# Exploitable only by code that calls `Archive::Tar` on attacker-controlled
+# archives; this FastAPI service does not invoke Perl or Archive::Tar.
+# `apt-cache rdepends --installed perl-base` returns nothing in
+# `python:3.13-slim-bookworm` + our apt-get install layer. Status: fix_deferred
+# upstream; needs Perl 5.44 backport. Re-evaluate on image rebuild after Debian
+# ships the fix.
+# Review: 2026-06-12
+CVE-2026-42496
+
+# perl-base (bookworm & trixie): heap buffer overflow in the Perl compiler
+# during compilation. Exploitable only by code that invokes `perl` as a
+# compiler on attacker-controlled input; this service does not call Perl.
+# Status: affected upstream; needs Perl 5.44 backport.
+# Review: 2026-06-12
+CVE-2026-8376
