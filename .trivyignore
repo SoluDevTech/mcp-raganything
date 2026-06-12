@@ -16,3 +16,16 @@ CVE-2023-45853
 # Debian bookworm package not yet patched. Monitor for upstream fix.
 # Review: 2026-05-20
 CVE-2026-7598
+
+# starlette 0.52.1: Host header bypass. Fixed in starlette 1.0.1, but blocked by
+# `raganything>=1.2.10` -> `mineru[core]` -> `gradio<6.9.0` -> `starlette<1.0`.
+# No Starlette 1.x-compatible `mineru`/`gradio` pair is available on PyPI.
+# Re-evaluate when `gradio>=6.9.0` ships or `raganything` drops `mineru[core]`.
+# Review: 2026-06-12
+CVE-2026-48710
+
+# transformers 4.57.6: Arbitrary code execution via malicious checkpoint.
+# Fixed in 5.0.0rc3 (pre-release). We pin to the stable 4.x line and skip the
+# RC. Re-evaluate when 5.0.0 stable is released.
+# Review: 2026-06-12
+CVE-2026-1839
