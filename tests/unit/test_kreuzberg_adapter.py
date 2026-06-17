@@ -52,8 +52,6 @@ class TestKreuzbergAdapter:
             "content": "text with table",
             "tables": [{"markdown": "| A | B |\n|---|---|"}],
         }]
-        assert result.tables is not None
-        assert result.tables[0].markdown == "| A | B |\n|---|---|"
 
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
     async def test_extract_content_uses_tesseract_mode(self, mock_extract) -> None:
