@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -12,10 +12,9 @@ from dependencies import (
     get_read_bricks_document_use_case,
 )
 
-logger = logging.getLogger(__name__)
-
 mcp_bricks = FastMCP("RAGAnythingBricks")
 
+logger = logging.getLogger(__name__)
 
 class DocumentSummary(BaseModel):
     id: str = Field(description="Document ID — pass this to read_bricks_document")
@@ -41,14 +40,21 @@ async def list_bricks_documents(project_unique_id: str) -> list[DocumentSummary]
     use_case = get_list_bricks_documents_use_case()
     try:
         documents = await use_case.execute(project_id=project_unique_id)
+        logger.info(f"Documents found : {documents}")
     except PermissionError as e:
-        logger.error("List documents auth failed for project %s: %s", project_unique_id, e)
+        logger.error(
+            "List documents auth failed for project %s: %s", project_unique_id, e
+        )
         raise ToolError(str(e)) from e
     except (ConnectionError, TimeoutError) as e:
-        logger.error("List documents network error for project %s: %s", project_unique_id, e)
+        logger.error(
+            "List documents network error for project %s: %s", project_unique_id, e
+        )
         raise ToolError(str(e)) from e
     except Exception as e:
-        logger.exception("Failed to list bricks documents for project %s: %s", project_unique_id, e)
+        logger.exception(
+            "Failed to list bricks documents for project %s: %s", project_unique_id, e
+        )
         raise ToolError(f"Failed to list bricks documents: {e}") from e
     return [
         DocumentSummary(
@@ -83,7 +89,11 @@ async def read_bricks_document(
     """
     use_case = get_read_bricks_document_use_case()
     try:
-        result = await use_case.execute(document_id=document_id, project_id=project_unique_id)
+        logger.info(f"Reading document : {document_id}")
+        result = await use_case.execute(
+            document_id=document_id, project_id=project_unique_id
+        )
+        logger.info(f"Result for read document use case : {result}")
     except PermissionError as e:
         logger.error("Read document auth failed for %s: %s", document_id, e)
         raise ToolError(str(e)) from e
@@ -91,7 +101,12 @@ async def read_bricks_document(
         logger.error("Read document network error for %s: %s", document_id, e)
         raise ToolError(str(e)) from e
     except Exception as e:
-        logger.exception("Failed to read bricks document: %s in project %s: %s", document_id, project_unique_id, e)
+        logger.exception(
+            "Failed to read bricks document: %s in project %s: %s",
+            document_id,
+            project_unique_id,
+            e,
+        )
         raise ToolError(f"Failed to read bricks document: {e}") from e
     return FileContentResponse(
         content=result.content,
@@ -102,9 +117,7 @@ async def read_bricks_document(
 
 @mcp_bricks.tool()
 async def publish_section_version(
-    project_unique_id: str,
-    content: dict,
-    field_sources: list[dict]
+    project_unique_id: str, content: dict, field_sources: list[dict]
 ) -> dict:
     """Publie la réponse structurée d'une section d'un projet Bricks.
 
@@ -114,12 +127,12 @@ async def publish_section_version(
     Args:
         project_unique_id: L'identifiant unique du projet
         content: Le contenu structuré de la section à publier, typiquement un dict avec les données extraites et analysées
-        field_sources: Sources justifiant chaque champ du contenu 
+        field_sources: Sources justifiant chaque champ du contenu
     Returns:
         Résultat de la publication avec statut et aperçu du payload
     """
     use_case = get_publish_section_version_use_case()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     workflow_metadata = {
         "execution_id": f"run-{now.strftime('%Y-%m-%d')}-001",
         "executed_at": now.isoformat(),
@@ -136,10 +149,12 @@ async def publish_section_version(
             workflow_metadata=workflow_metadata,
         )
     except PermissionError as e:
-        logger.error("Publish auth failed for project %s: %s", project_unique_id, e)
+        logger.exception("Publish auth failed for project %s: %s", project_unique_id, e)
         raise ToolError(str(e)) from e
     except (ConnectionError, TimeoutError) as e:
-        logger.error("Publish network error for project %s: %s", project_unique_id, e)
+        logger.exception(
+            "Publish network error for project %s: %s", project_unique_id, e
+        )
         raise ToolError(str(e)) from e
     except Exception as e:
         logger.exception(

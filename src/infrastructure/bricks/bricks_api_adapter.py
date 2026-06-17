@@ -34,10 +34,14 @@ class BricksApiAdapter(BricksApiPort):
             with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
                 body = resp.read()
                 resp_headers = dict(resp.headers)
-                logger.debug("GET %s -> %d bytes (status=%s)", url, len(body), resp.status)
+                logger.debug(
+                    "GET %s -> %d bytes (status=%s)", url, len(body), resp.status
+                )
                 return body, resp_headers
         except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            error_body = (
+                e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            )
             logger.error("GET %s -> HTTP %d: %s", url, e.code, error_body[:500])
             raise
         except Exception as e:
@@ -51,10 +55,14 @@ class BricksApiAdapter(BricksApiPort):
         try:
             with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
                 body = resp.read()
-                logger.debug("POST %s -> %d bytes (status=%s)", url, len(body), resp.status)
+                logger.debug(
+                    "POST %s -> %d bytes (status=%s)", url, len(body), resp.status
+                )
                 return body
         except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            error_body = (
+                e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            )
             logger.error("POST %s -> HTTP %d: %s", url, e.code, error_body[:500])
             raise
         except Exception as e:
@@ -92,7 +100,9 @@ class BricksApiAdapter(BricksApiPort):
         document_id: str,
         project_id: str,
     ) -> tuple[bytes, str, str]:
-        logger.info("Downloading Bricks document %s from project %s", document_id, project_id)
+        logger.info(
+            "Downloading Bricks document %s from project %s", document_id, project_id
+        )
         documents = await self.list_project_documents(project_id)
         url = None
         mime_type = ""
@@ -116,16 +126,22 @@ class BricksApiAdapter(BricksApiPort):
                 raise FileNotFoundError(
                     f"Document {document_id} not found (project {project_id})"
                 ) from e
-            raise RuntimeError(
-                f"Failed to download document (HTTP {e.code})"
-            ) from e
+            raise RuntimeError(f"Failed to download document (HTTP {e.code})") from e
         except urllib.error.URLError as e:
-            raise ConnectionError(f"Document download connection failed: {e.reason}") from e
+            raise ConnectionError(
+                f"Document download connection failed: {e.reason}"
+            ) from e
         except TimeoutError as e:
             raise TimeoutError(f"Document download timed out: {e}") from e
 
         filename = _extract_filename(resp_headers.get("Content-Disposition", ""), url)
-        logger.info("Downloaded Bricks document %s (%d bytes, mime=%s, filename=%s)", document_id, len(body), mime_type, filename)
+        logger.info(
+            "Downloaded Bricks document %s (%d bytes, mime=%s, filename=%s)",
+            document_id,
+            len(body),
+            mime_type,
+            filename,
+        )
         return body, filename, mime_type
 
     async def publish_section_version(self, payload: dict) -> SectionVersionResult:
@@ -140,7 +156,9 @@ class BricksApiAdapter(BricksApiPort):
             payload.get("sectionKey"),
             payload.get("workflowId"),
         )
-        logger.info("Publish payload: %s", json.dumps(payload, ensure_ascii=False, default=str))
+        logger.info(
+            "Publish payload: %s", json.dumps(payload, ensure_ascii=False, default=str)
+        )
         try:
             body = await asyncio.to_thread(self._post, url, payload, headers)
         except urllib.error.HTTPError as e:
@@ -173,9 +191,14 @@ def _extract_filename(content_disposition: str, url: str = "") -> str:
         decoded_path = urllib.parse.unquote(urllib.parse.urlparse(url).path)
         path_filename = decoded_path.rsplit("/", 1)[-1]
         if path_filename and "." in path_filename:
-            logger.debug("Filename from URL path: %s (url=%s)", path_filename, url[:200])
+            logger.debug(
+                "Filename from URL path: %s (url=%s)", path_filename, url[:200]
+            )
             return _normalize_extension(path_filename)
-    logger.warning("Could not extract filename, falling back to document.bin (url=%s)", url[:200] if url else "")
+    logger.warning(
+        "Could not extract filename, falling back to document.bin (url=%s)",
+        url[:200] if url else "",
+    )
     return "document.bin"
 
 
@@ -186,5 +209,7 @@ def _normalize_extension(filename: str) -> str:
     cleaned = re.sub(r"^[^a-zA-Z]+", ".", ext.lower())
     if cleaned == ext.lower():
         return filename
-    logger.warning("Normalized file extension: %s -> %s (filename=%s)", ext, cleaned, filename)
+    logger.warning(
+        "Normalized file extension: %s -> %s (filename=%s)", ext, cleaned, filename
+    )
     return name + cleaned

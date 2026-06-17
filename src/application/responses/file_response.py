@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from domain.ports.document_reader_port import DocumentMetadata, TableData
 

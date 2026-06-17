@@ -5,11 +5,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from alembic import command
-from alembic.config import Config
 from application.api.classical_indexing_routes import classical_indexing_router
 from application.api.classical_query_routes import classical_query_router
 from application.api.file_routes import file_router
@@ -30,6 +30,7 @@ logging.basicConfig(
     level=app_config.UVICORN_LOG_LEVEL.upper(),
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    force=True
 )
 
 logger = logging.getLogger(__name__)
@@ -115,12 +116,9 @@ def run_fastapi():
     logger.info("Database migrations completed")
 
     uvicorn.run(
-        app,
+        "main:app",
         host=app_config.HOST,
         port=app_config.PORT,
-        log_level=app_config.UVICORN_LOG_LEVEL,
-        access_log=True,
-        log_config=None,
         ws="none",
     )
 

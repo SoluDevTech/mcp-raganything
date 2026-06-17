@@ -1,7 +1,9 @@
-from domain.ports.bricks_api_port import BricksApiPort, SectionVersionResult
 import logging
 
+from domain.ports.bricks_api_port import BricksApiPort, SectionVersionResult
+
 logger = logging.getLogger(__name__)
+
 
 class PublishSectionVersionUseCase:
     def __init__(

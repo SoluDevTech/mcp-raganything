@@ -4,10 +4,10 @@ import logging
 
 from kreuzberg import (
     ChunkingConfig,
-    PageConfig,
     ExtractionConfig,
     OcrConfig,
     OutputFormat,
+    PageConfig,
     ParsingError,
     PdfConfig,
     ValidationError,
@@ -19,11 +19,8 @@ from kreuzberg import (
 
 from config import LLMConfig
 from domain.ports.document_reader_port import (
-    ContentPages,
     DocumentContent,
-    DocumentMetadata,
     DocumentReaderPort,
-    TableData,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +51,7 @@ def make_extraction_config(
         pages=PageConfig(
             extract_pages=True,
             insert_page_markers=True,
-            marker_format="\n\n<!-- PAGE {page_num} -->\n\n"
+            marker_format="\n\n<!-- PAGE {page_num} -->\n\n",
         ),
         use_cache=True,
         output_format=OutputFormat.MARKDOWN,
@@ -69,20 +66,45 @@ class KreuzbergAdapter(DocumentReaderPort):
     def __init__(self, ocr_mode: str | None = None) -> None:
         self._config = make_extraction_config(ocr_mode=ocr_mode)
 
-    async def extract_content(self, file_path: str, mime_type: str = "") -> DocumentContent:
+    async def extract_content(
+        self, file_path: str, mime_type: str = ""
+    ) -> DocumentContent:
         try:
             kwargs = {"config": self._config}
             if mime_type:
                 kwargs["mime_type"] = mime_type
             result = await extract_file(file_path, **kwargs)
-            logger.debug("Full extraction result for %s: %s", file_path, result)
         except ParsingError as e:
             raise ValueError(f"Unsupported file format: {e}") from e
         except ValidationError as e:
             raise ValueError(f"Invalid file: {e}") from e
 
-        metadata = result.metadata if isinstance(result.metadata, dict) else {}
-
+        pages_raw = result.pages or []
+        content: list[dict] = []
+        for page in pages_raw:
+            page_dict = (
+                page
+                if isinstance(page, dict)
+                else dict(page)
+                if hasattr(page, "__dict__")
+                else {}
+            )
+            tables_raw = page_dict.get("tables") or []
+            tables_serializable: list[dict] = []
+            for t in tables_raw:
+                markdown = (
+                    getattr(t, "markdown", None)
+                    or (t.get("markdown") if isinstance(t, dict) else "")
+                    or ""
+                )
+                tables_serializable.append({"markdown": str(markdown)})
+            content.append(
+                {
+                    "page_number": int(page_dict.get("page_number", 1) or 1),
+                    "content": str(page_dict.get("content", "") or ""),
+                    "tables": tables_serializable,
+                }
+            )
         return DocumentContent(
-            content=result.pages or [],
+            content=content,
         )
