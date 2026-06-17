@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from proto import Field
+
 from pydantic import BaseModel
 
 
@@ -10,6 +10,7 @@ class DocumentMetadata(BaseModel):
 
 class TableData(BaseModel):
     markdown: str = ""
+
 
 class ContentPages(BaseModel):
     page: int
@@ -24,5 +25,7 @@ class DocumentContent(BaseModel):
 
 class DocumentReaderPort(ABC):
     @abstractmethod
-    async def extract_content(self, file_path: str, mime_type: str = "") -> DocumentContent:
+    async def extract_content(
+        self, file_path: str, mime_type: str = ""
+    ) -> DocumentContent:
         pass
