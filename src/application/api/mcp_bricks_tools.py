@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 class DocumentSummary(BaseModel):
     id: str = Field(description="Document ID — pass this to read_bricks_document")
+    file_name: str = Field(description="Nom du fichier")
+    mime_type: str = Field(default="", description="Type MIME du fichier")
+    size: int = Field(default=0, description="Taille en octets")
+    status: str = Field(default="", description="Statut du document")
 
 
 @mcp_bricks.tool()
@@ -65,6 +69,10 @@ async def list_bricks_documents(project_unique_id: str) -> list[DocumentSummary]
     return [
         DocumentSummary(
             id=doc.id,
+            file_name=doc.file_name,
+            mime_type=doc.mime_type,
+            size=doc.size,
+            status=doc.status,
         )
         for doc in documents
     ]
