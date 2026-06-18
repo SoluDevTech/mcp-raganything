@@ -91,7 +91,7 @@ class RAGConfig(BaseSettings):
         default=True, description="Enable table processing during indexing"
     )
     ENABLE_EQUATION_PROCESSING: bool = Field(
-        default=True, description="Enable equation processing during indexing"
+        default=False, description="Enable equation processing during indexing"
     )
     MAX_WORKERS: int = Field(
         default=3, description="Number of workers for folder processing"
@@ -106,6 +106,24 @@ class RAGConfig(BaseSettings):
     KREUZBERG_OCR_MODE: str = Field(
         default="vlm",
         description="OCR backend for Kreuzberg: 'vlm' or 'tesseract'",
+    )
+    KREUZBERG_EXTRACTION_TIMEOUT: int = Field(
+        default=120,
+        description="Timeout en secondes pour l'extraction Kreuzberg (via extraction_timeout_secs natif). Défaut: 120 (2 min)",
+        gt=0,
+    )
+    KREUZBERG_EXTRACT_IMAGES: bool = Field(
+        default=False,
+        description="Extraire les images embarquées des PDF (rendu CPU coûteux). L'OCR des pages scannées reste actif via ocr_mode",
+    )
+    KREUZBERG_ENABLE_QUALITY_PROCESSING: bool = Field(
+        default=False,
+        description="Activer la retraite qualité locale Kreuzberg (CPU coûteux)",
+    )
+    KREUZBERG_VLM_TIMEOUT: int = Field(
+        default=60,
+        description="Timeout en secondes pour chaque appel OCR VLM (par image/page envoyée au modèle de vision)",
+        gt=0,
     )
 
 
@@ -163,6 +181,11 @@ class BricksConfig(BaseSettings):
     BRICKS_API_KEY: str = Field(default="")
     BRICKS_BEARER_TOKEN: str = Field(default="")
     BRICKS_PUBLISH_DRY_RUN: bool = Field(default=True)
+    BRICKS_HTTP_TIMEOUT: int = Field(
+        default=30,
+        description="Timeout en secondes pour les appels HTTP à l'API Bricks (list docs, download, publish)",
+        gt=0,
+    )
 
 
 class MinioConfig(BaseSettings):

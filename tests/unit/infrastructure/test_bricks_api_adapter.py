@@ -34,6 +34,7 @@ def bricks_config() -> MagicMock:
     config.BRICKS_API_KEY = "test-api-key-12345"
     config.BRICKS_BEARER_TOKEN = "test-bearer-token"
     config.BRICKS_PUBLISH_DRY_RUN = True
+    config.BRICKS_HTTP_TIMEOUT = 30
     return config
 
 
@@ -55,6 +56,20 @@ def _mock_urlopen_response(body: bytes, headers: dict | None = None, status: int
 
 class TestListProjectDocuments:
     """Tests for BricksApiAdapter.list_project_documents."""
+
+    async def test_uses_http_timeout_from_config(
+        self, adapter: BricksApiAdapter, bricks_config: MagicMock
+    ) -> None:
+        """Should pass BRICKS_HTTP_TIMEOUT to urlopen."""
+        bricks_config.BRICKS_HTTP_TIMEOUT = 42
+        adapter._http_timeout = 42
+        body = json.dumps({"items": []}).encode()
+        mock_resp = _mock_urlopen_response(body)
+
+        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+            await adapter.list_project_documents(project_id="proj-123")
+
+            assert mock_urlopen.call_args.kwargs["timeout"] == 42
 
     async def test_calls_api_with_bearer_token(self, adapter: BricksApiAdapter) -> None:
         """Should call GET /api/projects/{id}/documents/ai with Bearer token."""

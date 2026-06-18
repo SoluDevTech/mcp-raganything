@@ -16,6 +16,7 @@ from domain.errors.bricks import (
     BricksPermissionError,
     BricksTimeoutError,
 )
+from domain.errors.messages import ErrorMessage
 from domain.logging.messages import LogMessage
 
 mcp_bricks = FastMCP("RAGAnythingBricks")
@@ -61,7 +62,10 @@ async def list_bricks_documents(project_unique_id: str) -> list[DocumentSummary]
         logger.exception(
             LogMessage.MCP_LIST_DOCS_FAILED, project_unique_id, e
         )
-        raise ToolError(f"Failed to list bricks documents: {e}") from e
+        raise ToolError(
+            ErrorMessage.MCP_LIST_DOCS_FAILED_GENERIC.format(error=e)
+        ) from e
+
     return [
         DocumentSummary(
             id=doc.id,
@@ -109,7 +113,9 @@ async def read_bricks_document(
         logger.exception(
             LogMessage.MCP_READ_DOC_FAILED, document_id, project_unique_id, e
         )
-        raise ToolError(f"Failed to read bricks document: {e}") from e
+        raise ToolError(
+            ErrorMessage.MCP_READ_DOC_FAILED_GENERIC.format(error=e)
+        ) from e
     return FileContentResponse(
         content=result.content,
         metadata=result.metadata,
@@ -162,4 +168,6 @@ async def publish_section_version(
         logger.exception(
             LogMessage.MCP_PUBLISH_FAILED, project_unique_id, e
         )
-        raise ToolError(f"Failed to publish section version: {e}") from e
+        raise ToolError(
+            ErrorMessage.MCP_PUBLISH_FAILED_GENERIC.format(error=e)
+        ) from e

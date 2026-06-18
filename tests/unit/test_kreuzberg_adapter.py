@@ -94,6 +94,17 @@ class TestKreuzbergAdapter:
             await adapter.extract_content("/tmp/test.bad")
 
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
+    async def test_extract_content_raises_on_timeout(self, mock_extract) -> None:
+        """ExtractionTimeoutError should be converted to DocumentReadError."""
+        from kreuzberg import ExtractionTimeoutError
+
+        mock_extract.side_effect = ExtractionTimeoutError("timed out")
+        adapter = KreuzbergAdapter(ocr_mode="vlm")
+
+        with pytest.raises(DocumentReadError, match="timed out after"):
+            await adapter.extract_content("/tmp/big.pdf")
+
+    @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
     async def test_extract_content_raises_on_other_kreuzberg_error(
         self, mock_extract
     ) -> None:
