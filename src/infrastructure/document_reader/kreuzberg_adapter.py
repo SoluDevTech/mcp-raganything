@@ -47,7 +47,7 @@ def make_extraction_config(
                 model=llm_config.VISION_MODEL,
                 api_key=llm_config.api_key,
                 base_url=llm_config.api_base_url,
-                timeout_secs=60,
+                timeout_secs=rag.KREUZBERG_VLM_TIMEOUT,
             ),
         )
     else:
@@ -74,9 +74,7 @@ def make_extraction_config(
 class KreuzbergAdapter(DocumentReaderPort):
     def __init__(self, ocr_mode: str | None = None) -> None:
         self._config = make_extraction_config(ocr_mode=ocr_mode)
-        from config import RAGConfig
-
-        self._extraction_timeout = RAGConfig().KREUZBERG_EXTRACTION_TIMEOUT
+        self._extraction_timeout = self._config.extraction_timeout_secs
 
     async def extract_content(
         self, file_path: str, mime_type: str = ""

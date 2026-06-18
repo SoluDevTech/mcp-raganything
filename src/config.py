@@ -120,6 +120,11 @@ class RAGConfig(BaseSettings):
         default=False,
         description="Activer la retraite qualité locale Kreuzberg (CPU coûteux)",
     )
+    KREUZBERG_VLM_TIMEOUT: int = Field(
+        default=60,
+        description="Timeout en secondes pour chaque appel OCR VLM (par image/page envoyée au modèle de vision)",
+        gt=0,
+    )
 
 
 class BM25Config(BaseSettings):
