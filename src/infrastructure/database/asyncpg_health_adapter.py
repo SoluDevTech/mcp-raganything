@@ -3,6 +3,7 @@ import logging
 import asyncpg
 
 from config import DatabaseConfig
+from domain.logging.messages import LogMessage
 
 logger = logging.getLogger(__name__)
 
@@ -22,5 +23,5 @@ class AsyncpgHealthAdapter:
             finally:
                 await conn.close()
         except Exception:
-            logger.warning("PostgreSQL health check failed", exc_info=True)
+            logger.warning(LogMessage.POSTGRES_HEALTH_CHECK_FAILED, exc_info=True)
             return False

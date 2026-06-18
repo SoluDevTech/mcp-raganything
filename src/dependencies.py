@@ -37,6 +37,8 @@ from config import (
     MinioConfig,
     RAGConfig,
 )
+from domain.errors.config import DependencyNotInitializedError
+from domain.errors.messages import ErrorMessage
 from domain.ports.bm25_engine import BM25EnginePort
 from domain.ports.llm_port import LLMPort
 from domain.ports.vector_store_port import VectorStorePort
@@ -129,7 +131,9 @@ except Exception as e:
 
 def get_classical_index_file_use_case() -> ClassicalIndexFileUseCase:
     if classical_vector_store is None:
-        raise RuntimeError("Classical RAG unavailable: vector store not initialized")
+        raise DependencyNotInitializedError(
+            ErrorMessage.CLASSICAL_RAG_UNAVAILABLE_VECTOR
+        )
     return ClassicalIndexFileUseCase(
         vector_store=classical_vector_store,
         storage=minio_adapter,
@@ -140,7 +144,9 @@ def get_classical_index_file_use_case() -> ClassicalIndexFileUseCase:
 
 def get_classical_index_folder_use_case() -> ClassicalIndexFolderUseCase:
     if classical_vector_store is None:
-        raise RuntimeError("Classical RAG unavailable: vector store not initialized")
+        raise DependencyNotInitializedError(
+            ErrorMessage.CLASSICAL_RAG_UNAVAILABLE_VECTOR
+        )
     return ClassicalIndexFolderUseCase(
         vector_store=classical_vector_store,
         storage=minio_adapter,
@@ -151,8 +157,8 @@ def get_classical_index_folder_use_case() -> ClassicalIndexFolderUseCase:
 
 def get_classical_query_use_case() -> ClassicalQueryUseCase:
     if classical_vector_store is None or classical_llm is None:
-        raise RuntimeError(
-            "Classical RAG unavailable: vector store or LLM not initialized"
+        raise DependencyNotInitializedError(
+            ErrorMessage.CLASSICAL_RAG_UNAVAILABLE_VECTOR_LLM
         )
     return ClassicalQueryUseCase(
         vector_store=classical_vector_store,

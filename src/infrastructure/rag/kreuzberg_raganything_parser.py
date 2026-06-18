@@ -7,6 +7,9 @@ from typing import Any
 from kreuzberg import ExtractionResult, KreuzbergError, extract_file_sync
 from raganything.parser import Parser
 
+from domain.errors.document import DocumentReadError
+from domain.errors.messages import ErrorMessage
+from domain.logging.messages import LogMessage
 from infrastructure.document_reader.kreuzberg_adapter import make_extraction_config
 
 logger = logging.getLogger(__name__)
@@ -66,8 +69,10 @@ class KreuzbergRAGAnythingParser(Parser):
         try:
             result: ExtractionResult = extract_file_sync(file_path, config=self._config)
         except KreuzbergError as e:
-            logger.error("Kreuzberg extraction failed for %s: %s", file_path, e)
-            raise ValueError(f"Kreuzberg extraction failed: {e}") from e
+            logger.error(LogMessage.KREUZBERG_EXTRACTION_FAILED_FOR, file_path, e)
+            raise DocumentReadError(
+                ErrorMessage.KREUZBERG_EXTRACTION_FAILED.format(error=e)
+            ) from e
 
         return self._convert_result(result)
 

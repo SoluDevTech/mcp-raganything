@@ -9,6 +9,7 @@ from application.responses.classical_query_response import (
     ClassicalQueryResponse,
 )
 from config import ClassicalRAGConfig
+from domain.logging.messages import LogMessage
 from domain.ports.bm25_engine import BM25EnginePort
 from domain.ports.llm_port import LLMPort
 from domain.ports.vector_store_port import SearchResult, VectorStorePort
@@ -97,7 +98,7 @@ class ClassicalQueryUseCase:
             )
 
         if mode == "hybrid" and self.bm25_engine is None:
-            logger.warning("BM25 unavailable, falling back to vector mode")
+            logger.warning(LogMessage.CLASSICAL_BM25_UNAVAILABLE_FALLBACK)
 
         return await self._execute_vector(
             working_dir=working_dir,
@@ -195,13 +196,13 @@ class ClassicalQueryUseCase:
 
         bm25_hits = []
         if isinstance(bm25_result, Exception):
-            logger.error("BM25 search failed in hybrid mode: %s", bm25_result)
+            logger.error(LogMessage.CLASSICAL_BM25_SEARCH_FAILED_HYBRID, bm25_result)
         elif isinstance(bm25_result, list):
             bm25_hits = bm25_result
 
         vector_hits: list[SearchResult] = []
         if isinstance(vector_result, Exception):
-            logger.error("Vector search failed in hybrid mode: %s", vector_result)
+            logger.error(LogMessage.CLASSICAL_VECTOR_SEARCH_FAILED_HYBRID, vector_result)
         else:
             all_results: dict[str, SearchResult] = {}
             for results in vector_result:

@@ -1,5 +1,6 @@
 import logging
 
+from domain.logging.messages import LogMessage
 from domain.ports.bricks_api_port import BricksApiPort, SectionVersionResult
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ class PublishSectionVersionUseCase:
         }
 
         if self.dry_run:
-            logger.info(f"Payload : {payload}")
+            logger.info(LogMessage.PAYLOAD_PREVIEW, payload)
             return SectionVersionResult(
                 success=True,
                 message="DRY RUN — no API call made",

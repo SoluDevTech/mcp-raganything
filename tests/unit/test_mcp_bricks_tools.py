@@ -14,6 +14,7 @@ from application.api.mcp_bricks_tools import (
     publish_section_version,
     read_bricks_document,
 )
+from domain.errors.bricks import BricksConnectionError
 from domain.ports.bricks_api_port import BricksDocumentInfo, SectionVersionResult
 from domain.ports.document_reader_port import DocumentContent, DocumentMetadata
 
@@ -99,7 +100,7 @@ class TestListBricksDocuments:
     async def test_raises_tool_error_for_api_failure(self) -> None:
         """Should convert API errors to ToolError."""
         mock_use_case = AsyncMock()
-        mock_use_case.execute.side_effect = ConnectionError("API unreachable")
+        mock_use_case.execute.side_effect = BricksConnectionError("API unreachable")
 
         with (
             patch(
@@ -143,7 +144,7 @@ class TestReadBricksDocument:
     async def test_raises_tool_error_for_download_failure(self) -> None:
         """Should convert download errors to ToolError."""
         mock_use_case = AsyncMock()
-        mock_use_case.execute.side_effect = ConnectionError("S3 download failed")
+        mock_use_case.execute.side_effect = BricksConnectionError("S3 download failed")
 
         with (
             patch(
@@ -249,7 +250,7 @@ class TestPublishSectionVersion:
     async def test_raises_tool_error_for_api_failure(self) -> None:
         """Should convert API errors to ToolError."""
         mock_use_case = AsyncMock()
-        mock_use_case.execute.side_effect = ConnectionError("API connection failed")
+        mock_use_case.execute.side_effect = BricksConnectionError("API connection failed")
 
         with (
             patch(

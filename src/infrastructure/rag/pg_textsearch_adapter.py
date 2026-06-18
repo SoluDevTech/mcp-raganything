@@ -7,6 +7,7 @@ from typing import Any
 
 import asyncpg
 
+from domain.logging.messages import LogMessage
 from domain.ports.bm25_engine import BM25EnginePort, BM25SearchResult
 
 logger = logging.getLogger(__name__)
@@ -56,14 +57,10 @@ class PostgresBM25Adapter(BM25EnginePort):
                     "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='pg_textsearch')"
                 )
                 if not result:
-                    logger.warning(
-                        "pg_textsearch extension not installed. "
-                        "BM25 ranking <@> operator will not work. "
-                        "Run: CREATE EXTENSION pg_textsearch;"
-                    )
+                    logger.warning(LogMessage.PG_TEXTSEARCH_NOT_INSTALLED)
                     return
             except Exception as e:
-                logger.warning("Could not check pg_textsearch extension: %s", e)
+                logger.warning(LogMessage.PG_TEXTSEARCH_CHECK_FAILED, e)
                 return
 
             await self._ensure_bm25_index(conn)
@@ -82,7 +79,7 @@ class PostgresBM25Adapter(BM25EnginePort):
             )
             if existing:
                 logger.info(
-                    "BM25 index '%s' already exists for text_config='%s'",
+                    LogMessage.PG_TEXTSEARCH_INDEX_EXISTS,
                     index_name,
                     self.text_config,
                 )
@@ -101,12 +98,12 @@ class PostgresBM25Adapter(BM25EnginePort):
                 """
             )
             logger.info(
-                "Created BM25 index '%s' with text_config='%s'",
+                LogMessage.PG_TEXTSEARCH_INDEX_CREATED,
                 index_name,
                 self.text_config,
             )
         except Exception as e:
-            logger.error("Failed to ensure BM25 index: %s", e)
+            logger.error(LogMessage.PG_TEXTSEARCH_ENSURE_INDEX_FAILED, e)
 
     async def _rebuild_tsv_if_config_changed(self, conn) -> None:
         """Rebuild content_tsv if trigger function uses a different text_config."""
@@ -116,8 +113,7 @@ class PostgresBM25Adapter(BM25EnginePort):
             )
             if func_def and f"'{self.text_config}'" not in func_def:
                 logger.info(
-                    "Updating trigger function from old text_config to '%s'",
-                    self.text_config,
+                    LogMessage.PG_TEXTSEARCH_UPDATING_TRIGGER, self.text_config
                 )
                 await conn.execute(
                     f"""
@@ -138,12 +134,10 @@ class PostgresBM25Adapter(BM25EnginePort):
                     """
                 )
                 logger.info(
-                    "Rebuilt content_tsv: %s with text_config='%s'",
-                    status,
-                    self.text_config,
+                    LogMessage.PG_TEXTSEARCH_REBUILT_TSV, status, self.text_config
                 )
         except Exception as e:
-            logger.warning("Could not check/rebuild trigger function: %s", e)
+            logger.warning(LogMessage.PG_TEXTSEARCH_TRIGGER_CHECK_FAILED, e)
 
     async def close(self) -> None:
         """Close connection pool on shutdown."""
@@ -190,7 +184,7 @@ class PostgresBM25Adapter(BM25EnginePort):
                 ]
         except Exception as e:
             logger.error(
-                "BM25 search failed: %s",
+                LogMessage.PG_TEXTSEARCH_SEARCH_FAILED,
                 e,
                 extra={"query": query, "working_dir": working_dir},
             )
@@ -224,7 +218,9 @@ class PostgresBM25Adapter(BM25EnginePort):
                 )
         except Exception as e:
             logger.error(
-                "BM25 index creation failed: %s", e, extra={"working_dir": working_dir}
+                LogMessage.PG_TEXTSEARCH_INDEX_CREATION_FAILED,
+                e,
+                extra={"working_dir": working_dir},
             )
             raise
 
@@ -241,6 +237,8 @@ class PostgresBM25Adapter(BM25EnginePort):
                 )
         except Exception as e:
             logger.error(
-                "BM25 index drop failed: %s", e, extra={"working_dir": working_dir}
+                LogMessage.PG_TEXTSEARCH_INDEX_DROP_FAILED,
+                e,
+                extra={"working_dir": working_dir},
             )
             raise

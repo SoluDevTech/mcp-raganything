@@ -13,6 +13,9 @@ from typing import Any
 
 import asyncpg
 
+from domain.errors.classical import ClassicalConfigError
+from domain.errors.messages import ErrorMessage
+from domain.logging.messages import LogMessage
 from domain.ports.bm25_engine import BM25EnginePort, BM25SearchResult
 
 logger = logging.getLogger(__name__)
@@ -30,9 +33,13 @@ class ClassicalBM25Adapter(BM25EnginePort):
 
     def __init__(self, db_url: str, table_prefix: str, text_config: str = "english"):
         if not _SQL_IDENTIFIER_RE.match(table_prefix):
-            raise ValueError(f"Invalid table_prefix: {table_prefix!r}")
+            raise ClassicalConfigError(
+                ErrorMessage.INVALID_TABLE_PREFIX.format(table_prefix=table_prefix)
+            )
         if not _TEXT_CONFIG_RE.match(text_config):
-            raise ValueError(f"Invalid text_config: {text_config!r}")
+            raise ClassicalConfigError(
+                ErrorMessage.INVALID_TEXT_CONFIG.format(text_config=text_config)
+            )
         self.db_url = db_url
         self.table_prefix = table_prefix
         self.text_config = text_config
@@ -66,13 +73,9 @@ class ClassicalBM25Adapter(BM25EnginePort):
                     "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='pg_textsearch')"
                 )
                 if not result:
-                    logger.warning(
-                        "pg_textsearch extension not installed. "
-                        "BM25 ranking will not work. "
-                        "Run: CREATE EXTENSION pg_textsearch;"
-                    )
+                    logger.warning(LogMessage.CLASSICAL_PG_TEXTSEARCH_NOT_INSTALLED)
             except Exception as e:
-                logger.warning("Could not check pg_textsearch extension: %s", e)
+                logger.warning(LogMessage.PG_TEXTSEARCH_CHECK_FAILED, e)
 
     async def _ensure_bm25_index(self, table_name: str) -> None:
         if table_name in self._ensured_tables:
@@ -89,7 +92,7 @@ class ClassicalBM25Adapter(BM25EnginePort):
                 )
                 if not exists:
                     logger.debug(
-                        "Table %s does not exist yet, skipping BM25 index", table_name
+                        LogMessage.CLASSICAL_BM25_TABLE_MISSING, table_name
                     )
                     return
 
@@ -109,7 +112,7 @@ class ClassicalBM25Adapter(BM25EnginePort):
                     """
                 )
                 logger.info(
-                    "Created BM25 index '%s' on %s with text_config='%s'",
+                    LogMessage.CLASSICAL_BM25_INDEX_CREATED,
                     index_name,
                     table_name,
                     self.text_config,
@@ -119,7 +122,9 @@ class ClassicalBM25Adapter(BM25EnginePort):
             if "already exists" in str(e).lower():
                 self._ensured_tables.add(table_name)
             else:
-                logger.error("Failed to ensure BM25 index on %s: %s", table_name, e)
+                logger.error(
+                    LogMessage.CLASSICAL_BM25_ENSURE_INDEX_FAILED, table_name, e
+                )
 
     async def search(
         self,
@@ -167,7 +172,7 @@ class ClassicalBM25Adapter(BM25EnginePort):
                 ]
         except Exception as e:
             logger.error(
-                "BM25 search failed on %s: %s",
+                LogMessage.CLASSICAL_BM25_SEARCH_FAILED,
                 table_name,
                 e,
                 extra={"query": query, "working_dir": working_dir},
@@ -198,7 +203,7 @@ class ClassicalBM25Adapter(BM25EnginePort):
                 await conn.execute(f"DROP INDEX IF EXISTS {index_name}")
             self._ensured_tables.discard(table_name)
         except Exception as e:
-            logger.error("BM25 index drop failed on %s: %s", table_name, e)
+            logger.error(LogMessage.CLASSICAL_BM25_INDEX_DROP_FAILED, table_name, e)
             raise
 
     async def close(self) -> None:

@@ -11,6 +11,12 @@ from dependencies import (
     get_publish_section_version_use_case,
     get_read_bricks_document_use_case,
 )
+from domain.errors.bricks import (
+    BricksConnectionError,
+    BricksPermissionError,
+    BricksTimeoutError,
+)
+from domain.logging.messages import LogMessage
 
 mcp_bricks = FastMCP("RAGAnythingBricks")
 
@@ -40,20 +46,20 @@ async def list_bricks_documents(project_unique_id: str) -> list[DocumentSummary]
     use_case = get_list_bricks_documents_use_case()
     try:
         documents = await use_case.execute(project_id=project_unique_id)
-        logger.info(f"Documents found : {documents}")
-    except PermissionError as e:
+        logger.info(LogMessage.MCP_DOCUMENTS_FOUND, documents)
+    except BricksPermissionError as e:
         logger.error(
-            "List documents auth failed for project %s: %s", project_unique_id, e
+            LogMessage.MCP_LIST_DOCS_AUTH_FAILED, project_unique_id, e
         )
         raise ToolError(str(e)) from e
-    except (ConnectionError, TimeoutError) as e:
+    except (BricksConnectionError, BricksTimeoutError) as e:
         logger.error(
-            "List documents network error for project %s: %s", project_unique_id, e
+            LogMessage.MCP_LIST_DOCS_NETWORK_ERROR, project_unique_id, e
         )
         raise ToolError(str(e)) from e
     except Exception as e:
         logger.exception(
-            "Failed to list bricks documents for project %s: %s", project_unique_id, e
+            LogMessage.MCP_LIST_DOCS_FAILED, project_unique_id, e
         )
         raise ToolError(f"Failed to list bricks documents: {e}") from e
     return [
@@ -89,23 +95,19 @@ async def read_bricks_document(
     """
     use_case = get_read_bricks_document_use_case()
     try:
-        logger.info(f"Reading document : {document_id}")
         result = await use_case.execute(
             document_id=document_id, project_id=project_unique_id
         )
-        logger.info(f"Result for read document use case : {result}")
-    except PermissionError as e:
-        logger.error("Read document auth failed for %s: %s", document_id, e)
+        logger.debug(LogMessage.MCP_READ_DOC_RESULT, result)
+    except BricksPermissionError as e:
+        logger.error(LogMessage.MCP_READ_DOC_AUTH_FAILED, document_id, e)
         raise ToolError(str(e)) from e
-    except (ConnectionError, TimeoutError) as e:
-        logger.error("Read document network error for %s: %s", document_id, e)
+    except (BricksConnectionError, BricksTimeoutError) as e:
+        logger.error(LogMessage.MCP_READ_DOC_NETWORK_ERROR, document_id, e)
         raise ToolError(str(e)) from e
     except Exception as e:
         logger.exception(
-            "Failed to read bricks document: %s in project %s: %s",
-            document_id,
-            project_unique_id,
-            e,
+            LogMessage.MCP_READ_DOC_FAILED, document_id, project_unique_id, e
         )
         raise ToolError(f"Failed to read bricks document: {e}") from e
     return FileContentResponse(
@@ -148,16 +150,16 @@ async def publish_section_version(
             workflow_name="agent-haiku-files-v1",
             workflow_metadata=workflow_metadata,
         )
-    except PermissionError as e:
-        logger.exception("Publish auth failed for project %s: %s", project_unique_id, e)
+    except BricksPermissionError as e:
+        logger.exception(LogMessage.MCP_PUBLISH_AUTH_FAILED, project_unique_id, e)
         raise ToolError(str(e)) from e
-    except (ConnectionError, TimeoutError) as e:
+    except (BricksConnectionError, BricksTimeoutError) as e:
         logger.exception(
-            "Publish network error for project %s: %s", project_unique_id, e
+            LogMessage.MCP_PUBLISH_NETWORK_ERROR, project_unique_id, e
         )
         raise ToolError(str(e)) from e
     except Exception as e:
         logger.exception(
-            "Failed to publish section version for project %s: %s", project_unique_id, e
+            LogMessage.MCP_PUBLISH_FAILED, project_unique_id, e
         )
         raise ToolError(f"Failed to publish section version: {e}") from e

@@ -1,12 +1,12 @@
 import asyncio
 import hashlib
+import logging
 import os
 import tempfile
 import time
 from pathlib import Path
 from typing import Literal, cast
 
-from fastapi.logger import logger
 from lightrag import QueryParam
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
@@ -22,7 +22,12 @@ from domain.entities.indexing_result import (
     FolderIndexingStats,
     IndexingStatus,
 )
+from domain.errors.messages import ErrorMessage
+from domain.errors.rag import RagConfigError, RagEngineError
+from domain.logging.messages import LogMessage
 from domain.ports.rag_engine import RAGEnginePort
+
+logger = logging.getLogger(__name__)
 
 QueryMode = Literal["local", "global", "hybrid", "naive", "mix", "bypass"]
 
@@ -56,9 +61,10 @@ def _ensure_parser_registered(parser_name: str) -> None:
     if parser_name in _BUILTIN_PARSERS:
         return
 
-    raise ValueError(
-        f"Unknown document parser: {parser_name!r}. "
-        f"Choose from: kreuzberg, {', '.join(sorted(_BUILTIN_PARSERS))}"
+    raise RagConfigError(
+        ErrorMessage.UNKNOWN_DOCUMENT_PARSER.format(
+            parser=parser_name, choices=", ".join(sorted(_BUILTIN_PARSERS))
+        )
     )
 
 
@@ -172,8 +178,8 @@ class LightRAGAdapter(RAGEnginePort):
     def _ensure_initialized(self, working_dir: str) -> RAGAnything:
         rag = self.rag.get(working_dir)
         if rag is None:
-            raise RuntimeError(
-                f"RAG engine not initialized for '{working_dir}'. Call init_project() first."
+            raise RagEngineError(
+                ErrorMessage.RAG_ENGINE_NOT_INITIALIZED.format(working_dir=working_dir)
             )
         return rag
 
@@ -197,7 +203,9 @@ class LightRAGAdapter(RAGEnginePort):
             )
         except Exception as e:
             processing_time_ms = (time.time() - start_time) * 1000
-            logger.error(f"Failed to index document {file_path}: {e}", exc_info=True)
+            logger.error(
+                LogMessage.LIGHTRAG_INDEX_DOCUMENT_FAILED, file_path, e, exc_info=True
+            )
             return FileIndexingResult(
                 status=IndexingStatus.FAILED,
                 message=f"Failed to index file '{file_name}'",
@@ -300,11 +308,16 @@ class LightRAGAdapter(RAGEnginePort):
                         )
                     )
                     logger.info(
-                        f"Indexed {file_path_obj.name} ({succeeded}/{len(all_files)})"
+                        LogMessage.LIGHTRAG_INDEXED_FILE,
+                        file_path_obj.name,
+                        succeeded,
+                        len(all_files),
                     )
                 except Exception as e:
                     failed += 1
-                    logger.error(f"Failed to index {file_path_obj.name}: {e}")
+                    logger.error(
+                        LogMessage.LIGHTRAG_INDEX_FILE_FAILED, file_path_obj.name, e
+                    )
                     file_results.append(
                         FileProcessingDetail(
                             file_path=str(file_path_obj),

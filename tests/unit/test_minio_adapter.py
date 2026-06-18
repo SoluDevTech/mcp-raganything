@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from minio.error import S3Error
 
+from domain.errors.storage import StorageNotFoundError
 from domain.ports.storage_port import FileInfo
 from infrastructure.storage.minio_adapter import MinioAdapter
 
@@ -70,7 +71,7 @@ class TestGetObject:
             host_id="host_id",
         )
 
-        with pytest.raises(FileNotFoundError, match="Object not found"):
+        with pytest.raises(StorageNotFoundError, match="Object not found"):
             await adapter.get_object("my-bucket", "missing.pdf")
 
     async def test_raises_file_not_found_for_no_such_bucket(
@@ -86,7 +87,7 @@ class TestGetObject:
             host_id="host_id",
         )
 
-        with pytest.raises(FileNotFoundError, match="Object not found"):
+        with pytest.raises(StorageNotFoundError, match="Object not found"):
             await adapter.get_object("bad-bucket", "any/path")
 
     async def test_re_raises_other_s3_errors(
@@ -225,7 +226,7 @@ class TestListMinioObjects:
             host_id="host_id",
         )
 
-        with pytest.raises(FileNotFoundError, match="Bucket not found"):
+        with pytest.raises(StorageNotFoundError, match="Bucket not found"):
             await adapter._list_minio_objects("bad-bucket", "", recursive=True)
 
     async def test_re_raises_non_bucket_s3_errors(
@@ -320,7 +321,7 @@ class TestListFolders:
             host_id="host_id",
         )
 
-        with pytest.raises(FileNotFoundError, match="Bucket not found"):
+        with pytest.raises(StorageNotFoundError, match="Bucket not found"):
             await adapter.list_folders("bad-bucket")
 
     async def test_passes_prefix_to_minio_client(

@@ -18,6 +18,8 @@ from kreuzberg import (
 )
 
 from config import LLMConfig
+from domain.errors.document import DocumentReadError, UnsupportedFormatError
+from domain.errors.messages import ErrorMessage
 from domain.ports.document_reader_port import (
     DocumentContent,
     DocumentReaderPort,
@@ -75,9 +77,11 @@ class KreuzbergAdapter(DocumentReaderPort):
                 kwargs["mime_type"] = mime_type
             result = await extract_file(file_path, **kwargs)
         except ParsingError as e:
-            raise ValueError(f"Unsupported file format: {e}") from e
+            raise UnsupportedFormatError(
+                ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e)
+            ) from e
         except ValidationError as e:
-            raise ValueError(f"Invalid file: {e}") from e
+            raise DocumentReadError(ErrorMessage.INVALID_FILE.format(error=e)) from e
 
         pages_raw = result.pages or []
         content: list[dict] = []

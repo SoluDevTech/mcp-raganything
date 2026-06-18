@@ -5,6 +5,9 @@ import logging
 from minio import Minio
 from minio.error import S3Error
 
+from domain.errors.messages import ErrorMessage
+from domain.errors.storage import StorageNotFoundError
+from domain.logging.messages import LogMessage
 from domain.ports.storage_port import FileInfo, StoragePort
 
 logger = logging.getLogger(__name__)
@@ -36,11 +39,15 @@ class MinioAdapter(StoragePort):
                 response.release_conn()
         except S3Error as e:
             if e.code in ("NoSuchKey", "NoSuchBucket"):
-                logger.info("Object not found: bucket=%s, path=%s", bucket, object_path)
-                raise FileNotFoundError(
-                    f"Object not found: bucket={bucket}, path={object_path}"
+                logger.info(
+                    LogMessage.MINIO_OBJECT_NOT_FOUND, bucket, object_path
+                )
+                raise StorageNotFoundError(
+                    ErrorMessage.OBJECT_NOT_FOUND.format(
+                        bucket=bucket, path=object_path
+                    )
                 ) from e
-            logger.error("MinIO error retrieving object: %s", e, exc_info=True)
+            logger.error(LogMessage.MINIO_RETRIEVE_ERROR, e, exc_info=True)
             raise
 
     async def put_object(
@@ -60,9 +67,11 @@ class MinioAdapter(StoragePort):
             )
         except S3Error as e:
             if e.code == "NoSuchBucket":
-                logger.info("Bucket not found: %s", bucket)
-                raise FileNotFoundError(f"Bucket not found: {bucket}") from e
-            logger.error("MinIO error uploading object: %s", e, exc_info=True)
+                logger.info(LogMessage.MINIO_BUCKET_NOT_FOUND, bucket)
+                raise StorageNotFoundError(
+                    ErrorMessage.BUCKET_NOT_FOUND.format(bucket=bucket)
+                ) from e
+            logger.error(LogMessage.MINIO_UPLOAD_ERROR, e, exc_info=True)
             raise
 
     async def _list_minio_objects(
@@ -79,9 +88,11 @@ class MinioAdapter(StoragePort):
             )
         except S3Error as e:
             if e.code == "NoSuchBucket":
-                logger.info("Bucket not found: %s", bucket)
-                raise FileNotFoundError(f"Bucket not found: {bucket}") from e
-            logger.error("MinIO error listing objects: %s", e, exc_info=True)
+                logger.info(LogMessage.MINIO_BUCKET_NOT_FOUND, bucket)
+                raise StorageNotFoundError(
+                    ErrorMessage.BUCKET_NOT_FOUND.format(bucket=bucket)
+                ) from e
+            logger.error(LogMessage.MINIO_LIST_ERROR, e, exc_info=True)
             raise
 
     async def list_objects(
@@ -115,5 +126,5 @@ class MinioAdapter(StoragePort):
                 None, lambda: self.client.bucket_exists(bucket)
             )
         except Exception:
-            logger.warning("MinIO health check failed", exc_info=True)
+            logger.warning(LogMessage.MINIO_HEALTH_CHECK_FAILED, exc_info=True)
             return False

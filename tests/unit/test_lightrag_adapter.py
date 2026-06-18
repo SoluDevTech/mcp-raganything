@@ -7,6 +7,7 @@ import pytest
 
 from config import LLMConfig, RAGConfig
 from domain.entities.indexing_result import IndexingStatus
+from domain.errors.rag import RagEngineError
 from infrastructure.rag.lightrag_adapter import LightRAGAdapter
 
 
@@ -240,7 +241,7 @@ class TestLightRAGAdapter:
         """Should raise KeyError when calling index_folder without init_project."""
         adapter = LightRAGAdapter(llm_config, rag_config_postgres)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RagEngineError):
             await adapter.index_folder(
                 folder_path="/tmp/docs",
                 output_dir="/tmp/output",
@@ -255,7 +256,7 @@ class TestLightRAGAdapter:
         """Should raise KeyError when calling index_document without init_project."""
         adapter = LightRAGAdapter(llm_config, rag_config_postgres)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RagEngineError):
             await adapter.index_document(
                 file_path="/tmp/doc.pdf",
                 file_name="doc.pdf",
@@ -312,7 +313,7 @@ class TestLightRAGAdapter:
         """Should raise KeyError when calling query without init_project."""
         adapter = LightRAGAdapter(llm_config, rag_config_postgres)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RagEngineError):
             await adapter.query(query="anything", working_dir="missing_dir")
 
     async def test_index_folder_failure(

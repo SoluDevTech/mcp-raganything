@@ -6,6 +6,7 @@ import aiofiles
 
 from application.requests.indexing_request import IndexFolderRequest
 from domain.entities.indexing_result import FolderIndexingResult
+from domain.logging.messages import LogMessage
 from domain.ports.rag_engine import RAGEnginePort
 from domain.ports.storage_port import StoragePort
 
@@ -68,5 +69,5 @@ class IndexFolderUseCase:
             working_dir=request.working_dir,
         )
 
-        logger.info(f"Folder indexation finished: {result.model_dump()}")
+        logger.info(LogMessage.FOLDER_INDEXATION_FINISHED, result.model_dump())
         return result

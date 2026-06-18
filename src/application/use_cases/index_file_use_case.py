@@ -4,6 +4,7 @@ import os
 import aiofiles
 
 from domain.entities.indexing_result import FileIndexingResult
+from domain.logging.messages import LogMessage
 from domain.ports.rag_engine import RAGEnginePort
 from domain.ports.storage_port import StoragePort
 
@@ -43,6 +44,6 @@ class IndexFileUseCase:
             working_dir=working_dir,
         )
 
-        logger.info(f"Indexation finished: {result.model_dump()}")
+        logger.info(LogMessage.INDEXATION_FINISHED, result.model_dump())
 
         return result
