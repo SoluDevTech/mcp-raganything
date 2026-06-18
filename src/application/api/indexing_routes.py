@@ -7,6 +7,7 @@ from application.requests.indexing_request import IndexFileRequest, IndexFolderR
 from application.use_cases.index_file_use_case import IndexFileUseCase
 from application.use_cases.index_folder_use_case import IndexFolderUseCase
 from dependencies import get_index_file_use_case, get_index_folder_use_case
+from domain.logging.messages import LogMessage
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ async def _run_in_background(coro, label: str) -> None:
     try:
         await coro
     except Exception:
-        logger.exception("Background %s failed", label)
+        logger.exception(LogMessage.BACKGROUND_TASK_FAILED, label)
 
 
 @indexing_router.post(

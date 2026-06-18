@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from domain.errors.document import DocumentReadError, UnsupportedFormatError
 from domain.ports.document_reader_port import DocumentContent
 from infrastructure.document_reader.kreuzberg_adapter import KreuzbergAdapter
 
@@ -77,7 +78,7 @@ class TestKreuzbergAdapter:
         mock_extract.side_effect = ParsingError("unsupported format")
         adapter = KreuzbergAdapter(ocr_mode="vlm")
 
-        with pytest.raises(ValueError, match="Unsupported file format"):
+        with pytest.raises(UnsupportedFormatError, match="Unsupported file format"):
             await adapter.extract_content("/tmp/test.xyz")
 
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")
@@ -89,7 +90,7 @@ class TestKreuzbergAdapter:
         mock_extract.side_effect = ValidationError("invalid file")
         adapter = KreuzbergAdapter(ocr_mode="vlm")
 
-        with pytest.raises(ValueError, match="Invalid file"):
+        with pytest.raises(DocumentReadError, match="Invalid file"):
             await adapter.extract_content("/tmp/test.bad")
 
     @patch("infrastructure.document_reader.kreuzberg_adapter.extract_file")

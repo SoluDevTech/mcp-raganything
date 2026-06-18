@@ -16,6 +16,8 @@ from dependencies import (
     get_list_folders_use_case,
     get_read_file_use_case,
 )
+from domain.errors.storage import StorageNotFoundError
+from domain.logging.messages import LogMessage
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +87,10 @@ async def read_file(file_path: str) -> FileContentResponse:
     use_case = get_read_file_use_case()
     try:
         result = await use_case.execute(file_path=file_path)
-    except FileNotFoundError:
+    except StorageNotFoundError:
         raise ToolError(f"File not found: {file_path}") from None
     except Exception:
-        logger.exception("Unexpected error reading file: %s", file_path)
+        logger.exception(LogMessage.MCP_READ_FILE_UNEXPECTED_ERROR, file_path)
         raise ToolError(f"Failed to read file: {file_path}") from None
     return FileContentResponse(
         content=result.content,

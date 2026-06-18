@@ -1,7 +1,7 @@
 import posixpath
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 
 from application.requests.file_request import ReadFileRequest
 from application.responses.file_response import FileContentResponse, FileInfoResponse
@@ -15,6 +15,8 @@ from dependencies import (
     get_read_file_use_case,
     get_upload_file_use_case,
 )
+from domain.errors.file import FileTooLargeError, FileValidationError
+from domain.errors.messages import ErrorMessage
 
 file_router = APIRouter(tags=["Files"])
 
@@ -57,20 +59,20 @@ ALLOWED_MIME_PREFIXES = (
 
 def _sanitize_filename(filename: str | None) -> str:
     if not filename:
-        raise HTTPException(status_code=422, detail="Filename is required")
+        raise FileValidationError(ErrorMessage.FILENAME_REQUIRED)
     clean = posixpath.basename(filename.replace("\\", "/"))
     if not clean or clean.startswith("."):
-        raise HTTPException(status_code=422, detail="Invalid filename")
+        raise FileValidationError(ErrorMessage.INVALID_FILENAME)
     return clean
 
 
 def _validate_file_type(filename: str, content_type: str) -> None:
     ext = posixpath.splitext(filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=422, detail=f"File type '{ext}' is not allowed")
+        raise FileValidationError(ErrorMessage.FILE_TYPE_NOT_ALLOWED.format(ext=ext))
     if not any(content_type.startswith(p) for p in ALLOWED_MIME_PREFIXES):
-        raise HTTPException(
-            status_code=422, detail=f"Content type '{content_type}' is not allowed"
+        raise FileValidationError(
+            ErrorMessage.CONTENT_TYPE_NOT_ALLOWED.format(content_type=content_type)
         )
 
 
@@ -79,10 +81,7 @@ def _validate_prefix(prefix: str) -> str:
     if normalized == ".":
         normalized = ""
     if normalized.startswith("..") or posixpath.isabs(normalized):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="prefix must be a relative path within the bucket",
-        )
+        raise FileValidationError(ErrorMessage.PREFIX_MUST_BE_RELATIVE)
     if prefix.endswith("/") and not normalized.endswith("/"):
         normalized += "/"
     return normalized
@@ -111,13 +110,7 @@ async def list_folders(
     use_case: ListFoldersUseCase = Depends(get_list_folders_use_case),
 ) -> list[str]:
     prefix = _validate_prefix(prefix)
-    try:
-        return await use_case.execute(prefix=prefix)
-    except FileNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from None
+    return await use_case.execute(prefix=prefix)
 
 
 @file_router.post(
@@ -128,18 +121,7 @@ async def read_file(
     request: ReadFileRequest,
     use_case: ReadFileUseCase = Depends(get_read_file_use_case),
 ) -> FileContentResponse:
-    try:
-        result = await use_case.execute(file_path=request.file_path)
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File not found: {request.file_path}",
-        ) from None
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from None
+    result = await use_case.execute(file_path=request.file_path)
     return FileContentResponse(
         content=result.content,
         metadata=result.metadata,
@@ -160,7 +142,7 @@ async def upload_file(
     if normalized == ".":
         normalized = ""
     if normalized.startswith("..") or posixpath.isabs(normalized):
-        raise HTTPException(status_code=422, detail="prefix must be a relative path")
+        raise FileValidationError(ErrorMessage.PREFIX_MUST_BE_RELATIVE_SHORT)
     if prefix.endswith("/") and not normalized.endswith("/"):
         normalized += "/"
 
@@ -170,9 +152,8 @@ async def upload_file(
 
     file_data = await file.read()
     if len(file_data) > MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds maximum allowed size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
+        raise FileTooLargeError(
+            ErrorMessage.FILE_TOO_LARGE.format(max_mb=MAX_UPLOAD_SIZE // (1024 * 1024))
         )
 
     result = await use_case.execute(

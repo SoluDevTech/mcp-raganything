@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.requests.query_request import MultimodalContentItem
+from domain.errors.rag import RagEngineError
 from infrastructure.rag.lightrag_adapter import (
     LightRAGAdapter,
     _build_vision_messages,
@@ -88,7 +89,7 @@ class TestQueryMultimodal:
         ]
 
         with pytest.raises(
-            RuntimeError,
+            RagEngineError,
             match="RAG engine not initialized.*Call init_project",
         ):
             await adapter.query_multimodal(

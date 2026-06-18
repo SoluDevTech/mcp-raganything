@@ -4,6 +4,8 @@ import pytest
 from raganything.parser import _CUSTOM_PARSERS, register_parser
 
 from config import RAGConfig
+from domain.errors.document import DocumentReadError
+from domain.errors.rag import RagConfigError
 from infrastructure.rag.kreuzberg_raganything_parser import KreuzbergRAGAnythingParser
 from infrastructure.rag.lightrag_adapter import _ensure_parser_registered
 
@@ -124,7 +126,7 @@ class TestKreuzbergRAGAnythingParserFormat:
         mock_extract_sync.side_effect = KreuzbergError("Extraction crashed")
         parser = self._make_parser()
 
-        with pytest.raises(ValueError, match="Kreuzberg extraction failed"):
+        with pytest.raises(DocumentReadError, match="Kreuzberg extraction failed"):
             parser.parse_pdf("/tmp/bad.pdf", output_dir="/tmp/output")
 
     def test_check_installation_returns_true(self):
@@ -171,7 +173,7 @@ class TestKreuzbergRAGAnythingParserFormat:
 
 class TestEnsureParserRegistered:
     def test_unknown_parser_name_raises_value_error(self):
-        with pytest.raises(ValueError, match="Unknown document parser"):
+        with pytest.raises(RagConfigError, match="Unknown document parser"):
             _ensure_parser_registered("unknown_parser")
 
     @pytest.mark.parametrize("name", ["mineru", "paddleocr"])

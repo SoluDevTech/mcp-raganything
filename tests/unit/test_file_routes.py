@@ -12,6 +12,8 @@ from dependencies import (
     get_list_folders_use_case,
     get_read_file_use_case,
 )
+from domain.errors.document import UnsupportedFormatError
+from domain.errors.storage import StorageNotFoundError
 from domain.ports.document_reader_port import DocumentContent, DocumentMetadata
 from domain.ports.storage_port import FileInfo
 from main import app
@@ -174,7 +176,7 @@ class TestReadFileRoute:
     async def test_read_file_returns_404_for_missing_file(
         self, mock_read_file_use_case: AsyncMock
     ) -> None:
-        mock_read_file_use_case.execute.side_effect = FileNotFoundError("not found")
+        mock_read_file_use_case.execute.side_effect = StorageNotFoundError("not found")
         app.dependency_overrides[get_read_file_use_case] = lambda: (
             mock_read_file_use_case
         )
@@ -193,10 +195,10 @@ class TestReadFileRoute:
             or "File not found" in response.json()["detail"]
         )
 
-    async def test_read_file_returns_422_for_unsupported_format(
+    async def test_read_file_returns_400_for_unsupported_format(
         self, mock_read_file_use_case: AsyncMock
     ) -> None:
-        mock_read_file_use_case.execute.side_effect = ValueError(
+        mock_read_file_use_case.execute.side_effect = UnsupportedFormatError(
             "Unsupported file format: video.mp4"
         )
         app.dependency_overrides[get_read_file_use_case] = lambda: (
@@ -211,7 +213,7 @@ class TestReadFileRoute:
                 json={"file_path": "video.mp4"},
             )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
 
     async def test_read_file_rejects_missing_file_path(self) -> None:
         async with httpx.AsyncClient(
@@ -307,7 +309,7 @@ class TestListFoldersRoute:
     async def test_list_folders_returns_404_for_missing_bucket(
         self, mock_list_folders_use_case: AsyncMock
     ) -> None:
-        mock_list_folders_use_case.execute.side_effect = FileNotFoundError(
+        mock_list_folders_use_case.execute.side_effect = StorageNotFoundError(
             "Bucket not found"
         )
         app.dependency_overrides[get_list_folders_use_case] = lambda: (

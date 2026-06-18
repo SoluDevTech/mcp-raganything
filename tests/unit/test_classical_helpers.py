@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from domain.errors.classical import ClassicalConfigError
 from domain.services.classical_helpers import (
     build_documents_from_extraction,
     validate_path,
@@ -22,17 +23,17 @@ class TestValidatePath:
 
     def test_path_traversal_raises(self, tmp_path):
         output_dir = str(tmp_path)
-        with pytest.raises(ValueError, match="escapes output directory"):
+        with pytest.raises(ClassicalConfigError, match="escapes output directory"):
             validate_path(output_dir, "../../etc/passwd")
 
     def test_absolute_path_raises(self, tmp_path):
         output_dir = str(tmp_path)
-        with pytest.raises(ValueError, match="escapes output directory"):
+        with pytest.raises(ClassicalConfigError, match="escapes output directory"):
             validate_path(output_dir, "/etc/passwd")
 
     def test_dotdot_in_middle_raises(self, tmp_path):
         output_dir = str(tmp_path)
-        with pytest.raises(ValueError, match="escapes output directory"):
+        with pytest.raises(ClassicalConfigError, match="escapes output directory"):
             validate_path(output_dir, "docs/../../etc/shadow")
 
 

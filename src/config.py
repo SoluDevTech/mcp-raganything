@@ -15,6 +15,7 @@ class AppConfig(BaseSettings):
     HOST: str = Field(default="0.0.0.0", description="Server host")
     PORT: int = Field(default=8000, description="Server port")
     UVICORN_LOG_LEVEL: str = Field(default="critical", description="Uvicorn log level")
+    LOG_LEVEL: str = Field(default="info", description="Application log level")
     OUTPUT_DIR: str = Field(
         default=os.path.join(tempfile.gettempdir(), "output"),
         description="Directory for temporary output file storage",

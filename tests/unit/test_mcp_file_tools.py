@@ -12,6 +12,7 @@ from application.api.mcp_file_tools import (
     mcp_files,
     read_file,
 )
+from domain.errors.storage import StorageNotFoundError
 from domain.ports.document_reader_port import DocumentContent, DocumentMetadata
 from domain.ports.storage_port import FileInfo
 
@@ -208,7 +209,7 @@ class TestReadFile:
     async def test_raises_tool_error_for_file_not_found(self) -> None:
         """Should convert FileNotFoundError to ToolError."""
         mock_use_case = AsyncMock()
-        mock_use_case.execute.side_effect = FileNotFoundError
+        mock_use_case.execute.side_effect = StorageNotFoundError("not found")
 
         with (
             patch(

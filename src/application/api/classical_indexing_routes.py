@@ -17,6 +17,7 @@ from dependencies import (
     get_classical_index_file_use_case,
     get_classical_index_folder_use_case,
 )
+from domain.logging.messages import LogMessage
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ async def _run_in_background(coro, label: str) -> None:
     try:
         await coro
     except Exception:
-        logger.exception("Background %s failed", label)
+        logger.exception(LogMessage.BACKGROUND_TASK_FAILED, label)
 
 
 @classical_indexing_router.post(

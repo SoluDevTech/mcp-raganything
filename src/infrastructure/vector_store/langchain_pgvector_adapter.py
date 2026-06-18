@@ -4,6 +4,8 @@ import uuid
 from langchain_core.documents import Document
 from langchain_postgres import PGEngine, PGVectorStore
 
+from domain.errors.messages import ErrorMessage
+from domain.errors.vector_store import VectorStoreConfigError
 from domain.ports.vector_store_port import SearchResult, VectorStorePort
 
 
@@ -57,8 +59,10 @@ class LangchainPgvectorAdapter(VectorStorePort):
     ) -> list[str]:
         store = self._stores.get(working_dir)
         if store is None:
-            raise ValueError(
-                f"Vector store not initialized for working_dir: {working_dir}"
+            raise VectorStoreConfigError(
+                ErrorMessage.VECTOR_STORE_NOT_INITIALIZED.format(
+                    working_dir=working_dir
+                )
             )
 
         id_map = self._id_maps.get(working_dir, {})
@@ -86,8 +90,10 @@ class LangchainPgvectorAdapter(VectorStorePort):
 
         store = self._stores.get(working_dir)
         if store is None:
-            raise ValueError(
-                f"Vector store not initialized for working_dir: {working_dir}"
+            raise VectorStoreConfigError(
+                ErrorMessage.VECTOR_STORE_NOT_INITIALIZED.format(
+                    working_dir=working_dir
+                )
             )
 
         lc_results = await store.asimilarity_search_with_score(query, k=top_k)

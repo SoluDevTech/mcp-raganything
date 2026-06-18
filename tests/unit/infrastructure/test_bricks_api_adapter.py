@@ -12,6 +12,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import urllib.error
 
+from domain.errors.bricks import (
+    BricksConnectionError,
+    BricksNotFoundError,
+    BricksPermissionError,
+    BricksTimeoutError,
+)
 from domain.ports.bricks_api_port import BricksDocumentInfo, SectionVersionResult
 from infrastructure.bricks.bricks_api_adapter import (
     BricksApiAdapter,
@@ -167,7 +173,7 @@ class TestListProjectDocuments:
                 fp=None,
             )
 
-            with pytest.raises(PermissionError):
+            with pytest.raises(BricksPermissionError):
                 await adapter.list_project_documents(project_id="proj-123")
 
     async def test_raises_on_403_forbidden(self, adapter: BricksApiAdapter) -> None:
@@ -181,7 +187,7 @@ class TestListProjectDocuments:
                 fp=None,
             )
 
-            with pytest.raises(PermissionError):
+            with pytest.raises(BricksPermissionError):
                 await adapter.list_project_documents(project_id="proj-123")
 
     async def test_raises_on_404_not_found(self, adapter: BricksApiAdapter) -> None:
@@ -195,7 +201,7 @@ class TestListProjectDocuments:
                 fp=None,
             )
 
-            with pytest.raises(FileNotFoundError):
+            with pytest.raises(BricksNotFoundError):
                 await adapter.list_project_documents(project_id="nonexistent")
 
     async def test_raises_on_connection_error(self, adapter: BricksApiAdapter) -> None:
@@ -203,7 +209,7 @@ class TestListProjectDocuments:
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.side_effect = urllib.error.URLError(reason="Connection refused")
 
-            with pytest.raises(ConnectionError):
+            with pytest.raises(BricksConnectionError):
                 await adapter.list_project_documents(project_id="proj-123")
 
     async def test_raises_on_timeout(self, adapter: BricksApiAdapter) -> None:
@@ -211,7 +217,7 @@ class TestListProjectDocuments:
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.side_effect = TimeoutError("Request timed out")
 
-            with pytest.raises(TimeoutError):
+            with pytest.raises(BricksTimeoutError):
                 await adapter.list_project_documents(project_id="proj-123")
 
 
@@ -293,7 +299,7 @@ class TestDownloadDocument:
         list_resp = _mock_urlopen_response(doc_list_body)
 
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=list_resp):
-            with pytest.raises(FileNotFoundError, match="Document missing-id not found"):
+            with pytest.raises(BricksNotFoundError, match="Document missing-id not found"):
                 await adapter.download_document(document_id="missing-id", project_id="proj-1")
 
     async def test_raises_permission_error_on_403(self, adapter: BricksApiAdapter) -> None:
@@ -311,7 +317,7 @@ class TestDownloadDocument:
                 fp=None,
             )]
 
-            with pytest.raises(PermissionError):
+            with pytest.raises(BricksPermissionError):
                 await adapter.download_document(document_id="doc-1", project_id="proj-1")
 
     async def test_raises_connection_error(self, adapter: BricksApiAdapter) -> None:
@@ -323,7 +329,7 @@ class TestDownloadDocument:
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.side_effect = [list_resp, urllib.error.URLError(reason="Connection refused")]
 
-            with pytest.raises(ConnectionError):
+            with pytest.raises(BricksConnectionError):
                 await adapter.download_document(document_id="doc-1", project_id="proj-1")
 
     async def test_raises_timeout(self, adapter: BricksApiAdapter) -> None:
@@ -335,7 +341,7 @@ class TestDownloadDocument:
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.side_effect = [list_resp, TimeoutError("Download timed out")]
 
-            with pytest.raises(TimeoutError):
+            with pytest.raises(BricksTimeoutError):
                 await adapter.download_document(document_id="doc-1", project_id="proj-1")
 
 
@@ -435,7 +441,7 @@ class TestPublishSectionVersion:
                 fp=None,
             )
 
-            with pytest.raises(PermissionError):
+            with pytest.raises(BricksPermissionError):
                 await adapter.publish_section_version(payload={"section_key": "intro"})
 
     async def test_raises_on_connection_error(self, adapter: BricksApiAdapter) -> None:
@@ -443,7 +449,7 @@ class TestPublishSectionVersion:
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.side_effect = urllib.error.URLError(reason="Connection refused")
 
-            with pytest.raises(ConnectionError):
+            with pytest.raises(BricksConnectionError):
                 await adapter.publish_section_version(payload={"section_key": "intro"})
 
     async def test_raises_on_timeout(self, adapter: BricksApiAdapter) -> None:
@@ -451,5 +457,5 @@ class TestPublishSectionVersion:
         with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.side_effect = TimeoutError("Publish timed out")
 
-            with pytest.raises(TimeoutError):
+            with pytest.raises(BricksTimeoutError):
                 await adapter.publish_section_version(payload={"section_key": "intro"})

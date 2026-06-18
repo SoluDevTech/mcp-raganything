@@ -4,6 +4,9 @@ import asyncio
 import logging
 from typing import Literal
 
+from domain.errors.indexing import IndexingError
+from domain.errors.messages import ErrorMessage
+from domain.logging.messages import LogMessage
 from domain.ports.bm25_engine import BM25EnginePort, BM25SearchResult
 from domain.ports.rag_engine import RAGEnginePort
 from infrastructure.rag.rrf_combiner import RRFCombiner
@@ -91,11 +94,13 @@ class QueryUseCase:
                 bm25_results if isinstance(bm25_results, list) else []
             )
             if isinstance(bm25_results, Exception):
-                logger.error("BM25 search failed in hybrid+ mode: %s", bm25_results)
+                logger.error(LogMessage.QUERY_BM25_SEARCH_FAILED, bm25_results)
 
             if isinstance(vector_results, Exception):
-                logger.error("Vector search failed in hybrid+ mode: %s", vector_results)
-                raise vector_results
+                logger.error(LogMessage.QUERY_VECTOR_SEARCH_FAILED, vector_results)
+                raise IndexingError(
+                    ErrorMessage.VECTOR_SEARCH_FAILED.format(error=vector_results)
+                ) from vector_results
 
             combined_results = self.rrf_combiner.combine(
                 bm25_results=bm25_hits,
