@@ -34,6 +34,9 @@ class ErrorMessage(StrEnum):
     UNSUPPORTED_FILE_FORMAT = "Unsupported file format: {error}"
     INVALID_FILE = "Invalid file: {error}"
     KREUZBERG_EXTRACTION_FAILED = "Kreuzberg extraction failed: {error}"
+    KREUZBERG_EXTRACTION_TIMED_OUT = (
+        "Kreuzberg extraction timed out after {timeout}s"
+    )
 
     # --- RAG engine (LightRAG) ---
     UNKNOWN_DOCUMENT_PARSER = (
@@ -86,3 +89,8 @@ class ErrorMessage(StrEnum):
 
     # --- Indexing / query ---
     VECTOR_SEARCH_FAILED = "Vector search failed in hybrid+ mode: {error}"
+
+    # --- MCP tool generic failures ---
+    MCP_LIST_DOCS_FAILED_GENERIC = "Failed to list bricks documents: {error}"
+    MCP_READ_DOC_FAILED_GENERIC = "Failed to read bricks document: {error}"
+    MCP_PUBLISH_FAILED_GENERIC = "Failed to publish section version: {error}"

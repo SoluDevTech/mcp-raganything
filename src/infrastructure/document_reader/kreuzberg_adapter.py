@@ -5,6 +5,7 @@ import logging
 from kreuzberg import (
     ChunkingConfig,
     ExtractionConfig,
+    ExtractionTimeoutError,
     OcrConfig,
     OutputFormat,
     PageConfig,
@@ -35,8 +36,9 @@ def make_extraction_config(
 ) -> ExtractionConfig:
     from config import RAGConfig
 
+    rag = RAGConfig()
     if ocr_mode is None:
-        ocr_mode = RAGConfig().KREUZBERG_OCR_MODE
+        ocr_mode = rag.KREUZBERG_OCR_MODE
     llm_config = LLMConfig()
     if ocr_mode == "vlm":
         ocr = OcrConfig(
@@ -45,6 +47,7 @@ def make_extraction_config(
                 model=llm_config.VISION_MODEL,
                 api_key=llm_config.api_key,
                 base_url=llm_config.api_base_url,
+                timeout_secs=60,
             ),
         )
     else:
@@ -57,8 +60,12 @@ def make_extraction_config(
         ),
         use_cache=True,
         output_format=OutputFormat.MARKDOWN,
-        enable_quality_processing=True,
-        pdf_options=PdfConfig(extract_images=True, extract_metadata=True),
+        enable_quality_processing=rag.KREUZBERG_ENABLE_QUALITY_PROCESSING,
+        extraction_timeout_secs=rag.KREUZBERG_EXTRACTION_TIMEOUT,
+        pdf_options=PdfConfig(
+            extract_images=rag.KREUZBERG_EXTRACT_IMAGES,
+            extract_metadata=True,
+        ),
         ocr=ocr,
         chunking=ChunkingConfig(max_chars=chunk_size, max_overlap=chunk_overlap),
     )
@@ -67,6 +74,9 @@ def make_extraction_config(
 class KreuzbergAdapter(DocumentReaderPort):
     def __init__(self, ocr_mode: str | None = None) -> None:
         self._config = make_extraction_config(ocr_mode=ocr_mode)
+        from config import RAGConfig
+
+        self._extraction_timeout = RAGConfig().KREUZBERG_EXTRACTION_TIMEOUT
 
     async def extract_content(
         self, file_path: str, mime_type: str = ""
@@ -76,6 +86,12 @@ class KreuzbergAdapter(DocumentReaderPort):
             if mime_type:
                 kwargs["mime_type"] = mime_type
             result = await extract_file(file_path, **kwargs)
+        except ExtractionTimeoutError as e:
+            raise DocumentReadError(
+                ErrorMessage.KREUZBERG_EXTRACTION_TIMED_OUT.format(
+                    timeout=self._extraction_timeout
+                )
+            ) from e
         except ParsingError as e:
             raise UnsupportedFormatError(
                 ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e)

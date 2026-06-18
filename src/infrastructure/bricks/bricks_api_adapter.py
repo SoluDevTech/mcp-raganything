@@ -24,14 +24,13 @@ from domain.ports.bricks_api_port import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TIMEOUT = 30
-
 
 class BricksApiAdapter(BricksApiPort):
     def __init__(self, config) -> None:
         self._base_url = config.BRICKS_API_BASE_URL.rstrip("/")
         self._api_key = config.BRICKS_API_KEY
         self._bearer_token = config.BRICKS_BEARER_TOKEN
+        self._http_timeout = config.BRICKS_HTTP_TIMEOUT
 
     async def close(self) -> None:
         pass
@@ -40,7 +39,7 @@ class BricksApiAdapter(BricksApiPort):
         logger.debug(LogMessage.BRICKS_GET, url)
         req = urllib.request.Request(url, headers=headers or {})
         try:
-            with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+            with urllib.request.urlopen(req, timeout=self._http_timeout) as resp:
                 body = resp.read()
                 resp_headers = dict(resp.headers)
                 logger.debug(
@@ -62,7 +61,7 @@ class BricksApiAdapter(BricksApiPort):
         logger.debug(LogMessage.BRICKS_POST, url, len(data))
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=_DEFAULT_TIMEOUT) as resp:
+            with urllib.request.urlopen(req, timeout=self._http_timeout) as resp:
                 body = resp.read()
                 logger.debug(
                     LogMessage.BRICKS_POST_BYTES, url, len(body), resp.status
