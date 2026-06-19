@@ -37,6 +37,8 @@ class LogMessage(StrEnum):
 
     # --- Document reader (Kreuzberg) ---
     KREUZBERG_EXTRACTION_FAILED_FOR = "Kreuzberg extraction failed for %s: %s"
+    KREUZBERG_EXTRACTION_DURATION = "Kreuzberg extraction done: file=%s elapsed_ms=%.2f"
+    KREUZBERG_SERIALIZATION_DURATION = "Kreuzberg serialization done: file=%s elapsed_ms=%.2f"
 
     # --- Indexing use cases ---
     INDEXATION_FINISHED = "Indexation finished: %s"

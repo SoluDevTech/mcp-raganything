@@ -1,6 +1,7 @@
 """Kreuzberg adapter for document extraction."""
 
 import logging
+import time
 
 from kreuzberg import (
     ChunkingConfig,
@@ -21,6 +22,7 @@ from kreuzberg import (
 from config import LLMConfig
 from domain.errors.document import DocumentReadError, UnsupportedFormatError
 from domain.errors.messages import ErrorMessage
+from domain.logging.messages import LogMessage
 from domain.ports.document_reader_port import (
     DocumentContent,
     DocumentReaderPort,
@@ -83,22 +85,33 @@ class KreuzbergAdapter(DocumentReaderPort):
             kwargs = {"config": self._config}
             if mime_type:
                 kwargs["mime_type"] = mime_type
+            start_extract = time.time()
             result = await extract_file(file_path, **kwargs)
+            extract_ms = (time.time() - start_extract) * 1000
+            logger.info(LogMessage.KREUZBERG_EXTRACTION_DURATION, file_path, extract_ms)
         except ExtractionTimeoutError as e:
+            logger.exception(ErrorMessage.KREUZBERG_EXTRACTION_TIMED_OUT.format(
+                timeout=self._extraction_timeout
+            ))
             raise DocumentReadError(
                 ErrorMessage.KREUZBERG_EXTRACTION_TIMED_OUT.format(
                     timeout=self._extraction_timeout
                 )
             ) from e
         except ParsingError as e:
+            logger.exception(ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e))
             raise UnsupportedFormatError(
                 ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e)
             ) from e
         except ValidationError as e:
+            logger.exception(ErrorMessage.INVALID_FILE.format(error=e))
             raise DocumentReadError(ErrorMessage.INVALID_FILE.format(error=e)) from e
 
         pages_raw = result.pages or []
         content: list[dict] = []
+
+        start_serialize = time.time()
+
         for page in pages_raw:
             page_dict = (
                 page
@@ -123,6 +136,10 @@ class KreuzbergAdapter(DocumentReaderPort):
                     "tables": tables_serializable,
                 }
             )
+
+        serialize_ms = (time.time() - start_serialize) * 1000
+        logger.info(LogMessage.KREUZBERG_SERIALIZATION_DURATION, file_path, serialize_ms)
+
         return DocumentContent(
             content=content,
         )
