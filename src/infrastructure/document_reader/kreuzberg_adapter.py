@@ -85,20 +85,26 @@ class KreuzbergAdapter(DocumentReaderPort):
                 kwargs["mime_type"] = mime_type
             result = await extract_file(file_path, **kwargs)
         except ExtractionTimeoutError as e:
+            logger.info(ErrorMessage.KREUZBERG_EXTRACTION_TIMED_OUT.format(
+                timeout=self._extraction_timeout
+            ))
             raise DocumentReadError(
                 ErrorMessage.KREUZBERG_EXTRACTION_TIMED_OUT.format(
                     timeout=self._extraction_timeout
                 )
             ) from e
         except ParsingError as e:
+            logger.info(ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e))
             raise UnsupportedFormatError(
                 ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e)
             ) from e
         except ValidationError as e:
+            logger.info(ErrorMessage.INVALID_FILE.format(error=e))
             raise DocumentReadError(ErrorMessage.INVALID_FILE.format(error=e)) from e
 
         pages_raw = result.pages or []
         content: list[dict] = []
+
         for page in pages_raw:
             page_dict = (
                 page
@@ -123,6 +129,7 @@ class KreuzbergAdapter(DocumentReaderPort):
                     "tables": tables_serializable,
                 }
             )
+
         return DocumentContent(
             content=content,
         )
