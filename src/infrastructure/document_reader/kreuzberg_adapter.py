@@ -90,7 +90,7 @@ class KreuzbergAdapter(DocumentReaderPort):
             extract_ms = (time.time() - start_extract) * 1000
             logger.info(LogMessage.KREUZBERG_EXTRACTION_DURATION, file_path, extract_ms)
         except ExtractionTimeoutError as e:
-            logger.info(ErrorMessage.KREUZBERG_EXTRACTION_TIMED_OUT.format(
+            logger.exception(ErrorMessage.KREUZBERG_EXTRACTION_TIMED_OUT.format(
                 timeout=self._extraction_timeout
             ))
             raise DocumentReadError(
@@ -99,12 +99,12 @@ class KreuzbergAdapter(DocumentReaderPort):
                 )
             ) from e
         except ParsingError as e:
-            logger.info(ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e))
+            logger.exception(ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e))
             raise UnsupportedFormatError(
                 ErrorMessage.UNSUPPORTED_FILE_FORMAT.format(error=e)
             ) from e
         except ValidationError as e:
-            logger.info(ErrorMessage.INVALID_FILE.format(error=e))
+            logger.exception(ErrorMessage.INVALID_FILE.format(error=e))
             raise DocumentReadError(ErrorMessage.INVALID_FILE.format(error=e)) from e
 
         pages_raw = result.pages or []
