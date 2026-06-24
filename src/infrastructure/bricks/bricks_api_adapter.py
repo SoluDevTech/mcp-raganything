@@ -82,7 +82,7 @@ class BricksApiAdapter(BricksApiPort):
         logger.info(LogMessage.BRICKS_LISTING_DOCUMENTS, project_id)
         try:
             body, _ = await asyncio.to_thread(
-                self._get, url, {"Authorization": f"Bearer {self._bearer_token}"}
+                self._get, url, {"X-API-Key": f"{self._bearer_token}"}
             )
         except urllib.error.HTTPError as e:
             if e.code in (401, 403):
