@@ -82,7 +82,7 @@ class TestListProjectDocuments:
             mock_urlopen.assert_called_once()
             req = mock_urlopen.call_args[0][0]
             assert "api/projects/proj-123/documents/ai" in req.full_url
-            assert req.get_header("Authorization") == "Bearer test-bearer-token"
+            assert req.get_header("X-api-key") == "test-bearer-token" or req.get_header("X-API-Key") == "test-bearer-token"
 
     async def test_returns_list_of_bricks_document_info(self, adapter: BricksApiAdapter) -> None:
         """Should parse JSON response and return list of BricksDocumentInfo."""
