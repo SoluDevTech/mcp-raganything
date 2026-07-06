@@ -194,22 +194,8 @@ class ClassicalQueryUseCase:
         bm25_result = gather_results[0]
         vector_result = gather_results[1]
 
-        bm25_hits = []
-        if isinstance(bm25_result, Exception):
-            logger.error(LogMessage.CLASSICAL_BM25_SEARCH_FAILED_HYBRID, bm25_result)
-        elif isinstance(bm25_result, list):
-            bm25_hits = bm25_result
-
-        vector_hits: list[SearchResult] = []
-        if isinstance(vector_result, Exception):
-            logger.error(LogMessage.CLASSICAL_VECTOR_SEARCH_FAILED_HYBRID, vector_result)
-        else:
-            all_results: dict[str, SearchResult] = {}
-            for results in vector_result:
-                for r in results:
-                    if r.chunk_id and r.chunk_id not in all_results:
-                        all_results[r.chunk_id] = r
-            vector_hits = list(all_results.values())
+        bm25_hits = self._extract_bm25_hits(bm25_result)
+        vector_hits = self._dedupe_vector_hits(vector_result)
 
         combined = self.rrf_combiner.combine_classical(
             bm25_results=bm25_hits,
@@ -245,6 +231,28 @@ class ClassicalQueryUseCase:
             chunks=scored_chunks,
             mode="hybrid",
         )
+
+    def _extract_bm25_hits(self, bm25_result: object) -> list:
+        if isinstance(bm25_result, Exception):
+            logger.error(LogMessage.CLASSICAL_BM25_SEARCH_FAILED_HYBRID, bm25_result)
+            return []
+        if isinstance(bm25_result, list):
+            return bm25_result
+        return []
+
+    @staticmethod
+    def _dedupe_vector_hits(vector_result: object) -> list[SearchResult]:
+        if isinstance(vector_result, Exception):
+            logger.error(
+                LogMessage.CLASSICAL_VECTOR_SEARCH_FAILED_HYBRID, vector_result
+            )
+            return []
+        all_results: dict[str, SearchResult] = {}
+        for results in vector_result:  # type: ignore[union-attr]
+            for r in results:
+                if r.chunk_id and r.chunk_id not in all_results:
+                    all_results[r.chunk_id] = r
+        return list(all_results.values())
 
     async def _score_and_filter(
         self,

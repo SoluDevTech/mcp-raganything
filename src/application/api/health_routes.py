@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
@@ -20,7 +22,7 @@ def health_check():
 
 @health_router.get("/health/live")
 async def liveness_check(
-    use_case: LivenessCheckUseCase = Depends(get_liveness_check_use_case),
+    use_case: Annotated[LivenessCheckUseCase, Depends(get_liveness_check_use_case)],
 ):
     """Liveness probe that checks PostgreSQL and MinIO connectivity.
 

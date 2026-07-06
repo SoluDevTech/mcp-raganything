@@ -17,7 +17,6 @@ _external = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_external)
 
 # Re-export fixtures so pytest discovers them
-mock_rag_engine = _external.mock_rag_engine
 mock_storage = _external.mock_storage
 mock_document_reader = _external.mock_document_reader
 mock_vector_store = _external.mock_vector_store

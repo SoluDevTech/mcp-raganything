@@ -46,3 +46,41 @@ CVE-2026-42496
 # Status: affected upstream; needs Perl 5.44 backport.
 # Review: 2026-06-12
 CVE-2026-8376
+
+# --- Transitive vulnerabilities via raganything / lightrag-hku / mineru[core] ---
+# These will be eliminated by Ticket 2 (suppression of RAGAnything/LightRAG
+# pipeline + mineru/torch deps). Re-evaluate after that refactor lands.
+# Review: 2026-07-06
+
+# starlette 0.52.1: Host header bypass / DoS. Fixed in 1.1.0+ but blocked by
+# fastapi pinning of starlette. Will be re-evaluated after Ticket 2.
+CVE-2026-48818
+CVE-2026-54283
+CVE-2026-48817
+
+# gradio 6.8.0: vulnerable transitive via mineru[core]. Removed in Ticket 2.
+CVE-2026-48545
+
+# joserfc 1.6.4: JWT validation bypass. Transitive via raganything stack.
+CVE-2026-49852
+CVE-2026-48990
+
+# pyjwt 2.12.1: multiple medium-severity issues. Transitive via raganything stack.
+CVE-2026-48526
+CVE-2026-48522
+CVE-2026-48523
+CVE-2026-48525
+
+# pypdf 6.10.2: multiple medium-severity issues. Transitive via kreuzberg/mineru.
+CVE-2026-48155
+CVE-2026-48156
+CVE-2026-48735
+CVE-2026-49460
+CVE-2026-49461
+CVE-2026-54530
+CVE-2026-54531
+GHSA-jm82-fx9c-mx94
+
+# transformers 4.57.6: arbitrary code execution via malicious checkpoint.
+# Transitive via raganything/mineru. Removed in Ticket 2.
+CVE-2026-4372

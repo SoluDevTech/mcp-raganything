@@ -34,22 +34,10 @@ class ErrorMessage(StrEnum):
     UNSUPPORTED_FILE_FORMAT = "Unsupported file format: {error}"
     INVALID_FILE = "Invalid file: {error}"
     KREUZBERG_EXTRACTION_FAILED = "Kreuzberg extraction failed: {error}"
-    KREUZBERG_EXTRACTION_TIMED_OUT = (
-        "Kreuzberg extraction timed out after {timeout}s"
-    )
-
-    # --- RAG engine (LightRAG) ---
-    UNKNOWN_DOCUMENT_PARSER = (
-        "Unknown document parser: {parser!r}. Choose from: kreuzberg, {choices}"
-    )
-    RAG_ENGINE_NOT_INITIALIZED = (
-        "RAG engine not initialized for '{working_dir}'. Call init_project() first."
-    )
+    KREUZBERG_EXTRACTION_TIMED_OUT = "Kreuzberg extraction timed out after {timeout}s"
 
     # --- Classical RAG helpers / BM25 ---
-    FILE_NAME_ESCAPES_OUTPUT_DIR = (
-        "file_name escapes output directory: {file_name}"
-    )
+    FILE_NAME_ESCAPES_OUTPUT_DIR = "file_name escapes output directory: {file_name}"
     INVALID_TABLE_PREFIX = "Invalid table_prefix: {table_prefix!r}"
     INVALID_TEXT_CONFIG = "Invalid text_config: {text_config!r}"
 
@@ -83,9 +71,7 @@ class ErrorMessage(StrEnum):
     CONTENT_TYPE_NOT_ALLOWED = "Content type '{content_type}' is not allowed"
     PREFIX_MUST_BE_RELATIVE = "prefix must be a relative path within the bucket"
     PREFIX_MUST_BE_RELATIVE_SHORT = "prefix must be a relative path"
-    FILE_TOO_LARGE = (
-        "File exceeds maximum allowed size of {max_mb} MB"
-    )
+    FILE_TOO_LARGE = "File exceeds maximum allowed size of {max_mb} MB"
 
     # --- Indexing / query ---
     VECTOR_SEARCH_FAILED = "Vector search failed in hybrid+ mode: {error}"

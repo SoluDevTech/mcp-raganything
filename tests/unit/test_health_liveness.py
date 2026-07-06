@@ -27,8 +27,10 @@ class TestLivenessRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.get("/api/v1/health/live")
 
+        # Assert
         assert response.status_code == 200
         body = response.json()
         assert body["status"] == "healthy"
@@ -46,8 +48,10 @@ class TestLivenessRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.get("/api/v1/health/live")
 
+        # Assert
         assert response.status_code == 503
         body = response.json()
         assert body["status"] == "degraded"
@@ -64,8 +68,10 @@ class TestLivenessRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.get("/api/v1/health/live")
 
+        # Assert
         assert response.status_code == 503
         body = response.json()
         assert body["checks"]["minio"] == "unreachable"
@@ -81,8 +87,10 @@ class TestLivenessRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.get("/api/v1/health/live")
 
+        # Assert
         assert response.status_code == 503
         body = response.json()
         assert body["checks"]["postgres"] == "unreachable"
@@ -111,6 +119,7 @@ class TestLivenessCheckUseCase:
         mock_pg.ping.assert_awaited_once()
 
     async def test_returns_degraded_when_postgres_down(self) -> None:
+        # Arrange
         mock_storage = AsyncMock()
         mock_storage.ping.return_value = True
         mock_pg = AsyncMock()
@@ -121,8 +130,10 @@ class TestLivenessCheckUseCase:
             postgres_health=mock_pg,
             bucket="test-bucket",
         )
+        # Act
         result = await use_case.execute()
 
+        # Assert
         assert result["status"] == "degraded"
         assert result["checks"]["postgres"] == "unreachable"
 
@@ -163,14 +174,17 @@ class TestAsyncpgHealthAdapter:
     async def test_returns_false_on_connection_error(
         self, mock_asyncpg: MagicMock
     ) -> None:
+        # Arrange
         from config import DatabaseConfig
         from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
 
         mock_asyncpg.connect = AsyncMock(side_effect=ConnectionRefusedError)
 
         adapter = AsyncpgHealthAdapter(DatabaseConfig())
+        # Act
         result = await adapter.ping()
 
+        # Assert
         assert result is False
 
 
@@ -179,6 +193,7 @@ class TestMinioAdapterPing:
     async def test_returns_true_when_bucket_exists(
         self, mock_minio_cls: MagicMock
     ) -> None:
+        # Arrange
         from infrastructure.storage.minio_adapter import MinioAdapter
 
         mock_client = MagicMock()
@@ -186,8 +201,10 @@ class TestMinioAdapterPing:
         mock_minio_cls.return_value = mock_client
 
         adapter = MinioAdapter("localhost:9000", "access", "secret")
+        # Act
         result = await adapter.ping("test-bucket")
 
+        # Assert
         assert result is True
         mock_client.bucket_exists.assert_called_once_with("test-bucket")
 

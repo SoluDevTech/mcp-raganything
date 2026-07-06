@@ -46,14 +46,17 @@ class TestGetObject:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should return the raw bytes of the requested object."""
+        # Arrange
         mock_response = MagicMock()
         mock_response.read.return_value = b"file content here"
         mock_response.close = MagicMock()
         mock_response.release_conn = MagicMock()
         mock_minio_client.get_object.return_value = mock_response
 
+        # Act
         result = await adapter.get_object("my-bucket", "docs/report.pdf")
 
+        # Assert
         assert result == b"file content here"
         mock_response.close.assert_called_once()
         mock_response.release_conn.assert_called_once()
@@ -62,6 +65,7 @@ class TestGetObject:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should convert S3Error NoSuchKey to FileNotFoundError."""
+        # Arrange
         mock_minio_client.get_object.side_effect = S3Error(
             response=None,
             code="NoSuchKey",
@@ -71,6 +75,7 @@ class TestGetObject:
             host_id="host_id",
         )
 
+        # Act & Assert
         with pytest.raises(StorageNotFoundError, match="Object not found"):
             await adapter.get_object("my-bucket", "missing.pdf")
 
@@ -78,6 +83,7 @@ class TestGetObject:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should convert S3Error NoSuchBucket to FileNotFoundError."""
+        # Arrange
         mock_minio_client.get_object.side_effect = S3Error(
             response=None,
             code="NoSuchBucket",
@@ -87,6 +93,7 @@ class TestGetObject:
             host_id="host_id",
         )
 
+        # Act & Assert
         with pytest.raises(StorageNotFoundError, match="Object not found"):
             await adapter.get_object("bad-bucket", "any/path")
 
@@ -94,6 +101,7 @@ class TestGetObject:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should re-raise S3Error for non-404 error codes like AccessDenied."""
+        # Arrange
         mock_minio_client.get_object.side_effect = S3Error(
             response=None,
             code="AccessDenied",
@@ -103,9 +111,11 @@ class TestGetObject:
             host_id="host_id",
         )
 
+        # Act & Assert
         with pytest.raises(S3Error) as exc_info:
             await adapter.get_object("my-bucket", "private/doc.pdf")
 
+        # Assert
         assert exc_info.value.code == "AccessDenied"
 
 
@@ -116,6 +126,7 @@ class TestListObjects:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should return only non-directory object names."""
+        # Arrange
         mock_obj1 = MagicMock()
         mock_obj1.object_name = "docs/report.pdf"
         mock_obj1.is_dir = False
@@ -130,21 +141,29 @@ class TestListObjects:
 
         mock_minio_client.list_objects.return_value = [mock_obj1, mock_obj2, mock_obj3]
 
+        # Act
         result = await adapter.list_objects("my-bucket", "docs/", recursive=True)
 
+        # Assert
         assert result == ["docs/report.pdf", "docs/notes.txt"]
         mock_minio_client.list_objects.assert_called_once_with(
-            "my-bucket", prefix="docs/", recursive=True
+            # Arrange
+            "my-bucket",
+            prefix="docs/",
+            recursive=True,
         )
 
     async def test_returns_empty_list_when_no_objects(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should return empty list when bucket is empty."""
+        # Arrange
         mock_minio_client.list_objects.return_value = []
 
+        # Act
         result = await adapter.list_objects("my-bucket", "", recursive=True)
 
+        # Assert
         assert result == []
 
 
@@ -155,6 +174,7 @@ class TestListFilesMetadata:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should return FileInfo list with size and last_modified."""
+        # Arrange
         dt = datetime(2026, 3, 15, 10, 30, 0, tzinfo=UTC)
 
         mock_obj = MagicMock()
@@ -169,8 +189,10 @@ class TestListFilesMetadata:
 
         mock_minio_client.list_objects.return_value = [mock_obj, mock_dir]
 
+        # Act
         result = await adapter.list_files_metadata("my-bucket", "data/", recursive=True)
 
+        # Assert
         assert len(result) == 1
         assert isinstance(result[0], FileInfo)
         assert result[0].object_name == "data/file.csv"
@@ -181,6 +203,7 @@ class TestListFilesMetadata:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should treat None size as 0 in FileInfo."""
+        # Arrange
         mock_obj = MagicMock()
         mock_obj.object_name = "unknown-size-file"
         mock_obj.is_dir = False
@@ -189,14 +212,17 @@ class TestListFilesMetadata:
 
         mock_minio_client.list_objects.return_value = [mock_obj]
 
+        # Act
         result = await adapter.list_files_metadata("my-bucket", "")
 
+        # Assert
         assert result[0].size == 0
 
     async def test_handles_none_last_modified_as_none(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should set last_modified to None when MinIO returns None."""
+        # Arrange
         mock_obj = MagicMock()
         mock_obj.object_name = "no-date-file"
         mock_obj.is_dir = False
@@ -205,8 +231,10 @@ class TestListFilesMetadata:
 
         mock_minio_client.list_objects.return_value = [mock_obj]
 
+        # Act
         result = await adapter.list_files_metadata("my-bucket", "")
 
+        # Assert
         assert result[0].last_modified is None
 
 
@@ -217,6 +245,7 @@ class TestListMinioObjects:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should convert NoSuchBucket S3Error to FileNotFoundError."""
+        # Arrange
         mock_minio_client.list_objects.side_effect = S3Error(
             response=None,
             code="NoSuchBucket",
@@ -226,6 +255,7 @@ class TestListMinioObjects:
             host_id="host_id",
         )
 
+        # Act & Assert
         with pytest.raises(StorageNotFoundError, match="Bucket not found"):
             await adapter._list_minio_objects("bad-bucket", "", recursive=True)
 
@@ -233,6 +263,7 @@ class TestListMinioObjects:
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
         """Should re-raise S3Errors that are not NoSuchBucket."""
+        # Arrange
         mock_minio_client.list_objects.side_effect = S3Error(
             response=None,
             code="InternalError",
@@ -242,9 +273,11 @@ class TestListMinioObjects:
             host_id="host_id",
         )
 
+        # Act & Assert
         with pytest.raises(S3Error) as exc_info:
             await adapter._list_minio_objects("my-bucket", "", recursive=True)
 
+        # Assert
         assert exc_info.value.code == "InternalError"
 
 
@@ -254,6 +287,7 @@ class TestListFolders:
     async def test_returns_only_dir_objects(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
+        # Arrange
         mock_dir1 = MagicMock()
         mock_dir1.object_name = "docs/"
         mock_dir1.is_dir = True
@@ -268,29 +302,38 @@ class TestListFolders:
 
         mock_minio_client.list_objects.return_value = [mock_dir1, mock_file, mock_dir2]
 
+        # Act
         result = await adapter.list_folders("my-bucket")
 
+        # Assert
         assert result == ["docs/", "photos/"]
         mock_minio_client.list_objects.assert_called_once_with(
-            "my-bucket", prefix="", recursive=False
+            # Arrange
+            "my-bucket",
+            prefix="",
+            recursive=False,
         )
 
     async def test_returns_empty_when_no_dirs(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
+        # Arrange
         mock_file = MagicMock()
         mock_file.object_name = "report.pdf"
         mock_file.is_dir = False
 
         mock_minio_client.list_objects.return_value = [mock_file]
 
+        # Act
         result = await adapter.list_folders("my-bucket")
 
+        # Assert
         assert result == []
 
     async def test_excludes_files_from_result(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
+        # Arrange
         mock_dir = MagicMock()
         mock_dir.object_name = "archive/"
         mock_dir.is_dir = True
@@ -305,13 +348,16 @@ class TestListFolders:
 
         mock_minio_client.list_objects.return_value = [mock_dir, mock_file1, mock_file2]
 
+        # Act
         result = await adapter.list_folders("my-bucket")
 
+        # Assert
         assert result == ["archive/"]
 
     async def test_propagates_file_not_found_for_missing_bucket(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
+        # Arrange
         mock_minio_client.list_objects.side_effect = S3Error(
             response=None,
             code="NoSuchBucket",
@@ -321,21 +367,28 @@ class TestListFolders:
             host_id="host_id",
         )
 
+        # Act & Assert
         with pytest.raises(StorageNotFoundError, match="Bucket not found"):
             await adapter.list_folders("bad-bucket")
 
     async def test_passes_prefix_to_minio_client(
         self, adapter: MinioAdapter, mock_minio_client: MagicMock
     ) -> None:
+        # Arrange
         mock_dir = MagicMock()
         mock_dir.object_name = "docs/reports/"
         mock_dir.is_dir = True
 
         mock_minio_client.list_objects.return_value = [mock_dir]
 
+        # Act
         result = await adapter.list_folders("my-bucket", prefix="docs/")
 
+        # Assert
         assert result == ["docs/reports/"]
         mock_minio_client.list_objects.assert_called_once_with(
-            "my-bucket", prefix="docs/", recursive=False
+            # Arrange
+            "my-bucket",
+            prefix="docs/",
+            recursive=False,
         )

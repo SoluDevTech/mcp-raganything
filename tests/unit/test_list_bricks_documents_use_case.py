@@ -23,8 +23,10 @@ class TestListBricksDocumentsUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """Should delegate to bricks_api.list_project_documents."""
+        # Act
         await use_case.execute(project_id="proj-123")
 
+        # Assert
         mock_bricks_api.list_project_documents.assert_called_once_with(
             project_id="proj-123"
         )
@@ -35,6 +37,7 @@ class TestListBricksDocumentsUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """Should return the list of BricksDocumentInfo from the port."""
+        # Arrange
         expected = [
             BricksDocumentInfo(
                 id="doc-1",
@@ -52,8 +55,10 @@ class TestListBricksDocumentsUseCase:
         ]
         mock_bricks_api.list_project_documents.return_value = expected
 
+        # Act
         result = await use_case.execute(project_id="proj-123")
 
+        # Assert
         assert len(result) == 2
         assert result[0].file_name == "report.pdf"
         assert result[1].file_name == "notes.docx"
@@ -64,10 +69,13 @@ class TestListBricksDocumentsUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """Should return empty list when no documents exist."""
+        # Arrange
         mock_bricks_api.list_project_documents.return_value = []
 
+        # Act
         result = await use_case.execute(project_id="empty-project")
 
+        # Assert
         assert result == []
 
     async def test_execute_propagates_errors(
@@ -75,11 +83,13 @@ class TestListBricksDocumentsUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """Should propagate errors from the API port."""
+        # Arrange
         mock_bricks_api.list_project_documents.side_effect = ConnectionError(
             "API unreachable"
         )
         use_case = ListBricksDocumentsUseCase(bricks_api=mock_bricks_api)
 
+        # Act & Assert
         with pytest.raises(ConnectionError, match="API unreachable"):
             await use_case.execute(project_id="proj-123")
 
@@ -88,10 +98,12 @@ class TestListBricksDocumentsUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """Should propagate TimeoutError from the API port."""
+        # Arrange
         mock_bricks_api.list_project_documents.side_effect = TimeoutError(
             "Request timed out"
         )
         use_case = ListBricksDocumentsUseCase(bricks_api=mock_bricks_api)
 
+        # Act & Assert
         with pytest.raises(TimeoutError):
             await use_case.execute(project_id="proj-123")

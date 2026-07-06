@@ -1,16 +1,15 @@
-"""Tests for BricksApiAdapter — the urllib-based implementation of BricksApiPort.
+"""Tests for BricksApiAdapter — the httpx-based implementation of BricksApiPort.
 
 The Bricks API is an external dependency protected by Cloudflare,
-so we mock urllib.request.urlopen responses while testing our adapter
+so we mock httpx.AsyncClient responses while testing our adapter
 logic for parsing, headers, and error handling.
 """
 
 import json
-from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
-import urllib.error
 
 from domain.errors.bricks import (
     BricksConnectionError,
@@ -40,52 +39,76 @@ def bricks_config() -> MagicMock:
 
 @pytest.fixture
 def adapter(bricks_config: MagicMock) -> BricksApiAdapter:
-    """Provide a BricksApiAdapter with mock config."""
-    return BricksApiAdapter(config=bricks_config)
+    """Provide a BricksApiAdapter with mock config.
+
+    The underlying httpx.AsyncClient is replaced with an AsyncMock to
+    avoid real network calls during tests.
+    """
+    instance = BricksApiAdapter(config=bricks_config)
+    instance._client = AsyncMock(spec=httpx.AsyncClient)
+    return instance
 
 
-def _mock_urlopen_response(body: bytes, headers: dict | None = None, status: int = 200) -> MagicMock:
-    """Create a mock object that behaves like urllib.urlopen response."""
-    mock_resp = MagicMock()
-    mock_resp.read.return_value = body
-    mock_resp.headers = headers or {}
-    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-    mock_resp.__exit__ = MagicMock(return_value=False)
-    return mock_resp
+def _mock_response(
+    status: int = 200,
+    content: bytes = b"",
+    headers: dict | None = None,
+    url: str = "https://api.bricks.example.com",
+    method: str = "GET",
+) -> httpx.Response:
+    """Build a real httpx.Response for test assertions."""
+    return httpx.Response(
+        status_code=status,
+        content=content,
+        headers=headers or {},
+        request=httpx.Request(method, url),
+    )
+
+
+def _http_status_error(response: httpx.Response) -> httpx.HTTPStatusError:
+    """Build an HTTPStatusError from a response, as raise_for_status does."""
+    return httpx.HTTPStatusError(
+        message=f"HTTP {response.status_code}",
+        request=response.request,
+        response=response,
+    )
 
 
 class TestListProjectDocuments:
     """Tests for BricksApiAdapter.list_project_documents."""
 
     async def test_uses_http_timeout_from_config(
-        self, adapter: BricksApiAdapter, bricks_config: MagicMock
+        self, bricks_config: MagicMock
     ) -> None:
-        """Should pass BRICKS_HTTP_TIMEOUT to urlopen."""
+        # Arrange
         bricks_config.BRICKS_HTTP_TIMEOUT = 42
-        adapter._http_timeout = 42
-        body = json.dumps({"items": []}).encode()
-        mock_resp = _mock_urlopen_response(body)
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
-            await adapter.list_project_documents(project_id="proj-123")
+        # Act
+        instance = BricksApiAdapter(config=bricks_config)
 
-            assert mock_urlopen.call_args.kwargs["timeout"] == 42
+        # Assert
+        assert instance._client.timeout.read == 42
+        await instance._client.aclose()
 
     async def test_calls_api_with_bearer_token(self, adapter: BricksApiAdapter) -> None:
-        """Should call GET /api/projects/{id}/documents/ai with Bearer token."""
+        # Arrange
         body = json.dumps({"items": []}).encode()
-        mock_resp = _mock_urlopen_response(body)
+        adapter._client.get.return_value = _mock_response(content=body)
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
-            await adapter.list_project_documents(project_id="proj-123")
+        # Act
+        await adapter.list_project_documents(project_id="proj-123")
 
-            mock_urlopen.assert_called_once()
-            req = mock_urlopen.call_args[0][0]
-            assert "api/projects/proj-123/documents/ai" in req.full_url
-            assert req.get_header("X-api-key") == "test-bearer-token" or req.get_header("X-API-Key") == "test-bearer-token"
+        # Assert
+        adapter._client.get.assert_called_once()
+        url = adapter._client.get.call_args[0][0]
+        headers = adapter._client.get.call_args.kwargs["headers"]
+        assert "api/projects/proj-123/documents/ai" in url
+        assert headers["X-API-Key"] == "test-bearer-token"
 
-    async def test_returns_list_of_bricks_document_info(self, adapter: BricksApiAdapter) -> None:
-        """Should parse JSON response and return list of BricksDocumentInfo."""
+    async def test_returns_list_of_bricks_document_info(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
         api_response = {
             "items": [
                 {
@@ -121,11 +144,12 @@ class TestListProjectDocuments:
             ]
         }
         body = json.dumps(api_response).encode()
-        mock_resp = _mock_urlopen_response(body)
+        adapter._client.get.return_value = _mock_response(content=body)
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=mock_resp):
-            result = await adapter.list_project_documents(project_id="proj-123")
+        # Act
+        result = await adapter.list_project_documents(project_id="proj-123")
 
+        # Assert
         assert len(result) == 2
         assert isinstance(result[0], BricksDocumentInfo)
         assert result[0].file_name == "report.pdf"
@@ -134,8 +158,10 @@ class TestListProjectDocuments:
         assert result[1].file_name == "notes.docx"
         assert result[1].is_ignored is True
 
-    async def test_camel_case_to_snake_case_mapping(self, adapter: BricksApiAdapter) -> None:
-        """Should correctly map camelCase API fields to snake_case model fields."""
+    async def test_camel_case_to_snake_case_mapping(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
         api_response = {
             "items": [
                 {
@@ -153,11 +179,12 @@ class TestListProjectDocuments:
             ]
         }
         body = json.dumps(api_response).encode()
-        mock_resp = _mock_urlopen_response(body)
+        adapter._client.get.return_value = _mock_response(content=body)
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=mock_resp):
-            result = await adapter.list_project_documents(project_id="proj-123")
+        # Act
+        result = await adapter.list_project_documents(project_id="proj-123")
 
+        # Assert
         doc = result[0]
         assert doc.image_analysis_status == "relevant"
         assert doc.image_analysis_confidence == 95.0
@@ -167,197 +194,295 @@ class TestListProjectDocuments:
         assert doc.category_source == "llm"
         assert doc.category_classified_at == "2025-12-05T08:00:00.000Z"
 
-    async def test_returns_empty_list_when_no_documents(self, adapter: BricksApiAdapter) -> None:
-        """Should return empty list when API returns empty items."""
+    async def test_returns_empty_list_when_no_documents(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
         body = json.dumps({"items": []}).encode()
-        mock_resp = _mock_urlopen_response(body)
+        adapter._client.get.return_value = _mock_response(content=body)
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=mock_resp):
-            result = await adapter.list_project_documents(project_id="proj-empty")
+        # Act
+        result = await adapter.list_project_documents(project_id="proj-empty")
 
+        # Assert
         assert result == []
 
     async def test_raises_on_401_unauthorized(self, adapter: BricksApiAdapter) -> None:
-        """Should raise PermissionError on 401 Unauthorized."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                url="https://api.bricks.example.com/api/projects/proj-123/documents/ai",
-                code=401,
-                msg="Unauthorized",
-                hdrs={},
-                fp=None,
-            )
+        # Arrange
+        resp = _mock_response(
+            status=401,
+            content=b"Unauthorized",
+            url="https://api.bricks.example.com/api/projects/proj-123/documents/ai",
+        )
+        adapter._client.get.return_value = resp
+        # raise_for_status() will be called by the adapter; simulate by raising
+        adapter._client.get.return_value.raise_for_status = MagicMock(
+            side_effect=_http_status_error(resp)
+        )
 
-            with pytest.raises(BricksPermissionError):
-                await adapter.list_project_documents(project_id="proj-123")
+        # Act / Assert
+        with pytest.raises(BricksPermissionError):
+            await adapter.list_project_documents(project_id="proj-123")
 
     async def test_raises_on_403_forbidden(self, adapter: BricksApiAdapter) -> None:
-        """Should raise PermissionError on 403 Forbidden."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                url="https://api.bricks.example.com/api/projects/proj-123/documents/ai",
-                code=403,
-                msg="Forbidden",
-                hdrs={},
-                fp=None,
-            )
+        # Arrange
+        resp = _mock_response(
+            status=403,
+            content=b"Forbidden",
+            url="https://api.bricks.example.com/api/projects/proj-123/documents/ai",
+        )
+        adapter._client.get.return_value = resp
+        adapter._client.get.return_value.raise_for_status = MagicMock(
+            side_effect=_http_status_error(resp)
+        )
 
-            with pytest.raises(BricksPermissionError):
-                await adapter.list_project_documents(project_id="proj-123")
+        # Act / Assert
+        with pytest.raises(BricksPermissionError):
+            await adapter.list_project_documents(project_id="proj-123")
 
     async def test_raises_on_404_not_found(self, adapter: BricksApiAdapter) -> None:
-        """Should raise FileNotFoundError on 404 Not Found."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                url="https://api.bricks.example.com/api/projects/nonexistent/documents/ai",
-                code=404,
-                msg="Not Found",
-                hdrs={},
-                fp=None,
-            )
+        # Arrange
+        resp = _mock_response(
+            status=404,
+            content=b"Not Found",
+            url="https://api.bricks.example.com/api/projects/nonexistent/documents/ai",
+        )
+        adapter._client.get.return_value = resp
+        adapter._client.get.return_value.raise_for_status = MagicMock(
+            side_effect=_http_status_error(resp)
+        )
 
-            with pytest.raises(BricksNotFoundError):
-                await adapter.list_project_documents(project_id="nonexistent")
+        # Act / Assert
+        with pytest.raises(BricksNotFoundError):
+            await adapter.list_project_documents(project_id="nonexistent")
 
     async def test_raises_on_connection_error(self, adapter: BricksApiAdapter) -> None:
-        """Should raise ConnectionError on URLError."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.URLError(reason="Connection refused")
+        # Arrange
+        adapter._client.get.side_effect = httpx.ConnectError("Connection refused")
 
-            with pytest.raises(BricksConnectionError):
-                await adapter.list_project_documents(project_id="proj-123")
+        # Act / Assert
+        with pytest.raises(BricksConnectionError):
+            await adapter.list_project_documents(project_id="proj-123")
 
     async def test_raises_on_timeout(self, adapter: BricksApiAdapter) -> None:
-        """Should raise TimeoutError on socket timeout."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = TimeoutError("Request timed out")
+        # Arrange
+        adapter._client.get.side_effect = httpx.TimeoutException("Request timed out")
 
-            with pytest.raises(BricksTimeoutError):
-                await adapter.list_project_documents(project_id="proj-123")
+        # Act / Assert
+        with pytest.raises(BricksTimeoutError):
+            await adapter.list_project_documents(project_id="proj-123")
 
 
 class TestDownloadDocument:
     """Tests for BricksApiAdapter.download_document."""
 
-    async def test_resolves_document_id_and_downloads_presigned_url(self, adapter: BricksApiAdapter) -> None:
-        """Should resolve document_id via list_project_documents and download pre-signed URL."""
-        presigned_url = "https://s3.example.com/projects/proj-1/doc.pdf?X-Amz-Signature=abc123"
-        doc_list_body = json.dumps({
-            "items": [{
-                "id": "doc-1",
-                "fileName": "doc.pdf",
-                "url": presigned_url,
-                "mimeType": "application/pdf",
-                "size": 100,
-                "status": "PROCESSED",
-            }]
-        }).encode()
-        list_resp = _mock_urlopen_response(doc_list_body)
+    async def test_resolves_document_id_and_downloads_presigned_url(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
+        presigned_url = (
+            "https://s3.example.com/projects/proj-1/doc.pdf?X-Amz-Signature=abc123"
+        )
+        doc_list_body = json.dumps(
+            {
+                "items": [
+                    {
+                        "id": "doc-1",
+                        "fileName": "doc.pdf",
+                        "url": presigned_url,
+                        "mimeType": "application/pdf",
+                        "size": 100,
+                        "status": "PROCESSED",
+                    }
+                ]
+            }
+        ).encode()
+        list_resp = _mock_response(content=doc_list_body)
 
         file_body = b"PDF content"
-        file_resp = _mock_urlopen_response(file_body, headers={"Content-Disposition": 'attachment; filename="doc.pdf"'})
+        file_resp = _mock_response(
+            content=file_body,
+            headers={"Content-Disposition": 'attachment; filename="doc.pdf"'},
+            url=presigned_url,
+        )
+        adapter._client.get.side_effect = [list_resp, file_resp]
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", side_effect=[list_resp, file_resp]) as mock_urlopen:
-            content, filename, mime_type = await adapter.download_document(document_id="doc-1", project_id="proj-1")
+        # Act
+        content, filename, mime_type = await adapter.download_document(
+            document_id="doc-1", project_id="proj-1"
+        )
 
-            assert mock_urlopen.call_count == 2
-            list_req = mock_urlopen.call_args_list[0][0][0]
-            assert "api/projects/proj-1/documents/ai" in list_req.full_url
+        # Assert
+        assert adapter._client.get.call_count == 2
+        first_url = adapter._client.get.call_args_list[0][0][0]
+        assert "api/projects/proj-1/documents/ai" in first_url
         assert content == b"PDF content"
         assert filename == "doc.pdf"
         assert mime_type == "application/pdf"
 
-    async def test_extracts_filename_from_url_when_no_content_disposition(self, adapter: BricksApiAdapter) -> None:
-        """Should extract filename from URL path when no Content-Disposition header."""
+    async def test_extracts_filename_from_url_when_no_content_disposition(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
         presigned_url = "https://s3.example.com/projects/proj-1/Dossier_Financement.pdf?X-Amz-Signature=abc"
-        doc_list_body = json.dumps({
-            "items": [{
-                "id": "doc-2",
-                "fileName": "Dossier_Financement.pdf",
-                "url": presigned_url,
-                "mimeType": "application/pdf",
-                "size": 200,
-                "status": "PROCESSED",
-            }]
-        }).encode()
-        list_resp = _mock_urlopen_response(doc_list_body)
-        file_resp = _mock_urlopen_response(b"data", headers={})
+        doc_list_body = json.dumps(
+            {
+                "items": [
+                    {
+                        "id": "doc-2",
+                        "fileName": "Dossier_Financement.pdf",
+                        "url": presigned_url,
+                        "mimeType": "application/pdf",
+                        "size": 200,
+                        "status": "PROCESSED",
+                    }
+                ]
+            }
+        ).encode()
+        list_resp = _mock_response(content=doc_list_body)
+        file_resp = _mock_response(content=b"data", url=presigned_url)
+        adapter._client.get.side_effect = [list_resp, file_resp]
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", side_effect=[list_resp, file_resp]):
-            _, filename, _ = await adapter.download_document(document_id="doc-2", project_id="proj-1")
+        # Act
+        _, filename, _ = await adapter.download_document(
+            document_id="doc-2", project_id="proj-1"
+        )
 
+        # Assert
         assert filename == "Dossier_Financement.pdf"
 
-    async def test_defaults_to_document_bin_when_no_filename(self, adapter: BricksApiAdapter) -> None:
-        """Should return 'document.bin' when no filename in URL or header."""
-        doc_list_body = json.dumps({
-            "items": [{
-                "id": "doc-3",
-                "fileName": "noext",
-                "url": "https://s3.example.com/projects/proj-1/noext?X-Amz-Signature=abc",
-                "mimeType": "application/octet-stream",
-                "size": 50,
-                "status": "PROCESSED",
-            }]
-        }).encode()
-        list_resp = _mock_urlopen_response(doc_list_body)
-        file_resp = _mock_urlopen_response(b"data", headers={})
+    async def test_defaults_to_document_bin_when_no_filename(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
+        doc_list_body = json.dumps(
+            {
+                "items": [
+                    {
+                        "id": "doc-3",
+                        "fileName": "noext",
+                        "url": "https://s3.example.com/projects/proj-1/noext?X-Amz-Signature=abc",
+                        "mimeType": "application/octet-stream",
+                        "size": 50,
+                        "status": "PROCESSED",
+                    }
+                ]
+            }
+        ).encode()
+        list_resp = _mock_response(content=doc_list_body)
+        file_resp = _mock_response(
+            content=b"data",
+            url="https://s3.example.com/projects/proj-1/noext?X-Amz-Signature=abc",
+        )
+        adapter._client.get.side_effect = [list_resp, file_resp]
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", side_effect=[list_resp, file_resp]):
-            _, filename, _ = await adapter.download_document(document_id="doc-3", project_id="proj-1")
+        # Act
+        _, filename, _ = await adapter.download_document(
+            document_id="doc-3", project_id="proj-1"
+        )
 
+        # Assert
         assert filename == "document.bin"
 
-    async def test_raises_when_document_id_not_found(self, adapter: BricksApiAdapter) -> None:
-        """Should raise FileNotFoundError when document_id not found in project."""
+    async def test_raises_when_document_id_not_found(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
         doc_list_body = json.dumps({"items": []}).encode()
-        list_resp = _mock_urlopen_response(doc_list_body)
+        list_resp = _mock_response(content=doc_list_body)
+        adapter._client.get.return_value = list_resp
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=list_resp):
-            with pytest.raises(BricksNotFoundError, match="Document missing-id not found"):
-                await adapter.download_document(document_id="missing-id", project_id="proj-1")
+        # Act / Assert
+        with pytest.raises(BricksNotFoundError, match="Document missing-id not found"):
+            await adapter.download_document(
+                document_id="missing-id", project_id="proj-1"
+            )
 
-    async def test_raises_permission_error_on_403(self, adapter: BricksApiAdapter) -> None:
-        """Should raise PermissionError on 403 Forbidden when downloading."""
+    async def test_raises_permission_error_on_403(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
         presigned_url = "https://s3.example.com/doc.pdf?X-Amz-Signature=abc"
-        doc_list_body = json.dumps({"items": [{"id": "doc-1", "fileName": "doc.pdf", "url": presigned_url, "mimeType": "application/pdf", "size": 100, "status": "PROCESSED"}]}).encode()
-        list_resp = _mock_urlopen_response(doc_list_body)
+        doc_list_body = json.dumps(
+            {
+                "items": [
+                    {
+                        "id": "doc-1",
+                        "fileName": "doc.pdf",
+                        "url": presigned_url,
+                        "mimeType": "application/pdf",
+                        "size": 100,
+                        "status": "PROCESSED",
+                    }
+                ]
+            }
+        ).encode()
+        list_resp = _mock_response(content=doc_list_body)
+        forbidden_resp = _mock_response(
+            status=403, content=b"Forbidden", url=presigned_url
+        )
+        forbidden_resp.raise_for_status = MagicMock(
+            side_effect=_http_status_error(forbidden_resp)
+        )
+        adapter._client.get.side_effect = [list_resp, forbidden_resp]
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = [list_resp, urllib.error.HTTPError(
-                url="https://s3.example.com/doc.pdf",
-                code=403,
-                msg="Forbidden",
-                hdrs={},
-                fp=None,
-            )]
-
-            with pytest.raises(BricksPermissionError):
-                await adapter.download_document(document_id="doc-1", project_id="proj-1")
+        # Act / Assert
+        with pytest.raises(BricksPermissionError):
+            await adapter.download_document(document_id="doc-1", project_id="proj-1")
 
     async def test_raises_connection_error(self, adapter: BricksApiAdapter) -> None:
-        """Should raise ConnectionError on URLError."""
+        # Arrange
         presigned_url = "https://s3.example.com/doc.pdf?X-Amz-Signature=abc"
-        doc_list_body = json.dumps({"items": [{"id": "doc-1", "fileName": "doc.pdf", "url": presigned_url, "mimeType": "application/pdf", "size": 100, "status": "PROCESSED"}]}).encode()
-        list_resp = _mock_urlopen_response(doc_list_body)
+        doc_list_body = json.dumps(
+            {
+                "items": [
+                    {
+                        "id": "doc-1",
+                        "fileName": "doc.pdf",
+                        "url": presigned_url,
+                        "mimeType": "application/pdf",
+                        "size": 100,
+                        "status": "PROCESSED",
+                    }
+                ]
+            }
+        ).encode()
+        list_resp = _mock_response(content=doc_list_body)
+        adapter._client.get.side_effect = [
+            list_resp,
+            httpx.ConnectError("Connection refused"),
+        ]
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = [list_resp, urllib.error.URLError(reason="Connection refused")]
-
-            with pytest.raises(BricksConnectionError):
-                await adapter.download_document(document_id="doc-1", project_id="proj-1")
+        # Act / Assert
+        with pytest.raises(BricksConnectionError):
+            await adapter.download_document(document_id="doc-1", project_id="proj-1")
 
     async def test_raises_timeout(self, adapter: BricksApiAdapter) -> None:
-        """Should raise TimeoutError on download timeout."""
+        # Arrange
         presigned_url = "https://s3.example.com/doc.pdf?X-Amz-Signature=abc"
-        doc_list_body = json.dumps({"items": [{"id": "doc-1", "fileName": "doc.pdf", "url": presigned_url, "mimeType": "application/pdf", "size": 100, "status": "PROCESSED"}]}).encode()
-        list_resp = _mock_urlopen_response(doc_list_body)
+        doc_list_body = json.dumps(
+            {
+                "items": [
+                    {
+                        "id": "doc-1",
+                        "fileName": "doc.pdf",
+                        "url": presigned_url,
+                        "mimeType": "application/pdf",
+                        "size": 100,
+                        "status": "PROCESSED",
+                    }
+                ]
+            }
+        ).encode()
+        list_resp = _mock_response(content=doc_list_body)
+        adapter._client.get.side_effect = [
+            list_resp,
+            httpx.TimeoutException("Download timed out"),
+        ]
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = [list_resp, TimeoutError("Download timed out")]
-
-            with pytest.raises(BricksTimeoutError):
-                await adapter.download_document(document_id="doc-1", project_id="proj-1")
+        # Act / Assert
+        with pytest.raises(BricksTimeoutError):
+            await adapter.download_document(document_id="doc-1", project_id="proj-1")
 
 
 class TestExtractFilename:
@@ -370,16 +495,28 @@ class TestExtractFilename:
         assert _extract_filename("attachment; filename=report.pdf") == "report.pdf"
 
     def test_extracts_from_url_path(self) -> None:
-        assert _extract_filename("", "https://s3.example.com/path/to/report.pdf?X-Amz-Sig=abc") == "report.pdf"
+        assert (
+            _extract_filename(
+                "", "https://s3.example.com/path/to/report.pdf?X-Amz-Sig=abc"
+            )
+            == "report.pdf"
+        )
 
     def test_extracts_decoded_filename_from_url(self) -> None:
-        assert _extract_filename("", "https://s3.example.com/Dossier_de_Financement.pdf?X-Amz-Sig=abc") == "Dossier_de_Financement.pdf"
+        assert (
+            _extract_filename(
+                "", "https://s3.example.com/Dossier_de_Financement.pdf?X-Amz-Sig=abc"
+            )
+            == "Dossier_de_Financement.pdf"
+        )
 
     def test_defaults_to_document_bin(self) -> None:
         assert _extract_filename("", "") == "document.bin"
 
     def test_url_without_extension_falls_back(self) -> None:
-        assert _extract_filename("", "https://s3.example.com/path/noext") == "document.bin"
+        assert (
+            _extract_filename("", "https://s3.example.com/path/noext") == "document.bin"
+        )
 
 
 class TestNormalizeExtension:
@@ -407,12 +544,17 @@ class TestNormalizeExtension:
 class TestPublishSectionVersion:
     """Tests for BricksApiAdapter.publish_section_version."""
 
-    async def test_calls_post_with_x_api_key_header(self, adapter: BricksApiAdapter) -> None:
-        """Should call POST /api/section-versions with X-API-Key header."""
+    async def test_calls_post_with_x_api_key_header(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
         api_response = {"id": "sv-1", "sectionKey": "intro"}
         body = json.dumps(api_response).encode()
-        mock_resp = _mock_urlopen_response(body)
-
+        adapter._client.post.return_value = _mock_response(
+            content=body,
+            url="https://api.bricks.example.com/api/section-versions",
+            method="POST",
+        )
         payload = {
             "project_unique_id": "proj-123",
             "section_key": "intro",
@@ -422,55 +564,76 @@ class TestPublishSectionVersion:
             "workflow_metadata": {},
         }
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
-            await adapter.publish_section_version(payload=payload)
+        # Act
+        await adapter.publish_section_version(payload=payload)
 
-            mock_urlopen.assert_called_once()
-            req = mock_urlopen.call_args[0][0]
-            assert req.get_header("X-api-key") == "test-api-key-12345" or req.get_header("X-API-Key") == "test-api-key-12345"
-            assert req.method == "POST"
-            assert "api/section-versions" in req.full_url
+        # Assert
+        adapter._client.post.assert_called_once()
+        url = adapter._client.post.call_args[0][0]
+        headers = adapter._client.post.call_args.kwargs["headers"]
+        assert headers["X-API-Key"] == "test-api-key-12345"
+        assert "api/section-versions" in url
 
-    async def test_returns_section_version_result(self, adapter: BricksApiAdapter) -> None:
-        """Should return SectionVersionResult on successful publish."""
+    async def test_returns_section_version_result(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
         api_response = {"id": "sv-uuid", "sectionKey": "summary"}
         body = json.dumps(api_response).encode()
-        mock_resp = _mock_urlopen_response(body)
+        adapter._client.post.return_value = _mock_response(content=body, method="POST")
 
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen", return_value=mock_resp):
-            result = await adapter.publish_section_version(
-                payload={"section_key": "summary", "content": "Summary text"}
-            )
+        # Act
+        result = await adapter.publish_section_version(
+            payload={"section_key": "summary", "content": "Summary text"}
+        )
 
+        # Assert
         assert isinstance(result, SectionVersionResult)
         assert result.success is True
 
     async def test_raises_on_401_unauthorized(self, adapter: BricksApiAdapter) -> None:
-        """Should raise PermissionError on 401 when publishing."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                url="https://api.bricks.example.com/api/section-versions",
-                code=401,
-                msg="Unauthorized",
-                hdrs={},
-                fp=None,
-            )
+        # Arrange
+        resp = _mock_response(
+            status=401,
+            content=b"Unauthorized",
+            url="https://api.bricks.example.com/api/section-versions",
+            method="POST",
+        )
+        resp.raise_for_status = MagicMock(side_effect=_http_status_error(resp))
+        adapter._client.post.return_value = resp
 
-            with pytest.raises(BricksPermissionError):
-                await adapter.publish_section_version(payload={"section_key": "intro"})
+        # Act / Assert
+        with pytest.raises(BricksPermissionError):
+            await adapter.publish_section_version(payload={"section_key": "intro"})
 
     async def test_raises_on_connection_error(self, adapter: BricksApiAdapter) -> None:
-        """Should raise ConnectionError on URLError when publishing."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = urllib.error.URLError(reason="Connection refused")
+        # Arrange
+        adapter._client.post.side_effect = httpx.ConnectError("Connection refused")
 
-            with pytest.raises(BricksConnectionError):
-                await adapter.publish_section_version(payload={"section_key": "intro"})
+        # Act / Assert
+        with pytest.raises(BricksConnectionError):
+            await adapter.publish_section_version(payload={"section_key": "intro"})
 
     async def test_raises_on_timeout(self, adapter: BricksApiAdapter) -> None:
-        """Should raise TimeoutError on publish timeout."""
-        with patch("infrastructure.bricks.bricks_api_adapter.urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.side_effect = TimeoutError("Publish timed out")
+        # Arrange
+        adapter._client.post.side_effect = httpx.TimeoutException("Publish timed out")
 
-            with pytest.raises(BricksTimeoutError):
-                await adapter.publish_section_version(payload={"section_key": "intro"})
+        # Act / Assert
+        with pytest.raises(BricksTimeoutError):
+            await adapter.publish_section_version(payload={"section_key": "intro"})
+
+
+class TestClose:
+    """Tests for BricksApiAdapter.close (httpx.AsyncClient.aclose)."""
+
+    async def test_close_calls_aclose_on_client(
+        self, adapter: BricksApiAdapter
+    ) -> None:
+        # Arrange
+        adapter._client.aclose = AsyncMock()
+
+        # Act
+        await adapter.close()
+
+        # Assert
+        adapter._client.aclose.assert_awaited_once()

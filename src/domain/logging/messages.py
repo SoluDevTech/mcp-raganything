@@ -38,7 +38,9 @@ class LogMessage(StrEnum):
     # --- Document reader (Kreuzberg) ---
     KREUZBERG_EXTRACTION_FAILED_FOR = "Kreuzberg extraction failed for %s: %s"
     KREUZBERG_EXTRACTION_DURATION = "Kreuzberg extraction done: file=%s elapsed_ms=%.2f"
-    KREUZBERG_SERIALIZATION_DURATION = "Kreuzberg serialization done: file=%s elapsed_ms=%.2f"
+    KREUZBERG_SERIALIZATION_DURATION = (
+        "Kreuzberg serialization done: file=%s elapsed_ms=%.2f"
+    )
 
     # --- Indexing use cases ---
     INDEXATION_FINISHED = "Indexation finished: %s"
@@ -71,20 +73,14 @@ class LogMessage(StrEnum):
         "Run: CREATE EXTENSION pg_textsearch;"
     )
     PG_TEXTSEARCH_CHECK_FAILED = "Could not check pg_textsearch extension: %s"
-    PG_TEXTSEARCH_INDEX_EXISTS = (
-        "BM25 index '%s' already exists for text_config='%s'"
-    )
-    PG_TEXTSEARCH_INDEX_CREATED = (
-        "Created BM25 index '%s' with text_config='%s'"
-    )
+    PG_TEXTSEARCH_INDEX_EXISTS = "BM25 index '%s' already exists for text_config='%s'"
+    PG_TEXTSEARCH_INDEX_CREATED = "Created BM25 index '%s' with text_config='%s'"
     PG_TEXTSEARCH_ENSURE_INDEX_FAILED = "Failed to ensure BM25 index: %s"
     PG_TEXTSEARCH_UPDATING_TRIGGER = (
         "Updating trigger function from old text_config to '%s'"
     )
     PG_TEXTSEARCH_REBUILT_TSV = "Rebuilt content_tsv: %s with text_config='%s'"
-    PG_TEXTSEARCH_TRIGGER_CHECK_FAILED = (
-        "Could not check/rebuild trigger function: %s"
-    )
+    PG_TEXTSEARCH_TRIGGER_CHECK_FAILED = "Could not check/rebuild trigger function: %s"
     PG_TEXTSEARCH_SEARCH_FAILED = "BM25 search failed: %s"
     PG_TEXTSEARCH_INDEX_CREATION_FAILED = "BM25 index creation failed: %s"
     PG_TEXTSEARCH_INDEX_DROP_FAILED = "BM25 index drop failed: %s"
@@ -96,9 +92,7 @@ class LogMessage(StrEnum):
         "Run: CREATE EXTENSION pg_textsearch;"
     )
     CLASSICAL_BM25_TABLE_MISSING = "Table %s does not exist yet, skipping BM25 index"
-    CLASSICAL_BM25_INDEX_CREATED = (
-        "Created BM25 index '%s' on %s with text_config='%s'"
-    )
+    CLASSICAL_BM25_INDEX_CREATED = "Created BM25 index '%s' on %s with text_config='%s'"
     CLASSICAL_BM25_ENSURE_INDEX_FAILED = "Failed to ensure BM25 index on %s: %s"
     CLASSICAL_BM25_SEARCH_FAILED = "BM25 search failed on %s: %s"
     CLASSICAL_BM25_INDEX_DROP_FAILED = "BM25 index drop failed on %s: %s"

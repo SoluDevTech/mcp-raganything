@@ -20,8 +20,8 @@ from domain.ports.bm25_engine import BM25EnginePort, BM25SearchResult
 
 logger = logging.getLogger(__name__)
 
-_SQL_IDENTIFIER_RE = re_module.compile(r"^[a-zA-Z0-9_]+$")
-_TEXT_CONFIG_RE = re_module.compile(r"^[a-zA-Z0-9_]+$")
+_SQL_IDENTIFIER_RE = re_module.compile(r"^\w+$")
+_TEXT_CONFIG_RE = re_module.compile(r"^\w+$")
 
 
 class ClassicalBM25Adapter(BM25EnginePort):
@@ -91,9 +91,7 @@ class ClassicalBM25Adapter(BM25EnginePort):
                     table_name,
                 )
                 if not exists:
-                    logger.debug(
-                        LogMessage.CLASSICAL_BM25_TABLE_MISSING, table_name
-                    )
+                    logger.debug(LogMessage.CLASSICAL_BM25_TABLE_MISSING, table_name)
                     return
 
                 existing = await conn.fetchval(
@@ -187,7 +185,9 @@ class ClassicalBM25Adapter(BM25EnginePort):
         working_dir: str,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        pass
+        # Indexing is handled by langchain-postgres during document ingestion;
+        # BM25 search relies on the same table populated by that pipeline.
+        return
 
     async def create_index(self, working_dir: str) -> None:
         table_name = self._get_table_name(working_dir)

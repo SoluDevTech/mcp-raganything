@@ -39,9 +39,7 @@ class MinioAdapter(StoragePort):
                 response.release_conn()
         except S3Error as e:
             if e.code in ("NoSuchKey", "NoSuchBucket"):
-                logger.info(
-                    LogMessage.MINIO_OBJECT_NOT_FOUND, bucket, object_path
-                )
+                logger.info(LogMessage.MINIO_OBJECT_NOT_FOUND, bucket, object_path)
                 raise StorageNotFoundError(
                     ErrorMessage.OBJECT_NOT_FOUND.format(
                         bucket=bucket, path=object_path

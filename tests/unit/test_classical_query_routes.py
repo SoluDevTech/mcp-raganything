@@ -40,12 +40,14 @@ class TestClassicalQueryRoute:
         mock_classical_query_use_case: AsyncMock,
     ) -> None:
         """POST with working_dir and query should return 200."""
+        # Arrange
         from dependencies import get_classical_query_use_case
 
         app.dependency_overrides[get_classical_query_use_case] = lambda: (
             mock_classical_query_use_case
         )
 
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -57,6 +59,7 @@ class TestClassicalQueryRoute:
                 },
             )
 
+        # Assert
         assert response.status_code == 200
 
     async def test_query_calls_use_case_with_correct_params(
@@ -64,12 +67,14 @@ class TestClassicalQueryRoute:
         mock_classical_query_use_case: AsyncMock,
     ) -> None:
         """Should forward working_dir, query, and params to the use case."""
+        # Arrange
         from dependencies import get_classical_query_use_case
 
         app.dependency_overrides[get_classical_query_use_case] = lambda: (
             mock_classical_query_use_case
         )
 
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -84,6 +89,7 @@ class TestClassicalQueryRoute:
                 },
             )
 
+        # Assert
         mock_classical_query_use_case.execute.assert_called_once_with(
             working_dir="/tmp/rag/project_42",
             query="What are the findings?",
@@ -100,12 +106,14 @@ class TestClassicalQueryRoute:
         mock_classical_query_use_case: AsyncMock,
     ) -> None:
         """Should use defaults for top_k, num_variations, relevance_threshold."""
+        # Arrange
         from dependencies import get_classical_query_use_case
 
         app.dependency_overrides[get_classical_query_use_case] = lambda: (
             mock_classical_query_use_case
         )
 
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -117,6 +125,7 @@ class TestClassicalQueryRoute:
                 },
             )
 
+        # Assert
         mock_classical_query_use_case.execute.assert_called_once_with(
             working_dir="/tmp/rag/test",
             query="test query",
@@ -133,12 +142,14 @@ class TestClassicalQueryRoute:
         mock_classical_query_use_case: AsyncMock,
     ) -> None:
         """Should return the chunks list from ClassicalQueryResponse."""
+        # Arrange
         from dependencies import get_classical_query_use_case
 
         app.dependency_overrides[get_classical_query_use_case] = lambda: (
             mock_classical_query_use_case
         )
 
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -150,11 +161,13 @@ class TestClassicalQueryRoute:
                 },
             )
 
+        # Assert
         body = response.json()
         assert isinstance(body, dict)
 
     async def test_query_rejects_missing_query(self) -> None:
         """Missing query field should return 422."""
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -163,10 +176,12 @@ class TestClassicalQueryRoute:
                 json={"working_dir": "/tmp/rag/test"},
             )
 
+        # Assert
         assert response.status_code == 422
 
     async def test_query_rejects_missing_working_dir(self) -> None:
         """Missing working_dir field should return 422."""
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -175,4 +190,5 @@ class TestClassicalQueryRoute:
                 json={"query": "some question"},
             )
 
+        # Assert
         assert response.status_code == 422

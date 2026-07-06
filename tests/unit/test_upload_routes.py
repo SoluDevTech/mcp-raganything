@@ -42,6 +42,7 @@ class TestUploadFileRoute:
         self, mock_upload_use_case: AsyncMock
     ) -> None:
         """Should return 201 with object_name and size on successful upload."""
+        # Arrange
         app.dependency_overrides[get_upload_file_use_case] = lambda: (
             mock_upload_use_case
         )
@@ -49,12 +50,15 @@ class TestUploadFileRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.post(
+                # Arrange
                 "/api/v1/files/upload",
                 files={"file": ("report.pdf", b"fake pdf content", "application/pdf")},
                 data={"prefix": "documents/"},
             )
 
+        # Assert
         assert response.status_code == 201
         body = response.json()
         assert body["object_name"] == "documents/report.pdf"
@@ -64,6 +68,7 @@ class TestUploadFileRoute:
         self, mock_upload_use_case: AsyncMock
     ) -> None:
         """Should include a success message in the response."""
+        # Arrange
         app.dependency_overrides[get_upload_file_use_case] = lambda: (
             mock_upload_use_case
         )
@@ -71,12 +76,15 @@ class TestUploadFileRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.post(
+                # Arrange
                 "/api/v1/files/upload",
                 files={"file": ("report.pdf", b"data", "application/pdf")},
                 data={"prefix": "documents/"},
             )
 
+        # Assert
         body = response.json()
         assert "message" in body
 
@@ -84,6 +92,7 @@ class TestUploadFileRoute:
         self, mock_upload_use_case: AsyncMock
     ) -> None:
         """Should default to empty prefix when prefix is not provided."""
+        # Arrange
         app.dependency_overrides[get_upload_file_use_case] = lambda: (
             mock_upload_use_case
         )
@@ -91,13 +100,17 @@ class TestUploadFileRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.post(
+                # Arrange
                 "/api/v1/files/upload",
                 files={"file": ("photo.jpg", b"image data", "image/jpeg")},
             )
 
+        # Assert
         assert response.status_code == 201
         mock_upload_use_case.execute.assert_called_once_with(
+            # Arrange
             file_data=b"image data",
             file_name="photo.jpg",
             prefix="",
@@ -108,6 +121,7 @@ class TestUploadFileRoute:
         self, mock_upload_use_case: AsyncMock
     ) -> None:
         """Should reject prefix containing '..' path traversal."""
+        # Arrange
         app.dependency_overrides[get_upload_file_use_case] = lambda: (
             mock_upload_use_case
         )
@@ -115,18 +129,22 @@ class TestUploadFileRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.post(
+                # Arrange
                 "/api/v1/files/upload",
                 files={"file": ("report.pdf", b"data", "application/pdf")},
                 data={"prefix": "../../etc/"},
             )
 
+        # Assert
         assert response.status_code == 422
 
     async def test_upload_with_absolute_path_in_prefix_returns_422(
         self, mock_upload_use_case: AsyncMock
     ) -> None:
         """Should reject prefix that is an absolute path."""
+        # Arrange
         app.dependency_overrides[get_upload_file_use_case] = lambda: (
             mock_upload_use_case
         )
@@ -134,18 +152,22 @@ class TestUploadFileRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.post(
+                # Arrange
                 "/api/v1/files/upload",
                 files={"file": ("report.pdf", b"data", "application/pdf")},
                 data={"prefix": "/etc/secrets/"},
             )
 
+        # Assert
         assert response.status_code == 422
 
     async def test_upload_missing_file_returns_422(
         self, mock_upload_use_case: AsyncMock
     ) -> None:
         """Should return 422 when no file is provided in the request."""
+        # Arrange
         app.dependency_overrides[get_upload_file_use_case] = lambda: (
             mock_upload_use_case
         )
@@ -153,9 +175,12 @@ class TestUploadFileRoute:
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
+            # Act
             response = await client.post(
+                # Arrange
                 "/api/v1/files/upload",
                 data={"prefix": "documents/"},
             )
 
+        # Assert
         assert response.status_code == 422

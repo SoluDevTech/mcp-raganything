@@ -19,9 +19,10 @@ from domain.errors.bricks import (
 from domain.errors.messages import ErrorMessage
 from domain.logging.messages import LogMessage
 
-mcp_bricks = FastMCP("RAGAnythingBricks")
+mcp_bricks = FastMCP("Bricks")
 
 logger = logging.getLogger(__name__)
+
 
 class DocumentSummary(BaseModel):
     id: str = Field(description="Document ID — pass this to read_bricks_document")
@@ -49,19 +50,13 @@ async def list_bricks_documents(project_unique_id: str) -> list[DocumentSummary]
         documents = await use_case.execute(project_id=project_unique_id)
         logger.info(LogMessage.MCP_DOCUMENTS_FOUND, documents)
     except BricksPermissionError as e:
-        logger.error(
-            LogMessage.MCP_LIST_DOCS_AUTH_FAILED, project_unique_id, e
-        )
+        logger.error(LogMessage.MCP_LIST_DOCS_AUTH_FAILED, project_unique_id, e)
         raise ToolError(str(e)) from e
     except (BricksConnectionError, BricksTimeoutError) as e:
-        logger.error(
-            LogMessage.MCP_LIST_DOCS_NETWORK_ERROR, project_unique_id, e
-        )
+        logger.error(LogMessage.MCP_LIST_DOCS_NETWORK_ERROR, project_unique_id, e)
         raise ToolError(str(e)) from e
     except Exception as e:
-        logger.exception(
-            LogMessage.MCP_LIST_DOCS_FAILED, project_unique_id, e
-        )
+        logger.exception(LogMessage.MCP_LIST_DOCS_FAILED, project_unique_id, e)
         raise ToolError(
             ErrorMessage.MCP_LIST_DOCS_FAILED_GENERIC.format(error=e)
         ) from e
@@ -113,9 +108,7 @@ async def read_bricks_document(
         logger.exception(
             LogMessage.MCP_READ_DOC_FAILED, document_id, project_unique_id, e
         )
-        raise ToolError(
-            ErrorMessage.MCP_READ_DOC_FAILED_GENERIC.format(error=e)
-        ) from e
+        raise ToolError(ErrorMessage.MCP_READ_DOC_FAILED_GENERIC.format(error=e)) from e
     return FileContentResponse(
         content=result.content,
         metadata=result.metadata,
@@ -160,14 +153,8 @@ async def publish_section_version(
         logger.exception(LogMessage.MCP_PUBLISH_AUTH_FAILED, project_unique_id, e)
         raise ToolError(str(e)) from e
     except (BricksConnectionError, BricksTimeoutError) as e:
-        logger.exception(
-            LogMessage.MCP_PUBLISH_NETWORK_ERROR, project_unique_id, e
-        )
+        logger.exception(LogMessage.MCP_PUBLISH_NETWORK_ERROR, project_unique_id, e)
         raise ToolError(str(e)) from e
     except Exception as e:
-        logger.exception(
-            LogMessage.MCP_PUBLISH_FAILED, project_unique_id, e
-        )
-        raise ToolError(
-            ErrorMessage.MCP_PUBLISH_FAILED_GENERIC.format(error=e)
-        ) from e
+        logger.exception(LogMessage.MCP_PUBLISH_FAILED, project_unique_id, e)
+        raise ToolError(ErrorMessage.MCP_PUBLISH_FAILED_GENERIC.format(error=e)) from e
