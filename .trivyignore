@@ -84,3 +84,10 @@ GHSA-jm82-fx9c-mx94
 # transformers 4.57.6: arbitrary code execution via malicious checkpoint.
 # Transitive via raganything/mineru. Removed in Ticket 2.
 CVE-2026-4372
+
+# libglib2.0-0: integer underflow in g_dbus_node_info_new_for_xml (gio).
+# No fixed version available in Debian bookworm (status: affected).
+# Transitive via tesseract-ocr (installed for OCR). The service does not
+# parse D-Bus introspection XML from untrusted input.
+# Review: 2026-07-08
+CVE-2026-58016
