@@ -1,11 +1,10 @@
-import asyncio
 import json
 import logging
 import os
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
+
+import httpx
 
 from domain.errors.bricks import (
     BricksApiError,
@@ -26,54 +25,85 @@ logger = logging.getLogger(__name__)
 
 
 class BricksApiAdapter(BricksApiPort):
+    _client: httpx.AsyncClient
+
     def __init__(self, config) -> None:
         self._base_url = config.BRICKS_API_BASE_URL.rstrip("/")
         self._api_key = config.BRICKS_API_KEY
         self._bearer_token = config.BRICKS_BEARER_TOKEN
         self._http_timeout = config.BRICKS_HTTP_TIMEOUT
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(self._http_timeout),
+        )
 
     async def close(self) -> None:
-        pass
+        await self._client.aclose()
 
-    def _get(self, url: str, headers: dict | None = None) -> tuple[bytes, dict]:
+    def _raise_for_status_error(
+        self,
+        error: httpx.HTTPStatusError,
+        auth_msg: str,
+        not_found_msg: str | None,
+        api_error_msg: str,
+    ) -> None:
+        code = error.response.status_code
+        if code in (401, 403):
+            raise BricksPermissionError(auth_msg.format(code=code)) from error
+        if code == 404 and not_found_msg is not None:
+            raise BricksNotFoundError(not_found_msg) from error
+        raise BricksApiError(api_error_msg.format(code=code)) from error
+
+    def _raise_for_connection_error(self, error: httpx.ConnectError, msg: str) -> None:
+        raise BricksConnectionError(msg.format(reason=str(error))) from error
+
+    def _raise_for_timeout(self, error: httpx.TimeoutException, msg: str) -> None:
+        raise BricksTimeoutError(msg.format(error=error)) from error
+
+    async def _get(self, url: str, headers: dict | None = None) -> httpx.Response:
         logger.debug(LogMessage.BRICKS_GET, url)
-        req = urllib.request.Request(url, headers=headers or {})
         try:
-            with urllib.request.urlopen(req, timeout=self._http_timeout) as resp:
-                body = resp.read()
-                resp_headers = dict(resp.headers)
-                logger.debug(
-                    LogMessage.BRICKS_GET_BYTES, url, len(body), resp.status
-                )
-                return body, resp_headers
-        except urllib.error.HTTPError as e:
-            error_body = (
-                e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            response = await self._client.get(url, headers=headers or {})
+            response.raise_for_status()
+            logger.debug(
+                LogMessage.BRICKS_GET_BYTES,
+                url,
+                len(response.content),
+                response.status_code,
             )
-            logger.error(LogMessage.BRICKS_GET_HTTP_ERROR, url, e.code, error_body[:500])
+            return response
+        except httpx.HTTPStatusError:
+            logger.error(
+                LogMessage.BRICKS_GET_HTTP_ERROR,
+                url,
+                response.status_code,
+                response.text[:500],
+            )
             raise
-        except Exception as e:
+        except httpx.RequestError as e:
             logger.error(LogMessage.BRICKS_GET_ERROR, url, e)
             raise
 
-    def _post(self, url: str, payload: dict, headers: dict) -> bytes:
-        data = json.dumps(payload).encode("utf-8")
-        logger.debug(LogMessage.BRICKS_POST, url, len(data))
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    async def _post(self, url: str, payload: dict, headers: dict) -> httpx.Response:
+        logger.debug(LogMessage.BRICKS_POST, url)
         try:
-            with urllib.request.urlopen(req, timeout=self._http_timeout) as resp:
-                body = resp.read()
-                logger.debug(
-                    LogMessage.BRICKS_POST_BYTES, url, len(body), resp.status
-                )
-                return body
-        except urllib.error.HTTPError as e:
-            error_body = (
-                e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            response = await self._client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.debug(
+                LogMessage.BRICKS_POST_BYTES,
+                url,
+                len(response.content),
+                response.status_code,
             )
-            logger.error(LogMessage.BRICKS_POST_HTTP_ERROR, url, e.code, error_body[:500])
+            return response
+        except httpx.HTTPStatusError:
+            logger.error(
+                LogMessage.BRICKS_POST_HTTP_ERROR,
+                url,
+                response.status_code,
+                response.text[:500],
+            )
             raise
-        except Exception as e:
+        except httpx.RequestError as e:
             logger.error(LogMessage.BRICKS_POST_ERROR, url, e)
             raise
 
@@ -81,50 +111,32 @@ class BricksApiAdapter(BricksApiPort):
         url = f"{self._base_url}/api/projects/{project_id}/documents/ai"
         logger.info(LogMessage.BRICKS_LISTING_DOCUMENTS, project_id)
         try:
-            body, _ = await asyncio.to_thread(
-                self._get, url, {"X-API-Key": f"{self._bearer_token}"}
+            response = await self._get(url, {"X-API-Key": f"{self._bearer_token}"})
+        except httpx.HTTPStatusError as e:
+            self._raise_for_status_error(
+                e,
+                auth_msg=ErrorMessage.BRICKS_AUTH_FAILED,
+                not_found_msg=ErrorMessage.BRICKS_PROJECT_NOT_FOUND.format(
+                    project_id=project_id
+                ),
+                api_error_msg=ErrorMessage.BRICKS_API_ERROR,
             )
-        except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                raise BricksPermissionError(
-                    ErrorMessage.BRICKS_AUTH_FAILED.format(code=e.code)
-                ) from e
-            if e.code == 404:
-                raise BricksNotFoundError(
-                    ErrorMessage.BRICKS_PROJECT_NOT_FOUND.format(project_id=project_id)
-                ) from e
-            raise BricksApiError(
-                ErrorMessage.BRICKS_API_ERROR.format(code=e.code)
-            ) from e
-        except urllib.error.URLError as e:
-            raise BricksConnectionError(
-                ErrorMessage.BRICKS_CONNECTION_FAILED.format(reason=e.reason)
-            ) from e
-        except TimeoutError as e:
-            raise BricksTimeoutError(
-                ErrorMessage.BRICKS_REQUEST_TIMED_OUT.format(error=e)
-            ) from e
-        items = json.loads(body).get("items", [])
+        except httpx.ConnectError as e:
+            self._raise_for_connection_error(e, ErrorMessage.BRICKS_CONNECTION_FAILED)
+        except httpx.TimeoutException as e:
+            self._raise_for_timeout(e, ErrorMessage.BRICKS_REQUEST_TIMED_OUT)
+        items = json.loads(response.content).get("items", [])
         logger.info(LogMessage.BRICKS_FOUND_DOCUMENTS, len(items), project_id)
-        documents = [BricksDocumentInfo(**item) for item in items]
-        return documents
+        return [BricksDocumentInfo(**item) for item in items]
 
     async def download_document(
         self,
         document_id: str,
         project_id: str,
     ) -> tuple[bytes, str, str]:
-        logger.info(
-            LogMessage.BRICKS_DOWNLOADING_DOCUMENT, document_id, project_id
-        )
+        logger.info(LogMessage.BRICKS_DOWNLOADING_DOCUMENT, document_id, project_id)
         documents = await self.list_project_documents(project_id)
-        url = None
-        mime_type = ""
-        for doc in documents:
-            if doc.id == document_id and doc.url:
-                url = doc.url
-                mime_type = doc.mime_type
-                break
+        url, mime_type = self._find_document_url(documents, document_id)
         if not url:
             raise BricksNotFoundError(
                 ErrorMessage.BRICKS_DOCUMENT_NOT_FOUND.format(
@@ -132,32 +144,25 @@ class BricksApiAdapter(BricksApiPort):
                 )
             )
         try:
-            body, resp_headers = await asyncio.to_thread(self._get, url)
-        except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                raise BricksPermissionError(
-                    ErrorMessage.DOCUMENT_DOWNLOAD_AUTH_FAILED.format(code=e.code)
-                ) from e
-            if e.code == 404:
-                raise BricksNotFoundError(
-                    ErrorMessage.DOCUMENT_NOT_FOUND.format(
-                        document_id=document_id, project_id=project_id
-                    )
-                ) from e
-            raise BricksApiError(
-                ErrorMessage.DOCUMENT_DOWNLOAD_FAILED.format(code=e.code)
-            ) from e
-        except urllib.error.URLError as e:
-            raise BricksConnectionError(
-                ErrorMessage.DOCUMENT_DOWNLOAD_CONNECTION_FAILED.format(
-                    reason=e.reason
-                )
-            ) from e
-        except TimeoutError as e:
-            raise BricksTimeoutError(
-                ErrorMessage.DOCUMENT_DOWNLOAD_TIMED_OUT.format(error=e)
-            ) from e
+            response = await self._get(url)
+        except httpx.HTTPStatusError as e:
+            self._raise_for_status_error(
+                e,
+                auth_msg=ErrorMessage.DOCUMENT_DOWNLOAD_AUTH_FAILED,
+                not_found_msg=ErrorMessage.DOCUMENT_NOT_FOUND.format(
+                    document_id=document_id, project_id=project_id
+                ),
+                api_error_msg=ErrorMessage.DOCUMENT_DOWNLOAD_FAILED,
+            )
+        except httpx.ConnectError as e:
+            self._raise_for_connection_error(
+                e, ErrorMessage.DOCUMENT_DOWNLOAD_CONNECTION_FAILED
+            )
+        except httpx.TimeoutException as e:
+            self._raise_for_timeout(e, ErrorMessage.DOCUMENT_DOWNLOAD_TIMED_OUT)
 
+        body = response.content
+        resp_headers = dict(response.headers)
         filename = _extract_filename(resp_headers.get("Content-Disposition", ""), url)
         logger.info(
             LogMessage.BRICKS_DOWNLOADED_DOCUMENT,
@@ -167,6 +172,15 @@ class BricksApiAdapter(BricksApiPort):
             filename,
         )
         return body, filename, mime_type
+
+    @staticmethod
+    def _find_document_url(
+        documents: list[BricksDocumentInfo], document_id: str
+    ) -> tuple[str | None, str]:
+        for doc in documents:
+            if doc.id == document_id and doc.url:
+                return doc.url, doc.mime_type
+        return None, ""
 
     async def publish_section_version(self, payload: dict) -> SectionVersionResult:
         url = f"{self._base_url}/api/section-versions"
@@ -181,27 +195,23 @@ class BricksApiAdapter(BricksApiPort):
             payload.get("workflowId"),
         )
         logger.info(
-            LogMessage.BRICKS_PUBLISH_PAYLOAD, json.dumps(payload, ensure_ascii=False, default=str)
+            LogMessage.BRICKS_PUBLISH_PAYLOAD,
+            json.dumps(payload, ensure_ascii=False, default=str),
         )
         try:
-            body = await asyncio.to_thread(self._post, url, payload, headers)
-        except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                raise BricksPermissionError(
-                    ErrorMessage.PUBLISH_AUTH_FAILED.format(code=e.code)
-                ) from e
-            raise BricksApiError(
-                ErrorMessage.PUBLISH_FAILED.format(code=e.code)
-            ) from e
-        except urllib.error.URLError as e:
-            raise BricksConnectionError(
-                ErrorMessage.PUBLISH_CONNECTION_FAILED.format(reason=e.reason)
-            ) from e
-        except TimeoutError as e:
-            raise BricksTimeoutError(
-                ErrorMessage.PUBLISH_TIMED_OUT.format(error=e)
-            ) from e
-        data = json.loads(body)
+            response = await self._post(url, payload, headers)
+        except httpx.HTTPStatusError as e:
+            self._raise_for_status_error(
+                e,
+                auth_msg=ErrorMessage.PUBLISH_AUTH_FAILED,
+                not_found_msg=None,
+                api_error_msg=ErrorMessage.PUBLISH_FAILED,
+            )
+        except httpx.ConnectError as e:
+            self._raise_for_connection_error(e, ErrorMessage.PUBLISH_CONNECTION_FAILED)
+        except httpx.TimeoutException as e:
+            self._raise_for_timeout(e, ErrorMessage.PUBLISH_TIMED_OUT)
+        data = json.loads(response.content)
         logger.info(LogMessage.BRICKS_PUBLISHED_VERSION, data)
         return SectionVersionResult(success=True, message="Published", data=data)
 
@@ -221,9 +231,7 @@ def _extract_filename(content_disposition: str, url: str = "") -> str:
         decoded_path = urllib.parse.unquote(urllib.parse.urlparse(url).path)
         path_filename = decoded_path.rsplit("/", 1)[-1]
         if path_filename and "." in path_filename:
-            logger.debug(
-                LogMessage.BRICKS_FILENAME_FROM_URL, path_filename, url[:200]
-            )
+            logger.debug(LogMessage.BRICKS_FILENAME_FROM_URL, path_filename, url[:200])
             return _normalize_extension(path_filename)
     logger.warning(
         LogMessage.BRICKS_FILENAME_FALLBACK,
@@ -239,7 +247,5 @@ def _normalize_extension(filename: str) -> str:
     cleaned = re.sub(r"^[^a-zA-Z]+", ".", ext.lower())
     if cleaned == ext.lower():
         return filename
-    logger.warning(
-        LogMessage.BRICKS_NORMALIZED_EXTENSION, ext, cleaned, filename
-    )
+    logger.warning(LogMessage.BRICKS_NORMALIZED_EXTENSION, ext, cleaned, filename)
     return name + cleaned

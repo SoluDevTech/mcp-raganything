@@ -10,7 +10,7 @@ from dependencies import (
     get_classical_query_use_case,
 )
 
-mcp_classical = FastMCP("RAGAnythingClassical")
+mcp_classical = FastMCP("ClassicalRAG")
 
 
 @mcp_classical.tool()

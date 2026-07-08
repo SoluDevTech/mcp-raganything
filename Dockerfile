@@ -1,4 +1,4 @@
-# Multi-stage build for RAG-Anything API
+# Multi-stage build for MCP service
 # Stage 1: Build dependencies with uv
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
@@ -8,15 +8,15 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies using uv (no pip cache, CPU-only PyTorch)
-RUN UV_TORCH_BACKEND=cpu uv sync --frozen --no-dev --no-cache
+# Install dependencies using uv
+RUN uv sync --frozen --no-dev --no-cache
 
 # Stage 2: Runtime image
 FROM python:3.13-slim-bookworm
 
 # Install only critical runtime system deps, then clean up apt metadata to keep image slim.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 tesseract-ocr tesseract-ocr-fra \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-fra \
     && apt-get upgrade -y libgnutls30 libssh2-1 \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 

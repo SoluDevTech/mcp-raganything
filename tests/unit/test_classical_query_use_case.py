@@ -54,11 +54,13 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Should call LLM.generate to produce query variations."""
+        # Act
         await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="What is machine learning?",
         )
 
+        # Assert
         mock_llm.generate.assert_called()
         # First call should be for multi-query generation
         first_call = mock_llm.generate.call_args_list[0]
@@ -73,12 +75,14 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Should generate num_variations query variations via LLM."""
+        # Act
         await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="What is machine learning?",
             num_variations=3,
         )
 
+        # Assert
         # LLM should be called at least once for multi-query generation
         assert mock_llm.generate.call_count >= 1
 
@@ -89,12 +93,14 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Should include the original query in the list of search queries."""
+        # Act
         await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="What is machine learning?",
             num_variations=3,
         )
 
+        # Assert
         # similarity_search should be called at least once with the original query
         # or with variation queries — verify it was called
         assert mock_vector_store.similarity_search.call_count >= 1
@@ -110,6 +116,7 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Should call similarity_search for the original query plus each variation."""
+        # Arrange
         mock_llm.generate.return_value = json.dumps(
             [
                 "What is ML?",
@@ -118,6 +125,7 @@ class TestClassicalQueryUseCase:
             ]
         )
 
+        # Act
         await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="What is machine learning?",
@@ -125,6 +133,7 @@ class TestClassicalQueryUseCase:
             top_k=10,
         )
 
+        # Assert
         # Should search for original + 3 variations = 4 calls
         assert mock_vector_store.similarity_search.call_count == 4
 
@@ -134,12 +143,14 @@ class TestClassicalQueryUseCase:
         mock_vector_store: AsyncMock,
     ) -> None:
         """Should forward working_dir and top_k to each similarity_search call."""
+        # Act
         await use_case.execute(
             working_dir="/tmp/rag/my_project",
             query="test query",
             top_k=5,
         )
 
+        # Assert
         for call_item in mock_vector_store.similarity_search.call_args_list:
             assert call_item[1]["working_dir"] == "/tmp/rag/my_project/"
             assert call_item[1]["top_k"] == 5
@@ -155,6 +166,7 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Should deduplicate search results by chunk_id across variations."""
+        # Arrange
         # Both variations return the same chunk
         mock_llm.generate.side_effect = [
             json.dumps(["variation 1", "variation 2"]),
@@ -169,12 +181,14 @@ class TestClassicalQueryUseCase:
         )
         mock_vector_store.similarity_search.return_value = [duplicate_result]
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             num_variations=2,
         )
 
+        # Assert
         # The duplicate should appear only once
         chunk_ids = [c.chunk_id for c in result.chunks]
         assert chunk_ids.count("chunk-same-id") <= 1
@@ -189,17 +203,20 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
         mock_vector_store: AsyncMock,
     ) -> None:
+        # Arrange
         mock_llm.generate.side_effect = [
             "7",
             "7",
         ]
 
+        # Act
         await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             num_variations=1,
         )
 
+        # Assert
         assert mock_llm.generate.call_count >= 1
 
     async def test_execute_filters_chunks_below_relevance_threshold(
@@ -208,6 +225,7 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
         mock_vector_store: AsyncMock,
     ) -> None:
+        # Arrange
         mock_llm.generate.side_effect = [
             "3",
         ]
@@ -220,6 +238,7 @@ class TestClassicalQueryUseCase:
             )
         ]
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
@@ -227,6 +246,7 @@ class TestClassicalQueryUseCase:
             relevance_threshold=5.0,
         )
 
+        # Assert
         for chunk in result.chunks:
             assert chunk.relevance_score >= 5.0
 
@@ -236,6 +256,7 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
         mock_vector_store: AsyncMock,
     ) -> None:
+        # Arrange
         mock_llm.generate.side_effect = [
             "8",
         ]
@@ -248,6 +269,7 @@ class TestClassicalQueryUseCase:
             )
         ]
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
@@ -255,6 +277,7 @@ class TestClassicalQueryUseCase:
             relevance_threshold=5.0,
         )
 
+        # Assert
         assert len(result.chunks) >= 1
         assert result.chunks[0].relevance_score >= 5.0
 
@@ -264,6 +287,7 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
         mock_vector_store: AsyncMock,
     ) -> None:
+        # Arrange
         mock_llm.generate.side_effect = [
             "4",
         ]
@@ -276,6 +300,7 @@ class TestClassicalQueryUseCase:
             )
         ]
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
@@ -283,6 +308,7 @@ class TestClassicalQueryUseCase:
             relevance_threshold=3.0,
         )
 
+        # Assert
         # Score of 4 should pass a threshold of 3.0
         assert len(result.chunks) >= 1
 
@@ -295,11 +321,13 @@ class TestClassicalQueryUseCase:
         use_case: ClassicalQueryUseCase,
     ) -> None:
         """Should return a ClassicalQueryResponse."""
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="What is ML?",
         )
 
+        # Assert
         assert isinstance(result, ClassicalQueryResponse)
 
     async def test_execute_response_includes_queries(
@@ -308,6 +336,7 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Response should include the original and generated query variations."""
+        # Arrange
         mock_llm.generate.return_value = json.dumps(
             [
                 "What is ML?",
@@ -315,12 +344,14 @@ class TestClassicalQueryUseCase:
             ]
         )
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="What is machine learning?",
             num_variations=2,
         )
 
+        # Assert
         # queries list should include the original query
         assert "What is machine learning?" in result.queries
 
@@ -331,6 +362,7 @@ class TestClassicalQueryUseCase:
         mock_vector_store: AsyncMock,
     ) -> None:
         """Each chunk in the response should have chunk_id, content, file_path, relevance_score."""
+        # Arrange
         mock_llm.generate.side_effect = [
             "9",
         ]
@@ -343,12 +375,14 @@ class TestClassicalQueryUseCase:
             )
         ]
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             num_variations=1,
         )
 
+        # Assert
         if result.chunks:
             chunk = result.chunks[0]
             assert isinstance(chunk, ClassicalChunkResponse)
@@ -362,11 +396,13 @@ class TestClassicalQueryUseCase:
         use_case: ClassicalQueryUseCase,
     ) -> None:
         """Response status should be 'success'."""
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
         )
 
+        # Assert
         assert result.status == "success"
 
     # ------------------------------------------------------------------
@@ -379,14 +415,17 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Should handle LLM returning non-JSON for query variations gracefully."""
+        # Arrange
         mock_llm.generate.return_value = "This is not valid JSON"
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             num_variations=3,
         )
 
+        # Assert
         # Should still return a valid response (possibly only with original query)
         assert isinstance(result, ClassicalQueryResponse)
 
@@ -397,15 +436,18 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Should handle when similarity_search returns no results."""
+        # Arrange
         mock_vector_store.similarity_search.return_value = []
         mock_llm.generate.return_value = json.dumps(["var1", "var2"])
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="obscure topic",
             num_variations=2,
         )
 
+        # Assert
         assert isinstance(result, ClassicalQueryResponse)
         assert result.chunks == []
 
@@ -416,6 +458,7 @@ class TestClassicalQueryUseCase:
         mock_vector_store: AsyncMock,
     ) -> None:
         """Should handle when LLM judge returns an unparseable score."""
+        # Arrange
         mock_llm.generate.side_effect = [
             "not a number",
         ]
@@ -428,12 +471,14 @@ class TestClassicalQueryUseCase:
             )
         ]
 
+        # Act
         result = await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             num_variations=1,
         )
 
+        # Assert
         assert isinstance(result, ClassicalQueryResponse)
 
     # ------------------------------------------------------------------
@@ -446,6 +491,7 @@ class TestClassicalQueryUseCase:
         mock_llm: AsyncMock,
     ) -> None:
         """Should use config defaults for num_variations and relevance_threshold."""
+        # Arrange
         config = ClassicalRAGConfig(
             CLASSICAL_NUM_QUERY_VARIATIONS=5,
             CLASSICAL_RELEVANCE_THRESHOLD=7.0,
@@ -458,11 +504,13 @@ class TestClassicalQueryUseCase:
 
         mock_llm.generate.return_value = json.dumps(["v1", "v2", "v3", "v4", "v5"])
 
+        # Act
         await use_case.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
         )
 
+        # Assert
         # Should have generated 5 variations + original = 6 searches
         assert mock_vector_store.similarity_search.call_count == 6
 
@@ -533,11 +581,14 @@ class TestClassicalQueryUseCaseHybrid:
         mock_bm25_engine: AsyncMock,
     ) -> None:
         """Hybrid mode should call bm25_engine.search()."""
+        # Act
         await use_case_hybrid.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             mode="hybrid",
         )
+
+        # Assert
         mock_bm25_engine.search.assert_called_once()
 
     async def test_hybrid_mode_calls_vector_search(
@@ -547,12 +598,17 @@ class TestClassicalQueryUseCaseHybrid:
         mock_llm: AsyncMock,
     ) -> None:
         """Hybrid mode should also call vector similarity_search."""
+        # Arrange
         mock_llm.generate.return_value = json.dumps(["var1", "var2"])
+
+        # Act
         await use_case_hybrid.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             mode="hybrid",
         )
+
+        # Assert
         assert mock_vector_store.similarity_search.call_count >= 1
 
     async def test_hybrid_mode_combines_bm25_and_vector_results(
@@ -562,6 +618,7 @@ class TestClassicalQueryUseCaseHybrid:
         mock_vector_store: AsyncMock,
     ) -> None:
         """Hybrid mode should return combined results from both sources."""
+        # Arrange
         mock_llm.generate.return_value = json.dumps(["var1"])
         mock_vector_store.similarity_search.return_value = [
             SearchResult(
@@ -571,12 +628,16 @@ class TestClassicalQueryUseCaseHybrid:
                 score=0.1,
             )
         ]
+
+        # Act
         result = await use_case_hybrid.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             mode="hybrid",
             enable_llm_judge=False,
         )
+
+        # Assert
         assert isinstance(result, ClassicalQueryResponse)
         chunk_ids = [c.chunk_id for c in result.chunks]
         assert "bm25-chunk-1" in chunk_ids
@@ -589,6 +650,7 @@ class TestClassicalQueryUseCaseHybrid:
         mock_vector_store: AsyncMock,
     ) -> None:
         """Hybrid mode response should include bm25_score, vector_score, combined_score."""
+        # Arrange
         mock_llm.generate.return_value = json.dumps(["var1"])
         mock_vector_store.similarity_search.return_value = [
             SearchResult(
@@ -598,12 +660,16 @@ class TestClassicalQueryUseCaseHybrid:
                 score=0.1,
             )
         ]
+
+        # Act
         result = await use_case_hybrid.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             mode="hybrid",
             enable_llm_judge=False,
         )
+
+        # Assert
         if result.chunks:
             chunk = result.chunks[0]
             assert chunk.bm25_score is not None
@@ -615,12 +681,15 @@ class TestClassicalQueryUseCaseHybrid:
         use_case_hybrid: ClassicalQueryUseCase,
     ) -> None:
         """Hybrid mode response should set mode='hybrid'."""
+        # Act
         result = await use_case_hybrid.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             mode="hybrid",
             enable_llm_judge=False,
         )
+
+        # Assert
         assert result.mode == "hybrid"
 
     async def test_hybrid_mode_falls_back_to_vector_when_bm25_unavailable(
@@ -630,12 +699,17 @@ class TestClassicalQueryUseCaseHybrid:
         mock_llm: AsyncMock,
     ) -> None:
         """When bm25_engine is None, hybrid mode should fall back to vector."""
+        # Arrange
         mock_llm.generate.return_value = json.dumps(["var1"])
+
+        # Act
         result = await use_case_no_bm25.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             mode="hybrid",
         )
+
+        # Assert
         assert isinstance(result, ClassicalQueryResponse)
         assert result.mode == "vector"
 
@@ -646,6 +720,7 @@ class TestClassicalQueryUseCaseHybrid:
         mock_vector_store: AsyncMock,
     ) -> None:
         """Hybrid mode with LLM judge should score combined results."""
+        # Arrange
         call_count = 0
 
         async def mock_generate(system_prompt, user_message):
@@ -656,12 +731,16 @@ class TestClassicalQueryUseCaseHybrid:
             return "8"
 
         mock_llm.generate.side_effect = mock_generate
+
+        # Act
         result = await use_case_hybrid.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             mode="hybrid",
             enable_llm_judge=True,
         )
+
+        # Assert
         assert isinstance(result, ClassicalQueryResponse)
 
     async def test_vector_mode_default_unchanged(
@@ -670,10 +749,13 @@ class TestClassicalQueryUseCaseHybrid:
         mock_bm25_engine: AsyncMock,
     ) -> None:
         """Default mode='vector' should NOT call bm25_engine."""
+        # Act
         await use_case_hybrid.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
         )
+
+        # Assert
         mock_bm25_engine.search.assert_not_called()
 
     async def test_hybrid_mode_bm25_exception_fallback_to_vector(
@@ -684,13 +766,18 @@ class TestClassicalQueryUseCaseHybrid:
         mock_llm: AsyncMock,
     ) -> None:
         """If BM25 raises an exception in hybrid mode, should fall back to vector."""
+        # Arrange
         mock_bm25_engine.search.side_effect = RuntimeError("BM25 connection failed")
         mock_llm.generate.return_value = "7"
+
+        # Act
         result = await use_case_hybrid.execute(
             working_dir="/tmp/rag/project_1",
             query="test query",
             mode="hybrid",
             enable_llm_judge=False,
         )
+
+        # Assert
         assert isinstance(result, ClassicalQueryResponse)
         assert result.mode == "hybrid"

@@ -7,18 +7,23 @@ from infrastructure.rag.rrf_combiner import RRFCombiner
 
 def test_rrf_combiner_initialization():
     """RRFCombiner should initialize with default k=60."""
+    # Arrange
     combiner = RRFCombiner()
+    # Assert
     assert combiner.k == 60
 
 
 def test_rrf_combiner_custom_k():
     """RRFCombiner should accept custom k parameter."""
+    # Arrange
     combiner = RRFCombiner(k=100)
+    # Assert
     assert combiner.k == 100
 
 
 def test_combine_results_basic():
     """RRF should combine ranks correctly."""
+    # Arrange
     combiner = RRFCombiner(k=60)
 
     # Mock BM25 results (already sorted by score)
@@ -57,12 +62,17 @@ def test_combine_results_basic():
         }
     }
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=10)
 
+    # Arrange
     # Check that results are combined
+    # Assert
     assert len(combined) == 3  # chunk_ids: 1, 2, 3
 
+    # Arrange
     # Check that all results have combined scores
+    # Assert
     for result in combined:
         assert result.combined_score > 0
         assert result.vector_score >= 0
@@ -71,6 +81,7 @@ def test_combine_results_basic():
 
 def test_combine_results_respects_top_k():
     """RRF should respect top_k parameter."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = [
@@ -93,13 +104,16 @@ def test_combine_results_respects_top_k():
         }
     }
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=5)
 
+    # Assert
     assert len(combined) == 5
 
 
 def test_combine_results_sorted_by_score():
     """RRF results should be sorted by combined_score descending."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = [
@@ -120,15 +134,19 @@ def test_combine_results_sorted_by_score():
         }
     }
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=10)
 
+    # Arrange
     # Check sorted order
+    # Assert
     scores = [r.combined_score for r in combined]
     assert scores == sorted(scores, reverse=True)
 
 
 def test_rrf_formula():
     """RRF formula should be: 1/(k + rank)."""
+    # Arrange
     combiner = RRFCombiner(k=60)
 
     # Item appears at rank 1 in BM25, rank 3 in vector
@@ -161,12 +179,17 @@ def test_rrf_formula():
         }
     }
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=10)
 
+    # Arrange
     # Find our item
+    # Assert
     item = next(r for r in combined if r.chunk_id == "1")
 
+    # Arrange
     # Check RRF calculation
+    # Assert
     expected_bm25_score = 1 / (60 + 1)  # rank 1 in BM25
     expected_vector_score = 1 / (60 + 3)  # rank 3 in vector
 
@@ -174,12 +197,14 @@ def test_rrf_formula():
     assert abs(item.vector_score - expected_vector_score) < 0.0001
     assert (
         abs(item.combined_score - (expected_bm25_score + expected_vector_score))
+        # Arrange
         < 0.0001
     )
 
 
 def test_combine_only_bm25_results():
     """RRF should handle case where only BM25 has results."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = [
@@ -194,8 +219,10 @@ def test_combine_only_bm25_results():
 
     vector_results = {"data": {"chunks": []}}
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].chunk_id == "1"
     assert combined[0].bm25_score > 0
@@ -204,6 +231,7 @@ def test_combine_only_bm25_results():
 
 def test_combine_only_vector_results():
     """RRF should handle case where only vector has results."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = []
@@ -216,8 +244,10 @@ def test_combine_only_vector_results():
         }
     }
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].chunk_id == "1"
     assert combined[0].bm25_score == 0
@@ -231,6 +261,7 @@ def test_combine_uses_chunk_id_not_reference_id():
     reference_id (e.g. '1'). BM25 results use the same chunk_id.
     The combiner must match by chunk_id so overlapping results merge.
     """
+    # Arrange
     combiner = RRFCombiner(k=60)
 
     bm25_results = [
@@ -256,8 +287,10 @@ def test_combine_uses_chunk_id_not_reference_id():
         }
     }
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].chunk_id == "chunk-abc123"
     assert combined[0].bm25_rank == 1
@@ -268,6 +301,7 @@ def test_combine_uses_chunk_id_not_reference_id():
 
 def test_combine_preserves_reference_id_from_vector():
     """RRF should preserve reference_id from vector results."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = []
@@ -285,14 +319,17 @@ def test_combine_preserves_reference_id_from_vector():
         }
     }
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].reference_id == "3"
 
 
 def test_combine_no_chunk_id_falls_back_to_reference_id():
     """If vector results lack chunk_id, use reference_id as fallback."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = []
@@ -309,8 +346,10 @@ def test_combine_no_chunk_id_falls_back_to_reference_id():
         }
     }
 
+    # Act
     combined = combiner.combine(bm25_results, vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].chunk_id == "5"
 
@@ -322,6 +361,7 @@ def test_combine_no_chunk_id_falls_back_to_reference_id():
 
 def test_combine_classical_with_both_results():
     """combine_classical should merge BM25 and vector results via RRF."""
+    # Arrange
     combiner = RRFCombiner(k=60)
 
     bm25_results = [
@@ -358,14 +398,18 @@ def test_combine_classical_with_both_results():
         ),
     ]
 
+    # Act
     combined = combiner.combine_classical(bm25_results, vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 3
 
     for result in combined:
         assert result.combined_score > 0
 
+    # Arrange
     chunk_2 = next(r for r in combined if r.chunk_id == "2")
+    # Assert
     assert chunk_2.bm25_score > 0
     assert chunk_2.vector_score > 0
     assert chunk_2.bm25_rank == 2
@@ -374,6 +418,7 @@ def test_combine_classical_with_both_results():
 
 def test_combine_classical_respects_top_k():
     """combine_classical should respect top_k."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = [
@@ -398,12 +443,15 @@ def test_combine_classical_respects_top_k():
         for i in range(20)
     ]
 
+    # Act
     combined = combiner.combine_classical(bm25_results, vector_results, top_k=5)
+    # Assert
     assert len(combined) == 5
 
 
 def test_combine_classical_sorted_by_combined_score():
     """combine_classical results should be sorted by combined_score descending."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = [
@@ -424,14 +472,17 @@ def test_combine_classical_sorted_by_combined_score():
         ),
     ]
 
+    # Act
     combined = combiner.combine_classical(bm25_results, vector_results, top_k=10)
 
+    # Assert
     scores = [r.combined_score for r in combined]
     assert scores == sorted(scores, reverse=True)
 
 
 def test_combine_classical_rrf_formula():
     """combine_classical should use RRF formula: 1/(k+rank)."""
+    # Arrange
     combiner = RRFCombiner(k=60)
 
     bm25_results = [
@@ -468,8 +519,10 @@ def test_combine_classical_rrf_formula():
         ),
     ]
 
+    # Act
     combined = combiner.combine_classical(bm25_results, vector_results, top_k=10)
 
+    # Assert
     item = next(r for r in combined if r.chunk_id == "1")
 
     expected_bm25_score = 1 / (60 + 1)
@@ -479,12 +532,14 @@ def test_combine_classical_rrf_formula():
     assert abs(item.vector_score - expected_vector_score) < 0.0001
     assert (
         abs(item.combined_score - (expected_bm25_score + expected_vector_score))
+        # Arrange
         < 0.0001
     )
 
 
 def test_combine_classical_only_bm25():
     """combine_classical should handle only BM25 results."""
+    # Arrange
     combiner = RRFCombiner()
 
     bm25_results = [
@@ -497,8 +552,10 @@ def test_combine_classical_only_bm25():
         )
     ]
 
+    # Act
     combined = combiner.combine_classical(bm25_results, [], top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].chunk_id == "1"
     assert combined[0].bm25_score > 0
@@ -507,6 +564,7 @@ def test_combine_classical_only_bm25():
 
 def test_combine_classical_only_vector():
     """combine_classical should handle only vector results."""
+    # Arrange
     combiner = RRFCombiner()
 
     vector_results = [
@@ -519,8 +577,10 @@ def test_combine_classical_only_vector():
         )
     ]
 
+    # Act
     combined = combiner.combine_classical([], vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].chunk_id == "1"
     assert combined[0].bm25_score == 0
@@ -529,6 +589,7 @@ def test_combine_classical_only_vector():
 
 def test_combine_classical_deduplicates_by_chunk_id():
     """combine_classical should deduplicate by chunk_id across sources."""
+    # Arrange
     combiner = RRFCombiner(k=60)
 
     bm25_results = [
@@ -551,8 +612,10 @@ def test_combine_classical_deduplicates_by_chunk_id():
         ),
     ]
 
+    # Act
     combined = combiner.combine_classical(bm25_results, vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].chunk_id == "chunk-abc123"
     assert combined[0].bm25_rank == 1
@@ -562,6 +625,7 @@ def test_combine_classical_deduplicates_by_chunk_id():
 
 def test_combine_classical_preserves_metadata():
     """combine_classical should preserve metadata from vector results."""
+    # Arrange
     combiner = RRFCombiner()
 
     vector_results = [
@@ -574,7 +638,9 @@ def test_combine_classical_preserves_metadata():
         ),
     ]
 
+    # Act
     combined = combiner.combine_classical([], vector_results, top_k=10)
 
+    # Assert
     assert len(combined) == 1
     assert combined[0].metadata.get("page") == 5

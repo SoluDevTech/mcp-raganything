@@ -32,6 +32,7 @@ class TestLangchainOpenAIAdapter:
         mock_chat_cls: MagicMock,
     ) -> None:
         """Should call ChatOpenAI with system and user messages."""
+        # Arrange
         mock_llm = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "Generated response text"
@@ -47,11 +48,14 @@ class TestLangchainOpenAIAdapter:
             temperature=0.0,
         )
 
+        # Act
         result = await adapter.generate(
+            # Arrange
             system_prompt="You are a helpful assistant.",
             user_message="What is machine learning?",
         )
 
+        # Assert
         assert result == "Generated response text"
         mock_llm.ainvoke.assert_called_once()
 
@@ -61,6 +65,7 @@ class TestLangchainOpenAIAdapter:
         mock_chat_cls: MagicMock,
     ) -> None:
         """Should return a string from generate."""
+        # Arrange
         mock_llm = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "Hello world"
@@ -76,11 +81,14 @@ class TestLangchainOpenAIAdapter:
             temperature=0.0,
         )
 
+        # Act
         result = await adapter.generate(
+            # Arrange
             system_prompt="Be concise.",
             user_message="Say hello",
         )
 
+        # Assert
         assert isinstance(result, str)
         assert result == "Hello world"
 
@@ -90,6 +98,7 @@ class TestLangchainOpenAIAdapter:
         mock_chat_cls: MagicMock,
     ) -> None:
         """Should call ChatOpenAI with the full message list."""
+        # Arrange
         mock_llm = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "Chat response"
@@ -110,8 +119,10 @@ class TestLangchainOpenAIAdapter:
             {"role": "user", "content": "Score this chunk: 8/10"},
         ]
 
+        # Act
         result = await adapter.generate_chat(messages=messages)
 
+        # Assert
         assert result == "Chat response"
         mock_llm.ainvoke.assert_called_once()
 
@@ -121,6 +132,7 @@ class TestLangchainOpenAIAdapter:
         mock_chat_cls: MagicMock,
     ) -> None:
         """Should return a string from generate_chat."""
+        # Arrange
         mock_llm = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "Chat result"
@@ -136,10 +148,13 @@ class TestLangchainOpenAIAdapter:
             temperature=0.0,
         )
 
+        # Act
         result = await adapter.generate_chat(
+            # Arrange
             messages=[{"role": "user", "content": "Hello"}],
         )
 
+        # Assert
         assert isinstance(result, str)
 
     @patch("infrastructure.llm.langchain_openai_adapter.ChatOpenAI")
@@ -148,6 +163,7 @@ class TestLangchainOpenAIAdapter:
         mock_chat_cls: MagicMock,
     ) -> None:
         """Should configure ChatOpenAI with api_key, base_url, model, temperature."""
+        # Arrange
         from infrastructure.llm.langchain_openai_adapter import LangchainOpenAIAdapter
 
         LangchainOpenAIAdapter(
@@ -157,6 +173,7 @@ class TestLangchainOpenAIAdapter:
             temperature=0.7,
         )
 
+        # Assert
         mock_chat_cls.assert_called_once()
         call_kwargs = mock_chat_cls.call_args[1]
         assert call_kwargs["api_key"] == "my-key"

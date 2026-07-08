@@ -35,6 +35,7 @@ class TestClassicalIndexFileRoute:
         mock_classical_index_file_use_case: AsyncMock,
     ) -> None:
         """POST with file_name and working_dir should return 202 accepted."""
+        # Arrange
         # Will fail until get_classical_index_file_use_case dependency exists
         from dependencies import get_classical_index_file_use_case
 
@@ -42,6 +43,7 @@ class TestClassicalIndexFileRoute:
             mock_classical_index_file_use_case
         )
 
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -53,12 +55,14 @@ class TestClassicalIndexFileRoute:
                 },
             )
 
+        # Assert
         assert response.status_code == 202
         body = response.json()
         assert body["status"] == "accepted"
 
     async def test_index_file_rejects_missing_file_name(self) -> None:
         """Missing file_name should return 422."""
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -67,10 +71,12 @@ class TestClassicalIndexFileRoute:
                 json={"working_dir": "/tmp/rag/test"},
             )
 
+        # Assert
         assert response.status_code == 422
 
     async def test_index_file_rejects_missing_working_dir(self) -> None:
         """Missing working_dir should return 422."""
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -79,6 +85,7 @@ class TestClassicalIndexFileRoute:
                 json={"file_name": "doc.pdf"},
             )
 
+        # Assert
         assert response.status_code == 422
 
     async def test_index_file_accepts_optional_chunk_params(
@@ -86,12 +93,14 @@ class TestClassicalIndexFileRoute:
         mock_classical_index_file_use_case: AsyncMock,
     ) -> None:
         """Should accept optional chunk_size and chunk_overlap."""
+        # Arrange
         from dependencies import get_classical_index_file_use_case
 
         app.dependency_overrides[get_classical_index_file_use_case] = lambda: (
             mock_classical_index_file_use_case
         )
 
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -105,6 +114,7 @@ class TestClassicalIndexFileRoute:
                 },
             )
 
+        # Assert
         assert response.status_code == 202
 
 
@@ -122,12 +132,14 @@ class TestClassicalIndexFolderRoute:
         mock_classical_index_folder_use_case: AsyncMock,
     ) -> None:
         """POST with working_dir should return 202 accepted."""
+        # Arrange
         from dependencies import get_classical_index_folder_use_case
 
         app.dependency_overrides[get_classical_index_folder_use_case] = lambda: (
             mock_classical_index_folder_use_case
         )
 
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -136,6 +148,7 @@ class TestClassicalIndexFolderRoute:
                 json={"working_dir": "/tmp/rag/project_1"},
             )
 
+        # Assert
         assert response.status_code == 202
         body = response.json()
         assert body["status"] == "accepted"
@@ -145,12 +158,14 @@ class TestClassicalIndexFolderRoute:
         mock_classical_index_folder_use_case: AsyncMock,
     ) -> None:
         """Should accept optional recursive, file_extensions, chunk_size, chunk_overlap."""
+        # Arrange
         from dependencies import get_classical_index_folder_use_case
 
         app.dependency_overrides[get_classical_index_folder_use_case] = lambda: (
             mock_classical_index_folder_use_case
         )
 
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -165,10 +180,12 @@ class TestClassicalIndexFolderRoute:
                 },
             )
 
+        # Assert
         assert response.status_code == 202
 
     async def test_index_folder_rejects_missing_working_dir(self) -> None:
         """Missing working_dir should return 422."""
+        # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -177,4 +194,5 @@ class TestClassicalIndexFolderRoute:
                 json={},
             )
 
+        # Assert
         assert response.status_code == 422

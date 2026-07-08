@@ -18,11 +18,13 @@ class TestClassicalBM25Adapter:
         assert adapter._get_table_name("/tmp/rag/project") == f"classical_rag_{hashed}"
 
     def test_get_table_name_different_prefix(self) -> None:
+        # Arrange
         adapter = ClassicalBM25Adapter(
             db_url="postgresql://u:p@localhost/db",
             table_prefix="my_prefix_",
         )
         hashed = hashlib.sha256(b"/tmp/test").hexdigest()[:16]
+        # Assert
         assert adapter._get_table_name("/tmp/test") == f"my_prefix_{hashed}"
 
     def test_bm25_index_name(self) -> None:
@@ -39,6 +41,7 @@ class TestClassicalBM25Adapter:
 
     @pytest.mark.asyncio
     async def test_search_returns_empty_when_table_not_exists(self) -> None:
+        # Arrange
         adapter = ClassicalBM25Adapter(
             db_url="postgresql://u:p@localhost/db",
             table_prefix="classical_rag_",
@@ -59,9 +62,14 @@ class TestClassicalBM25Adapter:
             patch.object(adapter, "_get_pool", return_value=mock_pool),
             patch.object(adapter, "_ensure_bm25_index", return_value=None),
         ):
+            # Act
             results = await adapter.search(
-                query="test", working_dir="/tmp/rag/project", top_k=5
+                # Arrange
+                query="test",
+                working_dir="/tmp/rag/project",
+                top_k=5,
             )
+            # Assert
             assert results == []
 
     @pytest.mark.asyncio
@@ -80,6 +88,7 @@ class TestClassicalBM25Adapter:
 
     @pytest.mark.asyncio
     async def test_close_cleans_up_pool(self) -> None:
+        # Arrange
         adapter = ClassicalBM25Adapter(
             db_url="postgresql://u:p@localhost/db",
             table_prefix="classical_rag_",
@@ -87,7 +96,9 @@ class TestClassicalBM25Adapter:
         mock_pool = AsyncMock()
         adapter._pool = mock_pool
 
+        # Act
         await adapter.close()
+        # Assert
         mock_pool.close.assert_called_once()
         assert adapter._pool is None
 

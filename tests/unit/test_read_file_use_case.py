@@ -14,6 +14,7 @@ class TestReadFileUseCase:
         mock_document_reader: AsyncMock,
         tmp_path,
     ) -> None:
+        # Arrange
         mock_storage.get_object.return_value = b"file content"
         mock_document_reader.extract_content.return_value = DocumentContent(
             content=["extracted text"],
@@ -27,8 +28,10 @@ class TestReadFileUseCase:
             output_dir=str(tmp_path),
         )
 
+        # Act
         await use_case.execute(file_path="docs/report.pdf")
 
+        # Assert
         mock_storage.get_object.assert_called_once_with("my-bucket", "docs/report.pdf")
 
     async def test_execute_returns_document_content(
@@ -37,6 +40,7 @@ class TestReadFileUseCase:
         mock_document_reader: AsyncMock,
         tmp_path,
     ) -> None:
+        # Arrange
         mock_storage.get_object.return_value = b"file content"
         expected = DocumentContent(
             content=["extracted text"],
@@ -51,8 +55,10 @@ class TestReadFileUseCase:
             output_dir=str(tmp_path),
         )
 
+        # Act
         result = await use_case.execute(file_path="docs/report.pdf")
 
+        # Assert
         assert result.content == ["extracted text"]
         assert result.metadata.format_type == "pdf"
 
@@ -62,6 +68,7 @@ class TestReadFileUseCase:
         mock_document_reader: AsyncMock,
         tmp_path,
     ) -> None:
+        # Arrange
         mock_storage.get_object.return_value = b"pdf binary data"
         mock_document_reader.extract_content.return_value = DocumentContent(
             content=["text"],
@@ -75,8 +82,10 @@ class TestReadFileUseCase:
             output_dir=str(tmp_path),
         )
 
+        # Act
         await use_case.execute(file_path="docs/report.pdf")
 
+        # Assert
         call_args = mock_document_reader.extract_content.call_args
         tmp_file_path = call_args[0][0]
         assert tmp_file_path.endswith(".pdf")
@@ -88,6 +97,7 @@ class TestReadFileUseCase:
         mock_document_reader: AsyncMock,
         tmp_path,
     ) -> None:
+        # Arrange
         mock_storage.get_object.side_effect = FileNotFoundError("not found")
         use_case = ReadFileUseCase(
             storage=mock_storage,
@@ -96,6 +106,7 @@ class TestReadFileUseCase:
             output_dir=str(tmp_path),
         )
 
+        # Act & Assert
         with pytest.raises(FileNotFoundError):
             await use_case.execute(file_path="nonexistent.pdf")
 
@@ -105,6 +116,7 @@ class TestReadFileUseCase:
         mock_document_reader: AsyncMock,
         tmp_path,
     ) -> None:
+        # Arrange
         mock_storage.get_object.return_value = b"data"
         mock_document_reader.extract_content.return_value = DocumentContent(
             content=["text"],
@@ -118,8 +130,10 @@ class TestReadFileUseCase:
             output_dir=str(tmp_path),
         )
 
+        # Act
         await use_case.execute(file_path="report.pdf")
 
+        # Assert
         call_args = mock_document_reader.extract_content.call_args
         tmp_file_path = call_args[0][0]
         assert not os.path.exists(tmp_file_path)
@@ -130,6 +144,7 @@ class TestReadFileUseCase:
         mock_document_reader: AsyncMock,
         tmp_path,
     ) -> None:
+        # Arrange
         mock_storage.get_object.return_value = b"data"
         mock_document_reader.extract_content.side_effect = ValueError("bad format")
         use_case = ReadFileUseCase(
@@ -139,9 +154,11 @@ class TestReadFileUseCase:
             output_dir=str(tmp_path),
         )
 
+        # Act & Assert
         with pytest.raises(ValueError):
             await use_case.execute(file_path="report.pdf")
 
+        # Assert
         call_args = mock_document_reader.extract_content.call_args
         tmp_file_path = call_args[0][0]
         assert not os.path.exists(tmp_file_path)
@@ -152,6 +169,7 @@ class TestReadFileUseCase:
         mock_document_reader: AsyncMock,
         tmp_path,
     ) -> None:
+        # Arrange
         from domain.ports.document_reader_port import TableData
 
         mock_storage.get_object.return_value = b"data"
@@ -167,7 +185,9 @@ class TestReadFileUseCase:
             output_dir=str(tmp_path),
         )
 
+        # Act
         result = await use_case.execute(file_path="report.pdf")
 
+        # Assert
         assert len(result.tables or []) == 1
         assert (result.tables or [])[0].markdown == "| A | B |\n|---|---|\n| 1 | 2 |"

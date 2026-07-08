@@ -21,7 +21,7 @@ from domain.logging.messages import LogMessage
 
 logger = logging.getLogger(__name__)
 
-mcp_files = FastMCP("RAGAnythingFiles")
+mcp_files = FastMCP("Files")
 
 
 def _validate_prefix(prefix: str) -> str:

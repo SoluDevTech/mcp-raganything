@@ -30,13 +30,16 @@ class TestClassicalIndexFolderUseCase:
         use_case: ClassicalIndexFolderUseCase,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = []
 
+        # Act
         await use_case.execute(
             working_dir="project/docs",
             recursive=True,
         )
 
+        # Assert
         mock_storage.list_objects.assert_called_once_with(
             "test-bucket", prefix="project/docs/", recursive=True
         )
@@ -47,13 +50,16 @@ class TestClassicalIndexFolderUseCase:
         mock_vector_store: AsyncMock,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = []
 
+        # Act
         await use_case.execute(
             working_dir="project/docs",
             recursive=True,
         )
 
+        # Assert
         mock_vector_store.ensure_table.assert_called_once_with("project/docs")
 
     @patch("application.use_cases.classical_index_folder_use_case.extract_file")
@@ -64,6 +70,7 @@ class TestClassicalIndexFolderUseCase:
         mock_storage: AsyncMock,
         mock_vector_store: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = [
             "project/docs/report.pdf",
             "project/docs/notes.txt",
@@ -73,11 +80,13 @@ class TestClassicalIndexFolderUseCase:
         mock_result.content = "text"
         mock_extract.return_value = mock_result
 
+        # Act
         await use_case.execute(
             working_dir="project/docs",
             recursive=True,
         )
 
+        # Assert
         assert mock_storage.get_object.call_count == 2
         mock_storage.get_object.assert_any_call(
             "test-bucket", "project/docs/report.pdf"
@@ -91,6 +100,7 @@ class TestClassicalIndexFolderUseCase:
         use_case: ClassicalIndexFolderUseCase,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = [
             "project/docs/report.pdf",
             "project/docs/notes.txt",
@@ -101,11 +111,13 @@ class TestClassicalIndexFolderUseCase:
         mock_result.content = "text"
         mock_extract.return_value = mock_result
 
+        # Act
         await use_case.execute(
             working_dir="project/docs",
             file_extensions=[".pdf", ".txt"],
         )
 
+        # Assert
         assert mock_storage.get_object.call_count == 2
         mock_storage.get_object.assert_any_call(
             "test-bucket", "project/docs/report.pdf"
@@ -119,6 +131,7 @@ class TestClassicalIndexFolderUseCase:
         use_case: ClassicalIndexFolderUseCase,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = [
             "project/docs/report.pdf",
         ]
@@ -127,11 +140,13 @@ class TestClassicalIndexFolderUseCase:
         mock_result.content = "text"
         mock_extract.return_value = mock_result
 
+        # Act
         result = await use_case.execute(
             working_dir="project/docs",
             recursive=True,
         )
 
+        # Assert
         assert isinstance(result, FolderIndexingResult)
         assert result.status == IndexingStatus.SUCCESS
         assert result.folder_path == "project/docs"
@@ -141,13 +156,16 @@ class TestClassicalIndexFolderUseCase:
         use_case: ClassicalIndexFolderUseCase,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = []
 
+        # Act
         result = await use_case.execute(
             working_dir="project/empty",
             recursive=True,
         )
 
+        # Assert
         assert isinstance(result, FolderIndexingResult)
         assert result.status == IndexingStatus.SUCCESS
         assert result.stats.total_files == 0
@@ -159,6 +177,7 @@ class TestClassicalIndexFolderUseCase:
         use_case: ClassicalIndexFolderUseCase,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = [
             "project/docs/good.pdf",
             "project/docs/bad.pdf",
@@ -177,11 +196,13 @@ class TestClassicalIndexFolderUseCase:
 
         mock_extract.side_effect = _extract_with_failure
 
+        # Act
         result = await use_case.execute(
             working_dir="project/docs",
             recursive=True,
         )
 
+        # Assert
         assert isinstance(result, FolderIndexingResult)
         assert result.stats.files_processed + result.stats.files_failed > 0
 
@@ -190,6 +211,7 @@ class TestClassicalIndexFolderUseCase:
         mock_vector_store: AsyncMock,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         use_case = ClassicalIndexFolderUseCase(
             vector_store=mock_vector_store,
             storage=mock_storage,
@@ -199,8 +221,10 @@ class TestClassicalIndexFolderUseCase:
 
         mock_storage.list_objects.return_value = []
 
+        # Act
         await use_case.execute(working_dir="project/docs")
 
+        # Assert
         mock_storage.list_objects.assert_called_once_with(
             "custom-folder-bucket", prefix="project/docs/", recursive=True
         )
@@ -210,13 +234,16 @@ class TestClassicalIndexFolderUseCase:
         use_case: ClassicalIndexFolderUseCase,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = []
 
+        # Act
         await use_case.execute(
             working_dir="project/docs",
             recursive=False,
         )
 
+        # Assert
         mock_storage.list_objects.assert_called_once_with(
             "test-bucket", prefix="project/docs/", recursive=False
         )
@@ -228,6 +255,7 @@ class TestClassicalIndexFolderUseCase:
         use_case: ClassicalIndexFolderUseCase,
         mock_storage: AsyncMock,
     ) -> None:
+        # Arrange
         mock_storage.list_objects.return_value = [
             "project/docs/report.pdf",
         ]
@@ -236,10 +264,12 @@ class TestClassicalIndexFolderUseCase:
         mock_result.content = "text"
         mock_extract.return_value = mock_result
 
+        # Act
         await use_case.execute(
             working_dir="project/docs",
             chunk_size=500,
             chunk_overlap=100,
         )
 
+        # Assert
         mock_extract.assert_called_once()

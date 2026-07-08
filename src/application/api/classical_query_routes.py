@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, status
 
 from application.requests.classical_query_request import ClassicalQueryRequest
@@ -14,7 +16,7 @@ classical_query_router = APIRouter(tags=["Classical Query"])
 )
 async def classical_query(
     request: ClassicalQueryRequest,
-    use_case: ClassicalQueryUseCase = Depends(get_classical_query_use_case),
+    use_case: Annotated[ClassicalQueryUseCase, Depends(get_classical_query_use_case)],
 ) -> ClassicalQueryResponse:
     response = await use_case.execute(
         working_dir=request.working_dir,

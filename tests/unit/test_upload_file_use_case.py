@@ -26,11 +26,13 @@ class TestUploadFileUseCase:
         self, use_case: UploadFileUseCase, mock_storage: AsyncMock
     ) -> None:
         """Should call storage.put_object with prefix + file_name."""
+        # Arrange
         file_data = b"hello world"
         file_name = "report.pdf"
         prefix = "documents/"
         content_type = "application/pdf"
 
+        # Act
         await use_case.execute(
             file_data=file_data,
             file_name=file_name,
@@ -38,6 +40,7 @@ class TestUploadFileUseCase:
             content_type=content_type,
         )
 
+        # Assert
         mock_storage.put_object.assert_called_once_with(
             "test-bucket",
             "documents/report.pdf",
@@ -49,11 +52,13 @@ class TestUploadFileUseCase:
         self, use_case: UploadFileUseCase
     ) -> None:
         """Should return a FileInfo with object_name, size, and last_modified=None."""
+        # Arrange
         file_data = b"hello world"
         file_name = "report.pdf"
         prefix = "documents/"
         content_type = "application/pdf"
 
+        # Act
         result = await use_case.execute(
             file_data=file_data,
             file_name=file_name,
@@ -61,6 +66,7 @@ class TestUploadFileUseCase:
             content_type=content_type,
         )
 
+        # Assert
         assert isinstance(result, FileInfo)
         assert result.object_name == "documents/report.pdf"
         assert result.size == len(b"hello world")
@@ -70,11 +76,13 @@ class TestUploadFileUseCase:
         self, use_case: UploadFileUseCase, mock_storage: AsyncMock
     ) -> None:
         """When prefix is empty, object_path should be just the file_name."""
+        # Arrange
         file_data = b"data"
         file_name = "image.png"
         prefix = ""
         content_type = "image/png"
 
+        # Act
         result = await use_case.execute(
             file_data=file_data,
             file_name=file_name,
@@ -82,6 +90,7 @@ class TestUploadFileUseCase:
             content_type=content_type,
         )
 
+        # Assert
         assert result.object_name == "image.png"
         mock_storage.put_object.assert_called_once_with(
             "test-bucket",
@@ -94,11 +103,13 @@ class TestUploadFileUseCase:
         self, use_case: UploadFileUseCase, mock_storage: AsyncMock
     ) -> None:
         """Prefix without trailing slash should have slash appended."""
+        # Arrange
         file_data = b"content"
         file_name = "file.txt"
         prefix = "folder"
         content_type = "text/plain"
 
+        # Act
         result = await use_case.execute(
             file_data=file_data,
             file_name=file_name,
@@ -106,6 +117,7 @@ class TestUploadFileUseCase:
             content_type=content_type,
         )
 
+        # Assert
         assert result.object_name == "folder/file.txt"
         mock_storage.put_object.assert_called_once_with(
             "test-bucket",
@@ -118,8 +130,10 @@ class TestUploadFileUseCase:
         self, use_case: UploadFileUseCase, mock_storage: AsyncMock
     ) -> None:
         """FileNotFoundError raised by storage should propagate to the caller."""
+        # Arrange
         mock_storage.put_object.side_effect = FileNotFoundError("bucket not found")
 
+        # Act & Assert
         with pytest.raises(FileNotFoundError, match="bucket not found"):
             await use_case.execute(
                 file_data=b"data",

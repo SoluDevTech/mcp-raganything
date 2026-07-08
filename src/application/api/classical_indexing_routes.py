@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
@@ -38,7 +39,9 @@ async def _run_in_background(coro, label: str) -> None:
 )
 async def classical_index_file(
     request: ClassicalIndexFileRequest,
-    use_case: ClassicalIndexFileUseCase = Depends(get_classical_index_file_use_case),
+    use_case: Annotated[
+        ClassicalIndexFileUseCase, Depends(get_classical_index_file_use_case)
+    ],
 ):
     task = asyncio.create_task(
         _run_in_background(
@@ -61,9 +64,9 @@ async def classical_index_file(
 )
 async def classical_index_folder(
     request: ClassicalIndexFolderRequest,
-    use_case: ClassicalIndexFolderUseCase = Depends(
-        get_classical_index_folder_use_case
-    ),
+    use_case: Annotated[
+        ClassicalIndexFolderUseCase, Depends(get_classical_index_folder_use_case)
+    ],
 ):
     task = asyncio.create_task(
         _run_in_background(

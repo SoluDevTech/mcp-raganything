@@ -22,9 +22,11 @@ class TestLLMConfigApiKey:
 
     def test_falls_back_to_openrouter_api_key(self) -> None:
         """Should fall back to OPENROUTER_API_KEY when OPEN_ROUTER_API_KEY is None."""
+        # Arrange
         config = LLMConfig(
             OPEN_ROUTER_API_KEY=None, OPENROUTER_API_KEY="sk-fallback-key"
         )
+        # Assert
         assert config.api_key == "sk-fallback-key"
 
     def test_prefers_open_router_api_key_over_fallback(self) -> None:
@@ -37,12 +39,16 @@ class TestLLMConfigApiKey:
 
     def test_returns_empty_string_when_both_none(self) -> None:
         """Should return empty string and print warning when both keys are None."""
+        # Arrange
         config = LLMConfig(OPEN_ROUTER_API_KEY=None, OPENROUTER_API_KEY=None)
         with patch("builtins.print") as mock_print:
             result = config.api_key
+            # Assert
             mock_print.assert_called_once_with(
+                # Arrange
                 "WARNING: OPENROUTER_API_KEY not set. API calls will fail."
             )
+        # Assert
         assert result == ""
 
 
@@ -56,7 +62,9 @@ class TestLLMConfigApiBaseUrl:
 
     def test_falls_back_to_open_router_api_url(self) -> None:
         """Should fall back to OPEN_ROUTER_API_URL when BASE_URL is None."""
+        # Arrange
         config = LLMConfig(BASE_URL=None)
+        # Assert
         assert config.api_base_url == "https://openrouter.ai/api/v1"
 
     def test_prefers_base_url_over_default(self) -> None:
@@ -85,6 +93,7 @@ class TestDatabaseConfigURL:
 
     def test_uses_explicit_default_values(self) -> None:
         """Should construct URL with the default field values from the model."""
+        # Arrange
         config = DatabaseConfig(
             POSTGRES_USER="raganything",
             POSTGRES_PASSWORD="raganything",
@@ -95,6 +104,7 @@ class TestDatabaseConfigURL:
         expected = (
             "postgresql+asyncpg://raganything:raganything@localhost:5432/raganything"
         )
+        # Assert
         assert expected == config.DATABASE_URL
 
     def test_handles_special_characters_in_password(self) -> None:

@@ -37,6 +37,7 @@ class TestPublishSectionVersionUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """When dry_run=True, should NOT call bricks_api.publish_section_version."""
+        # Act
         result = await use_case_dry_run.execute(
             project_unique_id="proj-123",
             section_key="intro",
@@ -47,6 +48,7 @@ class TestPublishSectionVersionUseCase:
             workflow_metadata={"source": "test"},
         )
 
+        # Assert
         mock_bricks_api.publish_section_version.assert_not_called()
         assert result.dry_run is True
 
@@ -55,6 +57,7 @@ class TestPublishSectionVersionUseCase:
         use_case_dry_run: PublishSectionVersionUseCase,
     ) -> None:
         """When dry_run=True, should return payload_preview in the result."""
+        # Act
         result = await use_case_dry_run.execute(
             project_unique_id="proj-123",
             section_key="summary",
@@ -65,6 +68,7 @@ class TestPublishSectionVersionUseCase:
             workflow_metadata={"version": 1},
         )
 
+        # Assert
         assert result.success is True
         assert result.dry_run is True
         assert result.payload_preview is not None
@@ -82,12 +86,14 @@ class TestPublishSectionVersionUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """When dry_run=False, should call bricks_api.publish_section_version."""
+        # Arrange
         mock_bricks_api.publish_section_version.return_value = SectionVersionResult(
             success=True,
             message="Published",
             data={"id": "sv-123"},
         )
 
+        # Act
         result = await use_case_live.execute(
             project_unique_id="proj-123",
             section_key="intro",
@@ -98,6 +104,7 @@ class TestPublishSectionVersionUseCase:
             workflow_metadata={},
         )
 
+        # Assert
         mock_bricks_api.publish_section_version.assert_called_once()
         assert result.success is True
         assert result.dry_run is False
@@ -108,11 +115,13 @@ class TestPublishSectionVersionUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """When dry_run=False, should pass the correctly constructed payload."""
+        # Arrange
         mock_bricks_api.publish_section_version.return_value = SectionVersionResult(
             success=True,
             message="OK",
         )
 
+        # Act
         await use_case_live.execute(
             project_unique_id="proj-abc",
             section_key="results",
@@ -123,6 +132,7 @@ class TestPublishSectionVersionUseCase:
             workflow_metadata={"approved_by": "admin"},
         )
 
+        # Assert
         call_args = mock_bricks_api.publish_section_version.call_args
         payload = call_args[1].get("payload", call_args[0][0] if call_args[0] else None)
         if payload is None:
@@ -140,6 +150,7 @@ class TestPublishSectionVersionUseCase:
         use_case_dry_run: PublishSectionVersionUseCase,
     ) -> None:
         """When workflow_metadata is None, should send {} in the payload."""
+        # Act
         result = await use_case_dry_run.execute(
             project_unique_id="proj-123",
             section_key="intro",
@@ -149,6 +160,7 @@ class TestPublishSectionVersionUseCase:
             workflow_name="draft",
         )
 
+        # Assert
         assert result.payload_preview["workflowMetadata"] == {}
 
     async def test_workflow_metadata_none_in_live_payload(
@@ -157,10 +169,12 @@ class TestPublishSectionVersionUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """When workflow_metadata is None in live mode, payload should contain {}."""
+        # Arrange
         mock_bricks_api.publish_section_version.return_value = SectionVersionResult(
             success=True,
         )
 
+        # Act
         await use_case_live.execute(
             project_unique_id="proj-123",
             section_key="intro",
@@ -170,6 +184,7 @@ class TestPublishSectionVersionUseCase:
             workflow_name="draft",
         )
 
+        # Assert
         call_args = mock_bricks_api.publish_section_version.call_args
         payload = call_args[1].get("payload", call_args[0][0] if call_args[0] else None)
         if payload is None:
@@ -181,6 +196,7 @@ class TestPublishSectionVersionUseCase:
         mock_bricks_api: AsyncMock,
     ) -> None:
         """Should propagate errors from the API when publishing live."""
+        # Arrange
         mock_bricks_api.publish_section_version.side_effect = ConnectionError(
             "API connection failed"
         )
@@ -189,6 +205,7 @@ class TestPublishSectionVersionUseCase:
             dry_run=False,
         )
 
+        # Act & Assert
         with pytest.raises(ConnectionError, match="API connection failed"):
             await use_case.execute(
                 project_unique_id="proj-123",
@@ -204,6 +221,7 @@ class TestPublishSectionVersionUseCase:
         use_case_dry_run: PublishSectionVersionUseCase,
     ) -> None:
         """Dry run result should be a SectionVersionResult instance."""
+        # Act
         result = await use_case_dry_run.execute(
             project_unique_id="proj-123",
             section_key="intro",
@@ -213,4 +231,5 @@ class TestPublishSectionVersionUseCase:
             workflow_name="draft",
         )
 
+        # Assert
         assert isinstance(result, SectionVersionResult)

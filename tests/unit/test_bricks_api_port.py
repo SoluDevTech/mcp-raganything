@@ -18,6 +18,7 @@ class TestBricksDocumentInfo:
 
     def test_creates_with_camel_case_aliases(self) -> None:
         """Should accept camelCase field names via populate_by_name=True."""
+        # Arrange & Act
         doc = BricksDocumentInfo(
             id="abc-123",
             fileName="document.pdf",
@@ -34,6 +35,7 @@ class TestBricksDocumentInfo:
             projectId="proj-456",
         )
 
+        # Assert
         assert doc.id == "abc-123"
         assert doc.file_name == "document.pdf"
         assert doc.url == "https://s3.example.com/doc.pdf"
@@ -50,22 +52,26 @@ class TestBricksDocumentInfo:
 
     def test_creates_with_snake_case_field_names(self) -> None:
         """Should also accept snake_case field names directly."""
+        # Arrange & Act
         doc = BricksDocumentInfo(
             id="abc-123",
             file_name="document.pdf",
             url="https://s3.example.com/doc.pdf",
         )
 
+        # Assert
         assert doc.file_name == "document.pdf"
 
     def test_defaults_for_optional_fields(self) -> None:
         """Should provide defaults for fields with defaults."""
+        # Arrange & Act
         doc = BricksDocumentInfo(
             id="abc-123",
             fileName="test.pdf",
             url="https://s3.example.com/test.pdf",
         )
 
+        # Assert
         assert doc.hash == ""
         assert doc.mime_type == ""
         assert doc.size == 0
@@ -84,6 +90,7 @@ class TestBricksDocumentInfo:
 
     def test_parses_full_api_response_item(self) -> None:
         """Should parse a full API response item with all fields."""
+        # Arrange
         api_item = {
             "id": "uuid-1",
             "fileName": "report.docx",
@@ -105,8 +112,10 @@ class TestBricksDocumentInfo:
             "projectId": "proj-uuid",
         }
 
+        # Act
         doc = BricksDocumentInfo(**api_item)
 
+        # Assert
         assert doc.id == "uuid-1"
         assert doc.file_name == "report.docx"
         assert doc.hash == "sha256hexstring"
@@ -124,6 +133,7 @@ class TestBricksDocumentInfo:
 
     def test_requires_id_file_name_and_url(self) -> None:
         """Should raise ValidationError when required fields are missing."""
+        # Act & Assert
         with pytest.raises(ValidationError):
             BricksDocumentInfo(id="abc", fileName="test.pdf")  # missing url
 
@@ -132,8 +142,10 @@ class TestSectionVersionResult:
     """Tests for the SectionVersionResult model."""
 
     def test_creates_minimal_result(self) -> None:
+        # Arrange & Act
         result = SectionVersionResult(success=True)
 
+        # Assert
         assert result.success is True
         assert result.message == ""
         assert result.data is None
@@ -141,6 +153,7 @@ class TestSectionVersionResult:
         assert result.payload_preview is None
 
     def test_creates_with_all_fields(self) -> None:
+        # Arrange & Act
         result = SectionVersionResult(
             success=True,
             message="Published successfully",
@@ -149,6 +162,7 @@ class TestSectionVersionResult:
             payload_preview={"section_key": "intro", "content": "Hello"},
         )
 
+        # Assert
         assert result.success is True
         assert result.message == "Published successfully"
         assert result.data == {"id": "sv-123"}
@@ -156,6 +170,7 @@ class TestSectionVersionResult:
         assert result.payload_preview == {"section_key": "intro", "content": "Hello"}
 
     def test_dry_run_result(self) -> None:
+        # Arrange & Act
         result = SectionVersionResult(
             success=True,
             message="Dry run — no API call made",
@@ -163,6 +178,7 @@ class TestSectionVersionResult:
             payload_preview={"key": "value"},
         )
 
+        # Assert
         assert result.dry_run is True
         assert result.data is None
         assert result.payload_preview is not None
@@ -173,28 +189,33 @@ class TestBricksApiPortAbstract:
 
     def test_cannot_instantiate_directly(self) -> None:
         """BricksApiPort is abstract and cannot be instantiated."""
+        # Act & Assert
         with pytest.raises(TypeError):
             BricksApiPort()  # type: ignore[abstract]
 
     def test_is_abc_subclass(self) -> None:
         """BricksApiPort should inherit from ABC."""
+        # Assert
         assert issubclass(BricksApiPort, ABC)
 
     def test_concrete_subclass_must_implement_all_methods(self) -> None:
         """A subclass that doesn't implement all abstract methods cannot be instantiated."""
 
+        # Arrange
         class PartialAdapter(BricksApiPort):
             async def list_project_documents(
                 self, project_id: str
             ) -> list[BricksDocumentInfo]:
                 return []
 
+        # Act & Assert
         with pytest.raises(TypeError):
             PartialAdapter()  # type: ignore[abstract]
 
     def test_concrete_subclass_can_be_instantiated(self) -> None:
         """A subclass that implements all abstract methods can be instantiated."""
 
+        # Arrange
         class FullAdapter(BricksApiPort):
             async def list_project_documents(
                 self, project_id: str
@@ -211,14 +232,19 @@ class TestBricksApiPortAbstract:
             ) -> SectionVersionResult:
                 return SectionVersionResult(success=True)
 
+        # Act
         adapter = FullAdapter()
+
+        # Assert
         assert isinstance(adapter, BricksApiPort)
 
     def test_concrete_subclass_methods_are_callable(self) -> None:
         """Concrete subclass methods should be callable."""
+        # Arrange
         mock = AsyncMock(spec=BricksApiPort)
         mock.list_project_documents.return_value = [
             BricksDocumentInfo(id="1", fileName="a.pdf", url="https://s3/a.pdf")
         ]
 
+        # Assert
         assert mock.list_project_documents.return_value is not None

@@ -75,34 +75,9 @@ class LLMConfig(BaseSettings):
         return self.BASE_URL or self.OPEN_ROUTER_API_URL
 
 
-class RAGConfig(BaseSettings):
-    """RAG-specific configuration for LightRAG."""
+class KreuzbergConfig(BaseSettings):
+    """Kreuzberg extraction configuration (shared by Files, Bricks, Classical)."""
 
-    COSINE_THRESHOLD: float = Field(
-        default=0.2, description="Similarity threshold for vector search (0.0-1.0)"
-    )
-    MAX_CONCURRENT_FILES: int = Field(
-        default=1, description="Number of files to process concurrently"
-    )
-    ENABLE_IMAGE_PROCESSING: bool = Field(
-        default=True, description="Enable image processing during indexing"
-    )
-    ENABLE_TABLE_PROCESSING: bool = Field(
-        default=True, description="Enable table processing during indexing"
-    )
-    ENABLE_EQUATION_PROCESSING: bool = Field(
-        default=False, description="Enable equation processing during indexing"
-    )
-    MAX_WORKERS: int = Field(
-        default=3, description="Number of workers for folder processing"
-    )
-    RAG_STORAGE_TYPE: str = Field(
-        default="postgres", description="Storage type for RAG system"
-    )
-    DOCUMENT_PARSER: str = Field(
-        default="kreuzberg",
-        description="Document parser for RAGAnything: 'kreuzberg', 'mineru', 'paddleocr', or custom registered name",
-    )
     KREUZBERG_OCR_MODE: str = Field(
         default="vlm",
         description="OCR backend for Kreuzberg: 'vlm' or 'tesseract'",

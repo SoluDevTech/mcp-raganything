@@ -1,5 +1,6 @@
 import posixpath
 from dataclasses import asdict
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 
@@ -90,11 +91,16 @@ def _validate_prefix(prefix: str) -> str:
 @file_router.get(
     "/files/list",
     status_code=status.HTTP_200_OK,
+    responses={
+        422: {
+            "description": "Validation error — prefix is absolute or traverses parent.",
+        },
+    },
 )
 async def list_files(
+    use_case: Annotated[ListFilesUseCase, Depends(get_list_files_use_case)],
     prefix: str = "",
     recursive: bool = True,
-    use_case: ListFilesUseCase = Depends(get_list_files_use_case),
 ) -> list[FileInfoResponse]:
     prefix = _validate_prefix(prefix)
     files = await use_case.execute(prefix=prefix, recursive=recursive)
@@ -104,10 +110,15 @@ async def list_files(
 @file_router.get(
     "/files/folders",
     status_code=status.HTTP_200_OK,
+    responses={
+        422: {
+            "description": "Validation error — prefix is absolute or traverses parent.",
+        },
+    },
 )
 async def list_folders(
+    use_case: Annotated[ListFoldersUseCase, Depends(get_list_folders_use_case)],
     prefix: str = "",
-    use_case: ListFoldersUseCase = Depends(get_list_folders_use_case),
 ) -> list[str]:
     prefix = _validate_prefix(prefix)
     return await use_case.execute(prefix=prefix)
@@ -116,10 +127,15 @@ async def list_folders(
 @file_router.post(
     "/files/read",
     status_code=status.HTTP_200_OK,
+    responses={
+        422: {
+            "description": "Validation error — file_path is missing or invalid.",
+        },
+    },
 )
 async def read_file(
     request: ReadFileRequest,
-    use_case: ReadFileUseCase = Depends(get_read_file_use_case),
+    use_case: Annotated[ReadFileUseCase, Depends(get_read_file_use_case)],
 ) -> FileContentResponse:
     result = await use_case.execute(file_path=request.file_path)
     return FileContentResponse(
@@ -132,11 +148,16 @@ async def read_file(
 @file_router.post(
     "/files/upload",
     status_code=status.HTTP_201_CREATED,
+    responses={
+        422: {
+            "description": "Validation error — invalid prefix, filename, or file type.",
+        },
+    },
 )
 async def upload_file(
-    file: UploadFile = File(...),
-    prefix: str = Form(default=""),
-    use_case: UploadFileUseCase = Depends(get_upload_file_use_case),
+    use_case: Annotated[UploadFileUseCase, Depends(get_upload_file_use_case)],
+    file: Annotated[UploadFile, File(description="The file to upload")],
+    prefix: Annotated[str, Form(description="Optional prefix/folder")] = "",
 ):
     normalized = posixpath.normpath(prefix.replace("\\", "/"))
     if normalized == ".":

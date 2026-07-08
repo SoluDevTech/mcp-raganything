@@ -74,6 +74,7 @@ class TestLangchainPgvectorAdapter:
 
     def test_table_name_deterministic(self) -> None:
         """Same working_dir should always produce the same table name."""
+        # Arrange
         from infrastructure.vector_store.langchain_pgvector_adapter import (
             LangchainPgvectorAdapter,
         )
@@ -86,6 +87,7 @@ class TestLangchainPgvectorAdapter:
 
         name1 = adapter._get_table_name("/tmp/rag/project_1")
         name2 = adapter._get_table_name("/tmp/rag/project_1")
+        # Assert
         assert name1 == name2
 
     def test_different_working_dirs_produce_different_tables(self) -> None:
@@ -106,6 +108,7 @@ class TestLangchainPgvectorAdapter:
 
     def test_custom_table_prefix(self) -> None:
         """Should use the configured table prefix."""
+        # Arrange
         from infrastructure.vector_store.langchain_pgvector_adapter import (
             LangchainPgvectorAdapter,
         )
@@ -117,8 +120,10 @@ class TestLangchainPgvectorAdapter:
         )
 
         table_name = adapter._get_table_name("/tmp/rag/project_1")
+        # Assert
         assert table_name.startswith("custom_prefix_")
 
+    # Arrange
     # ------------------------------------------------------------------
     # ensure_table
     # ------------------------------------------------------------------
@@ -132,6 +137,7 @@ class TestLangchainPgvectorAdapter:
         connection_string: str,
     ) -> None:
         """Should create PGEngine and PGVectorStore on ensure_table."""
+        # Arrange
         mock_engine = MagicMock()
         mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
@@ -148,13 +154,18 @@ class TestLangchainPgvectorAdapter:
             embedding_dimension=1536,
         )
 
+        # Act
         await adapter.ensure_table(working_dir="/tmp/rag/project_1")
 
+        # Assert
         mock_pg_engine_cls.from_connection_string.assert_called_once_with(
+            # Arrange
             connection_string
         )
+        # Assert
         mock_pgvector_store_cls.create.assert_called_once()
 
+    # Arrange
     # ------------------------------------------------------------------
     # add_documents
     # ------------------------------------------------------------------
@@ -168,6 +179,7 @@ class TestLangchainPgvectorAdapter:
         connection_string: str,
     ) -> None:
         """Should call aadd_documents on the PGVectorStore."""
+        # Arrange
         mock_engine = MagicMock()
         mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
@@ -184,23 +196,31 @@ class TestLangchainPgvectorAdapter:
             table_prefix="classical_rag_",
             embedding_dimension=1536,
         )
+        # Act
         await adapter.ensure_table(working_dir="/tmp/rag/project_1")
 
+        # Arrange
         documents = [
             ("chunk text 1", "/docs/report.pdf", {"page": 1}),
             ("chunk text 2", "/docs/report.pdf", {"page": 2}),
         ]
 
+        # Act
         result = await adapter.add_documents(
+            # Arrange
             working_dir="/tmp/rag/project_1",
             documents=documents,
         )
 
+        # Assert
         assert len(result) == 2
+        # Arrange
         for doc_id in result:
+            # Assert
             assert len(doc_id) == 36
         mock_store.aadd_documents.assert_called_once()
 
+    # Arrange
     # ------------------------------------------------------------------
     # similarity_search
     # ------------------------------------------------------------------
@@ -214,6 +234,7 @@ class TestLangchainPgvectorAdapter:
         connection_string: str,
     ) -> None:
         """Should return list of SearchResult from asimilarity_search_with_score."""
+        # Arrange
         from langchain_core.documents import Document
 
         mock_engine = MagicMock()
@@ -242,14 +263,17 @@ class TestLangchainPgvectorAdapter:
             table_prefix="classical_rag_",
             embedding_dimension=1536,
         )
+        # Act
         await adapter.ensure_table(working_dir="/tmp/rag/project_1")
 
         results = await adapter.similarity_search(
+            # Arrange
             working_dir="/tmp/rag/project_1",
             query="What is machine learning?",
             top_k=10,
         )
 
+        # Assert
         assert isinstance(results, list)
         assert len(results) >= 1
         assert isinstance(results[0], SearchResult)
@@ -257,6 +281,7 @@ class TestLangchainPgvectorAdapter:
         assert results[0].score == 0.92
         mock_store.asimilarity_search_with_score.assert_called_once()
 
+    # Arrange
     # ------------------------------------------------------------------
     # delete_documents
     # ------------------------------------------------------------------
@@ -270,6 +295,7 @@ class TestLangchainPgvectorAdapter:
         connection_string: str,
     ) -> None:
         """Should call adelete on the PGVectorStore for matching file_path."""
+        # Arrange
         mock_engine = MagicMock()
         mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
@@ -287,24 +313,33 @@ class TestLangchainPgvectorAdapter:
             table_prefix="classical_rag_",
             embedding_dimension=1536,
         )
+        # Act
         await adapter.ensure_table(working_dir="/tmp/rag/project_1")
 
+        # Arrange
         documents = [
             ("chunk text 1", "/docs/report.pdf", {"page": 1}),
         ]
+        # Act
         await adapter.add_documents(
-            working_dir="/tmp/rag/project_1", documents=documents
+            # Arrange
+            working_dir="/tmp/rag/project_1",
+            documents=documents,
         )
 
+        # Act
         result = await adapter.delete_documents(
+            # Arrange
             working_dir="/tmp/rag/project_1",
             file_path="/docs/report.pdf",
         )
 
+        # Assert
         assert isinstance(result, int)
         assert result == 1
         mock_store.adelete.assert_called_once()
 
+    # Arrange
     # ------------------------------------------------------------------
     # close
     # ------------------------------------------------------------------
@@ -318,6 +353,7 @@ class TestLangchainPgvectorAdapter:
         connection_string: str,
     ) -> None:
         """Should close the PGEngine connection pool."""
+        # Arrange
         mock_engine = MagicMock()
         mock_engine.ainit_vectorstore_table = AsyncMock()
         mock_engine.close = AsyncMock()
@@ -334,12 +370,15 @@ class TestLangchainPgvectorAdapter:
             table_prefix="classical_rag_",
             embedding_dimension=1536,
         )
+        # Act
         await adapter.ensure_table(working_dir="/tmp/rag/project_1")
 
         await adapter.close()
 
+        # Assert
         mock_engine.close.assert_called_once()
 
+    # Arrange
     # ------------------------------------------------------------------
     # Interface compliance
     # ------------------------------------------------------------------
