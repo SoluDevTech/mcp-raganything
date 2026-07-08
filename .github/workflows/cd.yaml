@@ -45,7 +45,7 @@ jobs:
             });
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ steps.sha.outputs.result }}
 
@@ -59,15 +59,13 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker image for scanning (amd64)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           load: true
           platforms: linux/amd64
           tags: kaiohz/pickpro:raganything-scan
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Trivy Image Scan (report)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
@@ -90,7 +88,7 @@ jobs:
           trivy-version: 'v0.69.3'
 
       - name: Build and push Docker image (multi-platform)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
@@ -99,8 +97,6 @@ jobs:
           tags: |
             kaiohz/pickpro:raganything-${{ steps.sha.outputs.result }}
             kaiohz/pickpro:raganything-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Checkout flux repository
         run: |
