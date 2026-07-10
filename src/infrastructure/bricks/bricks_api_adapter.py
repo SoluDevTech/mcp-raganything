@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 class BricksApiAdapter(BricksApiPort):
+    """HTTP client adapter for the Bricks API (list, download, publish).
+
+    Wraps ``httpx.AsyncClient`` and translates HTTP errors into domain-specific
+    exceptions (``BricksPermissionError``, ``BricksNotFoundError``, etc.).
+    """
+
     _client: httpx.AsyncClient
 
     def __init__(self, config) -> None:

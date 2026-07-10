@@ -111,6 +111,73 @@ docker compose up -d
 
 This starts all brick services including `raganything-api`, `postgres`, and `minio`.
 
+## API Key Authentication
+
+The service supports optional API key authentication for both REST and MCP endpoints. A single `API_KEY` environment variable controls all layers.
+
+### Enabling authentication
+
+Set `API_KEY` to a non-empty value in `.env`:
+
+```env
+API_KEY=your-secret-key-here
+```
+
+When enabled, all REST endpoints (except health) and all MCP tool calls require the `X-API-Key` header. Requests without a valid key receive `401 Unauthorized` (REST) or a `ToolError` (MCP).
+
+### Disabling authentication
+
+Leave `API_KEY` empty (default) to disable authentication — useful for local development and testing:
+
+```env
+API_KEY=
+```
+
+### REST usage
+
+Include the `X-API-Key` header in every request:
+
+```bash
+curl -H "X-API-Key: your-secret-key-here" \
+     -H "Content-Type: application/json" \
+     -X POST http://localhost:8000/api/v1/classical/query \
+     -d '{"working_dir": "project-alpha", "query": "test"}'
+```
+
+Health endpoints (`/api/v1/health`, `/api/v1/health/live`) remain public regardless of the `API_KEY` setting.
+
+### MCP usage
+
+MCP clients must send the `X-API-Key` header in their HTTP transport configuration. For [composable-agents](https://github.com/soludev/composable-agents), add it to the `headers` field of each MCP server config:
+
+```yaml
+mcp_servers:
+  - name: bricks
+    transport: http
+    url: https://raganything.soludev.tech/bricks/mcp
+    headers:
+      X-API-Key: "${MCP_RAGANYTHING_API_KEY}"
+  - name: files
+    transport: http
+    url: https://raganything.soludev.tech/files/mcp
+    headers:
+      X-API-Key: "${MCP_RAGANYTHING_API_KEY}"
+  - name: classical
+    transport: http
+    url: https://raganything.soludev.tech/classical/mcp
+    headers:
+      X-API-Key: "${MCP_RAGANYTHING_API_KEY}"
+```
+
+The `${MCP_RAGANYTHING_API_KEY}` placeholder is resolved from the environment variable of the same name. Set it to the same value as the server's `API_KEY`.
+
+### Protected endpoints
+
+| Layer | Protected | Public |
+|-------|-----------|--------|
+| REST | `/api/v1/files/*`, `/api/v1/classical/*`, `/api/v1/file/*`, `/api/v1/folder/*`, `/api/v1/query` | `/api/v1/health`, `/api/v1/health/live` |
+| MCP | `tools/call`, `tools/list` (all 3 servers) | `initialize` |
+
 ## API Reference
 
 Base path: `/api/v1`
@@ -741,6 +808,7 @@ All configuration is via environment variables, loaded through Pydantic Settings
 | `ALLOWED_ORIGINS` | `["*"]` | CORS allowed origins |
 | `OUTPUT_DIR` | system temp | Temporary directory for downloaded files |
 | `UVICORN_LOG_LEVEL` | `critical` | Uvicorn log level |
+| `API_KEY` | `""` (disabled) | Shared secret key for REST + MCP authentication. When non-empty, all requests must include `X-API-Key` header. Leave empty to disable authentication |
 
 ### Database (`DatabaseConfig`)
 
@@ -948,6 +1016,73 @@ src/
     versions/
       001_add_bm25_support.py          -- BM25 table, indexes, triggers
 ```
+
+## Deployment on Railway
+
+[Railway](https://railway.app/) is a deployment platform that supports Docker-based services with managed PostgreSQL. The service requires PostgreSQL with `pgvector` and `pg_textsearch` extensions.
+
+### Architecture on Railway
+
+```
+Railway project
+├── PostgreSQL (Railway managed plugin — requires pgvector + pg_textsearch)
+├── mcp-raganything (Dockerfile deploy)
+└── (MinIO — use Railway's external S3-compatible storage or a separate container)
+```
+
+### Step-by-step
+
+1. **Create a Railway project** and add a PostgreSQL plugin.
+
+2. **Provision pgvector + pg_textsearch**:
+   - Railway's managed PostgreSQL is based on the standard `postgres` image without `pgvector` or `pg_textsearch`.
+   - You need a custom PostgreSQL image. Use the `Dockerfile.db` from this repo to build a `pgvector/pgvector:pg17`-based image with `pg_textsearch` compiled in.
+   - Alternatively, deploy the custom PostgreSQL as a Railway service using `Dockerfile.db`, and disable the managed plugin.
+
+3. **Deploy mcp-raganything**:
+   - New Service → GitHub Repo → select this repository.
+   - Railway detects the `Dockerfile` automatically.
+   - Set the port to `8000` (Railway auto-detects `EXPOSE 8000`).
+
+4. **Configure environment variables** in the Railway dashboard:
+
+   | Variable | Example | Notes |
+   |----------|---------|-------|
+   | `POSTGRES_HOST` | `roundhouse.proxy.rlwy.net` | Railway PostgreSQL host |
+   | `POSTGRES_PORT` | `33019` | Railway PostgreSQL port (not 5432) |
+   | `POSTGRES_USER` | `postgres` | Railway PostgreSQL user |
+   | `POSTGRES_PASSWORD` | `********` | Railway PostgreSQL password |
+   | `POSTGRES_DATABASE` | `railway` | Railway PostgreSQL database name |
+   | `OPEN_ROUTER_API_KEY` | `sk-or-v1-...` | OpenRouter API key |
+   | `OPEN_ROUTER_API_URL` | `https://openrouter.ai/api/v1` | OpenRouter base URL |
+   | `CHAT_MODEL` | `openai/gpt-4o-mini` | Chat model |
+   | `EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+   | `EMBEDDING_DIM` | `1536` | Embedding dimensions |
+   | `MINIO_HOST` | `minio.xxx.railway.app:9000` | MinIO host (external service) |
+   | `MINIO_ACCESS` | `minioadmin` | MinIO access key |
+   | `MINIO_SECRET` | `********` | MinIO secret key |
+   | `MINIO_BUCKET` | `raganything` | MinIO bucket name |
+   | `MINIO_SECURE` | `true` | Use HTTPS in production |
+   | `API_KEY` | `your-shared-secret` | API key for REST + MCP auth (empty = disabled) |
+   | `ALLOWED_ORIGINS` | `["https://composable-agents.xxx.railway.app"]` | CORS origins |
+
+5. **MinIO**: Railway does not offer managed MinIO. Options:
+   - Deploy MinIO as a separate Railway service (Docker image `minio/minio`).
+   - Use an external S3-compatible service (AWS S3, Cloudflare R2, etc.) and adapt the MinIO config accordingly.
+   - Use the `soludev-compose-apps` stack if you need all services together.
+
+6. **Verify deployment**:
+   ```bash
+   curl https://mcp-raganything.xxx.up.railway.app/api/v1/health
+   ```
+
+7. **Connect composable-agents** to this Railway deployment by setting `MCP_RAGANYTHING_API_KEY` to the same value as `API_KEY` and pointing agent MCP URLs to the Railway domain.
+
+### Notes
+
+- Railway automatically generates a public domain (e.g. `mcp-raganything-production.up.railway.app`).
+- The `pg_textsearch` extension must be available on the PostgreSQL server. If using Railway's managed PostgreSQL, you will need to replace it with a custom image built from `Dockerfile.db`.
+- Alembic migrations run automatically on startup — no manual migration step is needed.
 
 ## License
 

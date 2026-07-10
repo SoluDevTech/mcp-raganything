@@ -11,6 +11,12 @@ _MESSAGE_TYPES = {
 
 
 class LangchainOpenAIAdapter(LLMPort):
+    """OpenAI-compatible LLM adapter using langchain-openai's ChatOpenAI.
+
+    Supports both single-turn (``generate``) and multi-turn (``generate_chat``)
+    interactions. Works with any OpenAI-compatible endpoint (OpenRouter, etc.).
+    """
+
     def __init__(self, api_key: str, base_url: str, model: str, temperature: float):
         self._llm = ChatOpenAI(
             api_key=api_key,

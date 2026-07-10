@@ -10,6 +10,13 @@ from domain.ports.vector_store_port import SearchResult, VectorStorePort
 
 
 class LangchainPgvectorAdapter(VectorStorePort):
+    """PGVector-backed vector store adapter using langchain-postgres.
+
+    Manages per-working-dir vector tables with SHA-256-hashed names. Lazily
+    initializes the PGEngine and PGVectorStore on first access for each
+    working directory. Maintains an in-memory ID map for document deletion.
+    """
+
     def __init__(
         self,
         connection_string: str,

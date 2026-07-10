@@ -157,3 +157,4 @@ class LogMessage(StrEnum):
     LOG_CONFIG_ERROR = "Config error: %s"
     LOG_FILE_ERROR = "File error: %s"
     LOG_UNHANDLED_DOMAIN_ERROR = "Unhandled domain error: %s"
+    LOG_INVALID_API_KEY = "Invalid API key: %s"

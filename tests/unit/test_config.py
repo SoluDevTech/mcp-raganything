@@ -38,15 +38,14 @@ class TestLLMConfigApiKey:
         assert config.api_key == "sk-primary"
 
     def test_returns_empty_string_when_both_none(self) -> None:
-        """Should return empty string and print warning when both keys are None."""
+        """Should return empty string and log warning when both keys are None."""
         # Arrange
         config = LLMConfig(OPEN_ROUTER_API_KEY=None, OPENROUTER_API_KEY=None)
-        with patch("builtins.print") as mock_print:
+        with patch("config.logger.warning") as mock_warning:
             result = config.api_key
             # Assert
-            mock_print.assert_called_once_with(
-                # Arrange
-                "WARNING: OPENROUTER_API_KEY not set. API calls will fail."
+            mock_warning.assert_called_once_with(
+                "OPENROUTER_API_KEY not set. API calls will fail."
             )
         # Assert
         assert result == ""

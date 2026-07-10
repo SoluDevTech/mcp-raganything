@@ -74,6 +74,13 @@ def make_extraction_config(
 
 
 class KreuzbergAdapter(DocumentReaderPort):
+    """Kreuzberg-based document extraction adapter.
+
+    Supports 91+ file formats via Kreuzberg, with configurable OCR backend
+    (VLM or Tesseract), page-level extraction, table serialization, and
+    chunking. Translates Kreuzberg exceptions into domain errors.
+    """
+
     def __init__(self, ocr_mode: str | None = None) -> None:
         self._config = make_extraction_config(ocr_mode=ocr_mode)
         self._extraction_timeout = self._config.extraction_timeout_secs
@@ -81,6 +88,19 @@ class KreuzbergAdapter(DocumentReaderPort):
     async def extract_content(
         self, file_path: str, mime_type: str = ""
     ) -> DocumentContent:
+        """Extract textual content and tables from a document file.
+
+        Args:
+            file_path: Path to the local file to extract from.
+            mime_type: Optional MIME type hint for Kreuzberg.
+
+        Returns:
+            DocumentContent with per-page content and serialized tables.
+
+        Raises:
+            DocumentReadError: On timeout or validation error.
+            UnsupportedFormatError: If the file format cannot be parsed.
+        """
         try:
             kwargs = self._build_extract_kwargs(mime_type)
             start_extract = time.time()

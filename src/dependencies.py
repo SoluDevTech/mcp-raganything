@@ -1,5 +1,6 @@
 """Dependency injection — module-level singletons following the pickpro pattern."""
 
+import logging
 import os
 
 from application.use_cases.classical_index_file_use_case import (
@@ -43,6 +44,8 @@ from infrastructure.document_reader.kreuzberg_adapter import KreuzbergAdapter
 from infrastructure.rag.classical_bm25_adapter import ClassicalBM25Adapter
 from infrastructure.storage.minio_adapter import MinioAdapter
 
+logger = logging.getLogger(__name__)
+
 app_config = AppConfig()  # type: ignore
 llm_config = LLMConfig()  # type: ignore
 minio_config = MinioConfig()  # type: ignore
@@ -74,7 +77,7 @@ if bm25_config.BM25_ENABLED:
             text_config=bm25_config.BM25_TEXT_CONFIG,
         )
     except Exception as e:
-        print(f"WARNING: Classical BM25 adapter initialization failed: {e}")
+        logger.warning("Classical BM25 adapter initialization failed: %s", e)
         classical_bm25_adapter = None
 
 classical_vector_store: VectorStorePort | None = None
@@ -106,7 +109,7 @@ try:
         temperature=classical_rag_config.CLASSICAL_LLM_TEMPERATURE,
     )
 except Exception as e:
-    print(f"WARNING: Classical RAG adapter initialization failed: {e}")
+    logger.warning("Classical RAG adapter initialization failed: %s", e)
 
 
 def get_classical_index_file_use_case() -> ClassicalIndexFileUseCase:

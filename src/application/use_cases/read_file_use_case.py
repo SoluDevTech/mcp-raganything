@@ -9,6 +9,8 @@ from domain.ports.storage_port import StoragePort
 
 
 class ReadFileUseCase:
+    """Download a file from object storage and extract its textual content."""
+
     def __init__(
         self,
         storage: StoragePort,
@@ -22,6 +24,14 @@ class ReadFileUseCase:
         self.output_dir = output_dir
 
     async def execute(self, file_path: str) -> DocumentContent:
+        """Download a file from storage and extract its content via Kreuzberg.
+
+        Args:
+            file_path: Object key in the storage bucket.
+
+        Returns:
+            DocumentContent with extracted text and metadata.
+        """
         data = await self.storage.get_object(self.bucket, file_path)
 
         os.makedirs(self.output_dir, exist_ok=True)

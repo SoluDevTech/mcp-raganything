@@ -9,6 +9,8 @@ from domain.ports.document_reader_port import DocumentContent, DocumentReaderPor
 
 
 class ReadBricksDocumentUseCase:
+    """Download a document from Bricks and extract its textual content."""
+
     def __init__(
         self,
         bricks_api: BricksApiPort,
@@ -24,6 +26,15 @@ class ReadBricksDocumentUseCase:
         document_id: str,
         project_id: str,
     ) -> DocumentContent:
+        """Download a Bricks document and extract its content via Kreuzberg.
+
+        Args:
+            document_id: Bricks document identifier.
+            project_id: Bricks project identifier.
+
+        Returns:
+            DocumentContent with extracted text and metadata.
+        """
         data, filename, mime_type = await self.bricks_api.download_document(
             document_id=document_id, project_id=project_id
         )

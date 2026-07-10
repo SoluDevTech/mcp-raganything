@@ -3,6 +3,8 @@ from domain.ports.storage_port import StoragePort
 
 
 class LivenessCheckUseCase:
+    """Health-check use case that pings PostgreSQL and object storage."""
+
     def __init__(
         self,
         storage: StoragePort,
@@ -14,6 +16,12 @@ class LivenessCheckUseCase:
         self._bucket = bucket
 
     async def execute(self) -> dict:
+        """Ping PostgreSQL and MinIO and return aggregated health status.
+
+        Returns:
+            Dict with ``status`` ("healthy" or "degraded") and per-component
+            ``checks`` mapping.
+        """
         checks: dict[str, str] = {}
 
         pg_ok = await self._postgres_health.ping()

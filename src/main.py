@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from application.api.classical_indexing_routes import classical_indexing_router
@@ -29,6 +29,7 @@ from application.error_handlers import (
     file_too_large_handler,
     file_validation_handler,
     indexing_error_handler,
+    invalid_api_key_handler,
     storage_error_handler,
     storage_not_found_handler,
     unsupported_format_handler,
@@ -54,14 +55,18 @@ from domain.errors.config import ConfigError, DependencyNotInitializedError
 from domain.errors.document import DocumentReadError, UnsupportedFormatError
 from domain.errors.file import FileError, FileTooLargeError, FileValidationError
 from domain.errors.indexing import IndexingError
+from domain.errors.security import InvalidApiKeyError
 from domain.errors.storage import StorageError, StorageNotFoundError
 from domain.errors.vector_store import VectorStoreConfigError, VectorStoreError
 from domain.logging.messages import LogMessage
 from infrastructure.logging import RequestIdMiddleware, configure_logging
+from security import ComposableAgentsSecurity, McpApiKeyMiddleware
 
 configure_logging(app_config)
 
 logger = logging.getLogger(__name__)
+
+security = ComposableAgentsSecurity(master_key=app_config.API_KEY)
 
 
 @asynccontextmanager
@@ -86,6 +91,11 @@ async def db_lifespan(_app: FastAPI):
         logger.exception("Failed to close Bricks API httpx client")
     logger.info(LogMessage.APP_SHUTDOWN_COMPLETE)
 
+
+mcp_middleware = McpApiKeyMiddleware(master_key=app_config.API_KEY)
+mcp_files.add_middleware(mcp_middleware)
+mcp_classical.add_middleware(mcp_middleware)
+mcp_bricks.add_middleware(mcp_middleware)
 
 mcp_files_app = mcp_files.http_app(path="/")
 mcp_classical_app = mcp_classical.http_app(path="/")
@@ -120,9 +130,13 @@ app.add_middleware(
 
 REST_PATH = "/api/v1"
 app.include_router(health_router, prefix=REST_PATH)
-app.include_router(file_router, prefix=REST_PATH)
-app.include_router(classical_indexing_router, prefix=REST_PATH)
-app.include_router(classical_query_router, prefix=REST_PATH)
+
+_api_key_dep = [Depends(security.verify_api_key)]
+app.include_router(file_router, prefix=REST_PATH, dependencies=_api_key_dep)
+app.include_router(
+    classical_indexing_router, prefix=REST_PATH, dependencies=_api_key_dep
+)
+app.include_router(classical_query_router, prefix=REST_PATH, dependencies=_api_key_dep)
 
 app.mount("/files/mcp", mcp_files_app)
 app.mount("/classical/mcp", mcp_classical_app)
@@ -151,6 +165,7 @@ app.add_exception_handler(
     DependencyNotInitializedError, dependency_not_initialized_handler
 )
 app.add_exception_handler(ConfigError, config_error_handler)
+app.add_exception_handler(InvalidApiKeyError, invalid_api_key_handler)
 app.add_exception_handler(DomainError, domain_error_handler)
 
 

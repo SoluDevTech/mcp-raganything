@@ -64,6 +64,11 @@ class ErrorMessage(StrEnum):
     PUBLISH_CONNECTION_FAILED = "Publish connection failed: {reason}"
     PUBLISH_TIMED_OUT = "Publish request timed out: {error}"
 
+    # --- Security ---
+    API_KEY_UNAUTHORIZED = "The Api Key you provided is unauthorized"
+    API_KEY_EMPTY = "The Api Key is empty"
+    API_KEY_DISABLED = "Auth by Api key is disabled"
+
     # --- File routes ---
     FILENAME_REQUIRED = "Filename is required"
     INVALID_FILENAME = "Invalid filename"
@@ -72,6 +77,7 @@ class ErrorMessage(StrEnum):
     PREFIX_MUST_BE_RELATIVE = "prefix must be a relative path within the bucket"
     PREFIX_MUST_BE_RELATIVE_SHORT = "prefix must be a relative path"
     FILE_TOO_LARGE = "File exceeds maximum allowed size of {max_mb} MB"
+    FILE_PATH_EMPTY = "file_path must not be empty"
 
     # --- Indexing / query ---
     VECTOR_SEARCH_FAILED = "Vector search failed in hybrid+ mode: {error}"
