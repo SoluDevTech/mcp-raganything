@@ -1,3 +1,4 @@
+import logging
 import os
 import tempfile
 
@@ -7,8 +8,12 @@ from pydantic_settings import BaseSettings
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 class AppConfig(BaseSettings):
+    """Application-level settings: server, CORS, logging, API key."""
+
     ALLOWED_ORIGINS: list[str] = Field(
         default=["*"], description="CORS allowed origins"
     )
@@ -19,6 +24,9 @@ class AppConfig(BaseSettings):
     OUTPUT_DIR: str = Field(
         default=os.path.join(tempfile.gettempdir(), "output"),
         description="Directory for temporary output file storage",
+    )
+    API_KEY: str = Field(
+        default="", description="API key for REST and MCP authentication"
     )
 
 
@@ -66,7 +74,7 @@ class LLMConfig(BaseSettings):
         """Get API key with fallback."""
         key = self.OPEN_ROUTER_API_KEY or self.OPENROUTER_API_KEY
         if not key:
-            print("WARNING: OPENROUTER_API_KEY not set. API calls will fail.")
+            logger.warning("OPENROUTER_API_KEY not set. API calls will fail.")
         return key or ""
 
     @property
@@ -152,6 +160,8 @@ class ClassicalRAGConfig(BaseSettings):
 
 
 class BricksConfig(BaseSettings):
+    """Bricks API connection and publishing configuration."""
+
     BRICKS_API_BASE_URL: str = Field(default="https://analyse.bricks.co")
     BRICKS_API_KEY: str = Field(default="")
     BRICKS_BEARER_TOKEN: str = Field(default="")

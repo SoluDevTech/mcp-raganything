@@ -47,6 +47,15 @@ class MinioAdapter(StoragePort):
                 ) from e
             logger.error(LogMessage.MINIO_RETRIEVE_ERROR, e, exc_info=True)
             raise
+        except ValueError as e:
+            # Minio client raises ValueError for invalid object names
+            # (e.g. "." or ".." segments). Treat as not found.
+            logger.info(LogMessage.MINIO_OBJECT_NOT_FOUND, bucket, object_path)
+            raise StorageNotFoundError(
+                ErrorMessage.OBJECT_NOT_FOUND.format(
+                    bucket=bucket, path=object_path
+                )
+            ) from e
 
     async def put_object(
         self, bucket: str, object_path: str, data: bytes, content_type: str

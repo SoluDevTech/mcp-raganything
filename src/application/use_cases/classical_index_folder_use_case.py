@@ -21,6 +21,13 @@ from infrastructure.document_reader.kreuzberg_adapter import make_extraction_con
 
 
 class ClassicalIndexFolderUseCase:
+    """Index all files in a storage folder into the classical RAG vector store.
+
+    Iterates over objects under a prefix, extracts and chunks each file,
+    and adds the documents to the vector store. Reports per-file status
+    (SUCCESS / FAILED / PARTIAL) with aggregated stats.
+    """
+
     def __init__(
         self,
         vector_store: VectorStorePort,
@@ -41,6 +48,18 @@ class ClassicalIndexFolderUseCase:
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
     ) -> FolderIndexingResult:
+        """Index all matching files under a storage prefix.
+
+        Args:
+            working_dir: Storage prefix and vector store namespace.
+            recursive: Whether to traverse sub-folders.
+            file_extensions: Optional filter (e.g. ``[".pdf", ".docx"]``).
+            chunk_size: Maximum characters per chunk.
+            chunk_overlap: Overlap characters between adjacent chunks.
+
+        Returns:
+            FolderIndexingResult with per-file details and aggregated stats.
+        """
         await self.vector_store.ensure_table(working_dir)
 
         prefix = working_dir if working_dir.endswith("/") else f"{working_dir}/"

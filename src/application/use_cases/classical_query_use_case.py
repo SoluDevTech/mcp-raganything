@@ -19,6 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 class ClassicalQueryUseCase:
+    """Classical RAG query with multi-query expansion, LLM judge, and optional hybrid BM25+vector search.
+
+    Supports two modes:
+    - **vector**: multi-query expansion → parallel similarity search → LLM judge scoring.
+    - **hybrid**: same, but combines BM25 and vector results via Reciprocal Rank Fusion (RRF)
+      before LLM judge scoring. Falls back to vector-only if BM25 is unavailable.
+    """
+
     def __init__(
         self,
         vector_store: VectorStorePort,
@@ -79,6 +87,23 @@ class ClassicalQueryUseCase:
         enable_llm_judge: bool = True,
         mode: Literal["vector", "hybrid"] = "vector",
     ) -> ClassicalQueryResponse:
+        """Execute a classical RAG query.
+
+        Args:
+            working_dir: Vector store namespace to search within.
+            query: The user's natural-language query.
+            top_k: Maximum number of chunks to return.
+            num_variations: Number of LLM-generated query rephrasings
+                (defaults to ``CLASSICAL_NUM_QUERY_VARIATIONS``).
+            relevance_threshold: Minimum LLM judge score (0-10) to keep a chunk
+                (defaults to ``CLASSICAL_RELEVANCE_THRESHOLD``).
+            vector_distance_threshold: Optional cosine distance cutoff for vector search.
+            enable_llm_judge: If False, skip LLM scoring and rank by raw similarity.
+            mode: ``"vector"`` for pure vector search, ``"hybrid"`` for BM25+vector RRF fusion.
+
+        Returns:
+            ClassicalQueryResponse with ranked chunks and query provenance.
+        """
         working_dir = working_dir if working_dir.endswith("/") else f"{working_dir}/"
 
         if num_variations is None:

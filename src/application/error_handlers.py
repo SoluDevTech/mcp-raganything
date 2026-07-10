@@ -23,6 +23,7 @@ from domain.errors.config import ConfigError, DependencyNotInitializedError
 from domain.errors.document import DocumentReadError, UnsupportedFormatError
 from domain.errors.file import FileError, FileTooLargeError, FileValidationError
 from domain.errors.indexing import IndexingError
+from domain.errors.security import InvalidApiKeyError
 from domain.errors.storage import StorageError, StorageNotFoundError
 from domain.errors.vector_store import VectorStoreConfigError, VectorStoreError
 from domain.logging.messages import LogMessage
@@ -149,4 +150,9 @@ def config_error_handler(_request: Request, exc: ConfigError) -> JSONResponse:
 
 def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:
     logger.error(LogMessage.LOG_UNHANDLED_DOMAIN_ERROR, exc.detail)
+    return _error_response(exc)
+
+
+def invalid_api_key_handler(_request: Request, exc: InvalidApiKeyError) -> JSONResponse:
+    logger.warning(LogMessage.LOG_INVALID_API_KEY, exc.detail)
     return _error_response(exc)

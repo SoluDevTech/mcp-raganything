@@ -15,6 +15,13 @@ from infrastructure.document_reader.kreuzberg_adapter import make_extraction_con
 
 
 class ClassicalIndexFileUseCase:
+    """Index a single file into the classical RAG vector store.
+
+    Downloads the file from object storage, extracts its content via
+    Kreuzberg, chunks it, and adds the resulting documents to the vector
+    store for the given working directory.
+    """
+
     def __init__(
         self,
         vector_store: VectorStorePort,
@@ -34,6 +41,17 @@ class ClassicalIndexFileUseCase:
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
     ) -> FileIndexingResult:
+        """Download, extract, chunk, and index a single file.
+
+        Args:
+            file_name: Object key in the storage bucket.
+            working_dir: Logical namespace (table suffix) in the vector store.
+            chunk_size: Maximum characters per chunk.
+            chunk_overlap: Overlap characters between adjacent chunks.
+
+        Returns:
+            FileIndexingResult with SUCCESS or FAILED status and error details.
+        """
         file_path = None
         try:
             data = await self.storage.get_object(self.bucket, file_name)
