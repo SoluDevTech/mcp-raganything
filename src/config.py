@@ -1,9 +1,10 @@
 import logging
 import os
 import tempfile
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import Field, PrivateAttr, model_validator
 from pydantic_settings import BaseSettings
 
 load_dotenv()
@@ -33,16 +34,60 @@ class AppConfig(BaseSettings):
 class DatabaseConfig(BaseSettings):
     """Database connection configuration."""
 
-    POSTGRES_USER: str = Field(default="raganything")
-    POSTGRES_PASSWORD: str = Field(default="raganything")
-    POSTGRES_DATABASE: str = Field(default="raganything")
-    POSTGRES_HOST: str = Field(default="localhost")
-    POSTGRES_PORT: str = Field(default="5432")
+    DATABASE_URL: str = Field(
+        default="postgresql://raganything:raganything@localhost:5432/raganything",
+        description="Full PostgreSQL connection URL. Any standard format works "
+        "(postgresql://, postgres://, postgresql+asyncpg://). "
+        "Normalized to postgresql+asyncpg:// for SQLAlchemy async.",
+    )
+    POSTGRES_STATEMENT_CACHE_SIZE: int | None = Field(
+        default=None,
+        description="asyncpg statement cache size. Set to 0 for connection poolers "
+        "(Neon, PgBouncer, etc.). None uses asyncpg default (100).",
+    )
+    _ssl_mode: str | None = PrivateAttr(default=None)
 
     @property
-    def DATABASE_URL(self) -> str:
-        """Construct async PostgreSQL database URL."""
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DATABASE}"
+    def ssl_mode(self) -> str | None:
+        return self._ssl_mode
+
+    @model_validator(mode="after")
+    def normalize_database_url(self) -> "DatabaseConfig":
+        """Normalize DATABASE_URL for asyncpg.
+
+        - postgresql:// or postgres:// → postgresql+asyncpg://
+        - Extract sslmode and store it (passed via connect_args, not URL)
+        - Strip sslmode and channel_binding (asyncpg doesn't accept them as query params)
+        """
+        parsed = urlsplit(self.DATABASE_URL)
+        params = parse_qs(parsed.query)
+        ssl_values = params.get("sslmode")
+        if ssl_values:
+            self._ssl_mode = ssl_values[0]
+
+        if self.DATABASE_URL.startswith("postgresql://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        elif self.DATABASE_URL.startswith("postgres://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace(
+                "postgres://", "postgresql+asyncpg://", 1
+            )
+
+        parsed = urlsplit(self.DATABASE_URL)
+        params = parse_qs(parsed.query)
+        params.pop("sslmode", None)
+        params.pop("channel_binding", None)
+        new_query = urlencode(params, doseq=True)
+        self.DATABASE_URL = urlunsplit(
+            (parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment)
+        )
+        return self
+
+    @property
+    def asyncpg_url(self) -> str:
+        """Return the URL without the +asyncpg driver suffix for raw asyncpg usage."""
+        return self.DATABASE_URL.replace("+asyncpg", "")
 
 
 class LLMConfig(BaseSettings):

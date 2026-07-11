@@ -72,7 +72,7 @@ classical_bm25_adapter: BM25EnginePort | None = None
 if bm25_config.BM25_ENABLED:
     try:
         classical_bm25_adapter = ClassicalBM25Adapter(
-            db_url=db_config.DATABASE_URL.replace("+asyncpg", ""),
+            db_url=db_config.asyncpg_url,
             table_prefix=classical_rag_config.CLASSICAL_TABLE_PREFIX,
             text_config=bm25_config.BM25_TEXT_CONFIG,
         )

@@ -76,40 +76,96 @@ class TestLLMConfigApiBaseUrl:
 
 
 class TestDatabaseConfigURL:
-    """Tests for DatabaseConfig.DATABASE_URL property."""
+    """Tests for DatabaseConfig DATABASE_URL normalization."""
 
-    def test_constructs_valid_postgres_url(self) -> None:
-        """Should construct a proper asyncpg PostgreSQL URL."""
+    def test_postgresql_scheme_normalized_to_asyncpg(self) -> None:
+        """Should normalize postgresql:// to postgresql+asyncpg://."""
         config = DatabaseConfig(
-            POSTGRES_USER="myuser",
-            POSTGRES_PASSWORD="secret",
-            POSTGRES_HOST="db.example.com",
-            POSTGRES_PORT="5433",
-            POSTGRES_DATABASE="mydb",
+            DATABASE_URL="postgresql://myuser:secret@db.example.com:5433/mydb"
         )
         expected = "postgresql+asyncpg://myuser:secret@db.example.com:5433/mydb"
         assert expected == config.DATABASE_URL
 
-    def test_uses_explicit_default_values(self) -> None:
-        """Should construct URL with the default field values from the model."""
-        # Arrange
+    def test_postgres_scheme_normalized_to_asyncpg(self) -> None:
+        """Should normalize postgres:// to postgresql+asyncpg://."""
         config = DatabaseConfig(
-            POSTGRES_USER="raganything",
-            POSTGRES_PASSWORD="raganything",
-            POSTGRES_HOST="localhost",
-            POSTGRES_PORT="5432",
-            POSTGRES_DATABASE="raganything",
+            DATABASE_URL="postgres://user:pass@host:5432/db"
+        )
+        assert config.DATABASE_URL == "postgresql+asyncpg://user:pass@host:5432/db"
+
+    def test_already_asyncpg_scheme_unchanged(self) -> None:
+        """Should leave postgresql+asyncpg:// URLs unchanged."""
+        url = "postgresql+asyncpg://user:pass@host:5432/db"
+        config = DatabaseConfig(DATABASE_URL=url)
+        assert url == config.DATABASE_URL
+
+    def test_default_url_uses_asyncpg(self) -> None:
+        """Should construct default URL with asyncpg driver."""
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://raganything:raganything@localhost:5432/raganything"
         )
         expected = (
             "postgresql+asyncpg://raganything:raganything@localhost:5432/raganything"
         )
-        # Assert
         assert expected == config.DATABASE_URL
 
-    def test_handles_special_characters_in_password(self) -> None:
+    def test_sslmode_and_channel_binding_stripped_from_url(self) -> None:
+        """Should strip sslmode and channel_binding from URL (asyncpg doesn't accept them)."""
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://neondb_owner:password@ep-xxx.neon.tech/neondb?sslmode=require&channel_binding=require"
+        )
+        assert config.DATABASE_URL == (
+            "postgresql+asyncpg://neondb_owner:password@ep-xxx.neon.tech/neondb"
+        )
+
+    def test_sslmode_extracted_to_property(self) -> None:
+        """Should extract sslmode to ssl_mode property for connect_args usage."""
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require"
+        )
+        assert config.ssl_mode == "require"
+
+    def test_no_sslmode_returns_none(self) -> None:
+        """Should return None for ssl_mode when no sslmode in URL."""
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://user:pass@host:5432/db"
+        )
+        assert config.ssl_mode is None
+
+    def test_other_query_params_preserved(self) -> None:
+        """Should preserve query params other than sslmode/channel_binding."""
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require&application_name=myapp"
+        )
+        assert "application_name=myapp" in config.DATABASE_URL
+        assert "sslmode" not in config.DATABASE_URL
+
+    def test_special_characters_in_password_preserved(self) -> None:
         """Should include special characters verbatim in the URL."""
         config = DatabaseConfig(
-            POSTGRES_USER="admin",
-            POSTGRES_PASSWORD="p@ss:w0rd/complex",
+            DATABASE_URL="postgresql://admin:p@ss:w0rd/complex@host:5432/db"
         )
         assert "p@ss:w0rd/complex" in config.DATABASE_URL
+
+    def test_asyncpg_url_strips_driver_suffix(self) -> None:
+        """asyncpg_url property should strip +asyncpg for raw asyncpg usage."""
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://user:pass@host:5432/db"
+        )
+        assert config.asyncpg_url == "postgresql://user:pass@host:5432/db"
+
+
+class TestDatabaseConfigStatementCacheSize:
+    """Tests for POSTGRES_STATEMENT_CACHE_SIZE config."""
+
+    def test_default_is_none(self) -> None:
+        config = DatabaseConfig()
+        assert config.POSTGRES_STATEMENT_CACHE_SIZE is None
+
+    def test_can_set_to_zero_for_poolers(self) -> None:
+        config = DatabaseConfig(POSTGRES_STATEMENT_CACHE_SIZE=0)
+        assert config.POSTGRES_STATEMENT_CACHE_SIZE == 0
+
+    def test_can_set_to_custom_value(self) -> None:
+        config = DatabaseConfig(POSTGRES_STATEMENT_CACHE_SIZE=50)
+        assert config.POSTGRES_STATEMENT_CACHE_SIZE == 50
