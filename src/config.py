@@ -86,8 +86,16 @@ class DatabaseConfig(BaseSettings):
 
     @property
     def asyncpg_url(self) -> str:
-        """Return the URL without the +asyncpg driver suffix for raw asyncpg usage."""
-        return self.DATABASE_URL.replace("+asyncpg", "")
+        """Return the URL without the +asyncpg driver suffix for raw asyncpg usage.
+
+        Only the scheme's ``+asyncpg`` suffix is stripped, so credentials that
+        legitimately contain ``+asyncpg`` (e.g. generated passwords) are preserved.
+        """
+        parsed = urlsplit(self.DATABASE_URL)
+        scheme = parsed.scheme.replace("+asyncpg", "")
+        return urlunsplit(
+            (scheme, parsed.netloc, parsed.path, parsed.query, parsed.fragment)
+        )
 
 
 class LLMConfig(BaseSettings):
