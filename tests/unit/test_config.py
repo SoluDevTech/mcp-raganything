@@ -9,6 +9,9 @@ fallback behavior must explicitly override or remove env vars.
 
 from unittest.mock import patch
 
+import pytest
+from pydantic import ValidationError
+
 from config import DatabaseConfig, LLMConfig
 
 
@@ -160,6 +163,21 @@ class TestDatabaseConfigURL:
         )
         # Assert — only the scheme's "+asyncpg" is removed; password keeps its "+asyncpg"
         assert config.asyncpg_url == "postgresql://user:foo+asyncpg@host:5432/db"
+
+    def test_invalid_scheme_rejected(self) -> None:
+        """Should reject URLs with an unsupported scheme at startup."""
+        with pytest.raises(ValidationError):
+            DatabaseConfig(DATABASE_URL="mysql://user:pass@host:3306/db")
+
+    def test_missing_host_rejected(self) -> None:
+        """Should reject URLs with no host component (e.g. typo with missing //)."""
+        with pytest.raises(ValidationError):
+            DatabaseConfig(DATABASE_URL="postgresql:user:pass@/db")
+
+    def test_not_a_url_rejected(self) -> None:
+        """Should reject non-URL strings that urlsplit would silently accept."""
+        with pytest.raises(ValidationError):
+            DatabaseConfig(DATABASE_URL="not a url")
 
 
 class TestDatabaseConfigStatementCacheSize:
