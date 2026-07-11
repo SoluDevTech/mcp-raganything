@@ -88,9 +88,7 @@ class TestDatabaseConfigURL:
 
     def test_postgres_scheme_normalized_to_asyncpg(self) -> None:
         """Should normalize postgres:// to postgresql+asyncpg://."""
-        config = DatabaseConfig(
-            DATABASE_URL="postgres://user:pass@host:5432/db"
-        )
+        config = DatabaseConfig(DATABASE_URL="postgres://user:pass@host:5432/db")
         assert config.DATABASE_URL == "postgresql+asyncpg://user:pass@host:5432/db"
 
     def test_already_asyncpg_scheme_unchanged(self) -> None:
@@ -127,9 +125,7 @@ class TestDatabaseConfigURL:
 
     def test_no_sslmode_returns_none(self) -> None:
         """Should return None for ssl_mode when no sslmode in URL."""
-        config = DatabaseConfig(
-            DATABASE_URL="postgresql://user:pass@host:5432/db"
-        )
+        config = DatabaseConfig(DATABASE_URL="postgresql://user:pass@host:5432/db")
         assert config.ssl_mode is None
 
     def test_other_query_params_preserved(self) -> None:
@@ -149,10 +145,21 @@ class TestDatabaseConfigURL:
 
     def test_asyncpg_url_strips_driver_suffix(self) -> None:
         """asyncpg_url property should strip +asyncpg for raw asyncpg usage."""
-        config = DatabaseConfig(
-            DATABASE_URL="postgresql://user:pass@host:5432/db"
-        )
+        config = DatabaseConfig(DATABASE_URL="postgresql://user:pass@host:5432/db")
         assert config.asyncpg_url == "postgresql://user:pass@host:5432/db"
+
+    def test_asyncpg_url_preserves_plus_asyncpg_in_password(self) -> None:
+        """asyncpg_url should only strip the scheme's +asyncpg suffix, not occurrences in the password.
+
+        The naive str.replace strips ALL "+asyncpg" occurrences, corrupting passwords
+        that legitimately contain "+asyncpg" (e.g. generated credentials).
+        """
+        # Arrange — password is "foo+asyncpg"; validator prepends scheme suffix
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://user:foo+asyncpg@host:5432/db"
+        )
+        # Assert — only the scheme's "+asyncpg" is removed; password keeps its "+asyncpg"
+        assert config.asyncpg_url == "postgresql://user:foo+asyncpg@host:5432/db"
 
 
 class TestDatabaseConfigStatementCacheSize:

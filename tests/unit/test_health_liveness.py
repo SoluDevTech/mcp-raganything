@@ -1,3 +1,4 @@
+import ssl
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -186,6 +187,116 @@ class TestAsyncpgHealthAdapter:
 
         # Assert
         assert result is False
+
+    @patch("infrastructure.database.asyncpg_health_adapter.asyncpg")
+    async def test_ssl_require_mode_sets_cert_none(
+        self, mock_asyncpg: MagicMock
+    ) -> None:
+        """sslmode=require should produce an SSL context with CERT_NONE and check_hostname=False (encryption only)."""
+        # Arrange
+        from config import DatabaseConfig
+        from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
+
+        mock_conn = AsyncMock()
+        mock_conn.fetchval.return_value = 1
+        mock_asyncpg.connect = AsyncMock(return_value=mock_conn)
+
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require"
+        )
+        adapter = AsyncpgHealthAdapter(config)
+
+        # Act
+        with patch(
+            "infrastructure.database.asyncpg_health_adapter.logger.warning"
+        ) as mock_warning:
+            await adapter.ping()
+
+        # Assert
+        assert "ssl" in mock_asyncpg.connect.call_args.kwargs
+        ctx = mock_asyncpg.connect.call_args.kwargs["ssl"]
+        assert isinstance(ctx, ssl.SSLContext)
+        assert ctx.verify_mode == ssl.CERT_NONE
+        assert ctx.check_hostname is False
+        mock_warning.assert_called()
+
+    @patch("infrastructure.database.asyncpg_health_adapter.asyncpg")
+    async def test_ssl_verify_ca_mode_keeps_cert_required(
+        self, mock_asyncpg: MagicMock
+    ) -> None:
+        """sslmode=verify-ca should produce an SSL context with CERT_REQUIRED and check_hostname=False."""
+        # Arrange
+        from config import DatabaseConfig
+        from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
+
+        mock_conn = AsyncMock()
+        mock_conn.fetchval.return_value = 1
+        mock_asyncpg.connect = AsyncMock(return_value=mock_conn)
+
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=verify-ca"
+        )
+        adapter = AsyncpgHealthAdapter(config)
+
+        # Act
+        await adapter.ping()
+
+        # Assert
+        assert "ssl" in mock_asyncpg.connect.call_args.kwargs
+        ctx = mock_asyncpg.connect.call_args.kwargs["ssl"]
+        assert isinstance(ctx, ssl.SSLContext)
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+        assert ctx.check_hostname is False
+
+    @patch("infrastructure.database.asyncpg_health_adapter.asyncpg")
+    async def test_ssl_verify_full_mode_keeps_full_verification(
+        self, mock_asyncpg: MagicMock
+    ) -> None:
+        """sslmode=verify-full should preserve full verification (CERT_REQUIRED and check_hostname=True)."""
+        # Arrange
+        from config import DatabaseConfig
+        from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
+
+        mock_conn = AsyncMock()
+        mock_conn.fetchval.return_value = 1
+        mock_asyncpg.connect = AsyncMock(return_value=mock_conn)
+
+        config = DatabaseConfig(
+            DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=verify-full"
+        )
+        adapter = AsyncpgHealthAdapter(config)
+
+        # Act
+        await adapter.ping()
+
+        # Assert
+        assert "ssl" in mock_asyncpg.connect.call_args.kwargs
+        ctx = mock_asyncpg.connect.call_args.kwargs["ssl"]
+        assert isinstance(ctx, ssl.SSLContext)
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+        assert ctx.check_hostname is True
+
+    @patch("infrastructure.database.asyncpg_health_adapter.asyncpg")
+    async def test_no_ssl_mode_passes_no_ssl_kwarg(
+        self, mock_asyncpg: MagicMock
+    ) -> None:
+        """When no sslmode is present in the URL, asyncpg.connect should be called without an ssl kwarg."""
+        # Arrange
+        from config import DatabaseConfig
+        from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
+
+        mock_conn = AsyncMock()
+        mock_conn.fetchval.return_value = 1
+        mock_asyncpg.connect = AsyncMock(return_value=mock_conn)
+
+        config = DatabaseConfig(DATABASE_URL="postgresql://user:pass@host:5432/db")
+        adapter = AsyncpgHealthAdapter(config)
+
+        # Act
+        await adapter.ping()
+
+        # Assert
+        assert "ssl" not in mock_asyncpg.connect.call_args.kwargs
 
 
 class TestMinioAdapterPing:
