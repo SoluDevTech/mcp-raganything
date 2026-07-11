@@ -36,8 +36,8 @@ class DatabaseConfig(BaseSettings):
 
     DATABASE_URL: str = Field(
         default="postgresql://raganything:raganything@localhost:5432/raganything",
-        description="Full PostgreSQL connection URL. Any standard format works "
-        "(postgresql://, postgres://, postgresql+asyncpg://). "
+        description="Full PostgreSQL connection URL. Accepted schemes: "
+        "postgresql://, postgres://, postgresql+asyncpg://. "
         "Normalized to postgresql+asyncpg:// for SQLAlchemy async.",
     )
     POSTGRES_STATEMENT_CACHE_SIZE: int | None = Field(
@@ -53,34 +53,41 @@ class DatabaseConfig(BaseSettings):
 
     @model_validator(mode="after")
     def normalize_database_url(self) -> "DatabaseConfig":
-        """Normalize DATABASE_URL for asyncpg.
+        """Normalize DATABASE_URL for asyncpg (single-pass).
 
-        - postgresql:// or postgres:// → postgresql+asyncpg://
+        - Validate scheme is one of postgresql, postgres, postgresql+asyncpg
+        - Validate netloc is non-empty (catches malformed URLs at startup)
+        - Normalize scheme to postgresql+asyncpg://
         - Extract sslmode and store it (passed via connect_args, not URL)
         - Strip sslmode and channel_binding (asyncpg doesn't accept them as query params)
+
+        Mutates DATABASE_URL in place; expected to run once at config instantiation.
         """
         parsed = urlsplit(self.DATABASE_URL)
+
+        if parsed.scheme not in {"postgresql", "postgres", "postgresql+asyncpg"}:
+            raise ValueError(
+                f"DATABASE_URL has unsupported scheme {parsed.scheme!r}; "
+                "expected one of: postgresql, postgres, postgresql+asyncpg"
+            )
+        if not parsed.netloc:
+            raise ValueError(
+                "DATABASE_URL is missing a host component; "
+                f"got {self.DATABASE_URL!r}"
+            )
+
         params = parse_qs(parsed.query)
         ssl_values = params.get("sslmode")
         if ssl_values:
             self._ssl_mode = ssl_values[0]
 
-        if self.DATABASE_URL.startswith("postgresql://"):
-            self.DATABASE_URL = self.DATABASE_URL.replace(
-                "postgresql://", "postgresql+asyncpg://", 1
-            )
-        elif self.DATABASE_URL.startswith("postgres://"):
-            self.DATABASE_URL = self.DATABASE_URL.replace(
-                "postgres://", "postgresql+asyncpg://", 1
-            )
-
-        parsed = urlsplit(self.DATABASE_URL)
-        params = parse_qs(parsed.query)
         params.pop("sslmode", None)
         params.pop("channel_binding", None)
+
+        scheme = "postgresql+asyncpg"
         new_query = urlencode(params, doseq=True)
         self.DATABASE_URL = urlunsplit(
-            (parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment)
+            (scheme, parsed.netloc, parsed.path, new_query, parsed.fragment)
         )
         return self
 
