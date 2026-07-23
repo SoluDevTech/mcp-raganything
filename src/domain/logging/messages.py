@@ -31,6 +31,27 @@ class LogMessage(StrEnum):
     MINIO_UPLOAD_ERROR = "MinIO error uploading object: %s"
     MINIO_LIST_ERROR = "MinIO error listing objects: %s"
     MINIO_HEALTH_CHECK_FAILED = "MinIO health check failed"
+    MINIO_REMOVE_OBJECT_ERROR = "MinIO error removing object: %s"
+    MINIO_REMOVE_PREFIX_ERROR = "MinIO error removing prefix %s: %s"
+    MINIO_REMOVE_OBJECT_PARTIAL_ERROR = "MinIO partial delete error for object %s: %s"
+
+    # --- Delete cascade (MinIO → pgvector) ---
+    DELETE_FILE_STARTED = "Delete file started: bucket=%s object=%s working_dir=%s"
+    DELETE_FILE_MINIO_DONE = "MinIO object deleted: bucket=%s object=%s"
+    DELETE_FILE_VECTORS_DONE = (
+        "Vectors deleted for file: working_dir=%s file_path=%s count=%d"
+    )
+    DELETE_FILE_VECTORS_SKIPPED = (
+        "Vector deletion skipped (no vector store configured): object=%s"
+    )
+    DELETE_FOLDER_STARTED = "Delete folder started: bucket=%s prefix=%s"
+    DELETE_FOLDER_MINIO_DONE = "MinIO prefix deleted: bucket=%s prefix=%s"
+    DELETE_FOLDER_VECTORS_DONE = (
+        "Vectors deleted for folder: working_dir=%s prefix=%s count=%d"
+    )
+    DELETE_FOLDER_VECTORS_SKIPPED = (
+        "Vector deletion skipped (no vector store configured): prefix=%s"
+    )
 
     # --- Database health (asyncpg) ---
     POSTGRES_HEALTH_CHECK_FAILED = "PostgreSQL health check failed"
@@ -46,6 +67,24 @@ class LogMessage(StrEnum):
     INDEXATION_FINISHED = "Indexation finished: %s"
     FOLDER_INDEXATION_FINISHED = "Folder indexation finished: %s"
     PAYLOAD_PREVIEW = "Payload : %s"
+    CLASSICAL_FILE_INDEX_STARTED = (
+        "Classical file indexing started: file=%s working_dir=%s"
+    )
+    CLASSICAL_FILE_INDEX_DONE = "Classical file indexing done: file=%s status=%s"
+    CLASSICAL_FILE_INDEX_FAILED = "Classical file indexing failed: file=%s error=%s"
+    CLASSICAL_FOLDER_INDEX_STARTED = (
+        "Classical folder indexing started: working_dir=%s recursive=%s"
+    )
+    CLASSICAL_FOLDER_INDEX_LISTING = (
+        "Classical folder indexing: found %d file(s) under prefix=%s"
+    )
+    CLASSICAL_FOLDER_INDEX_NO_FILES = (
+        "Classical folder indexing: no files found under prefix=%s"
+    )
+    CLASSICAL_FOLDER_INDEX_FILE_START = "Indexing file %d/%d: %s"
+    CLASSICAL_FOLDER_INDEX_FILE_DONE = "Indexed file %d/%d: %s (%d chunks)"
+    CLASSICAL_FOLDER_INDEX_FILE_FAILED = "Failed to index file %d/%d: %s error=%s"
+    CLASSICAL_FOLDER_INDEX_DONE = "Classical folder indexing done: working_dir=%s total=%d processed=%d failed=%d status=%s"
 
     # --- RAG engine (LightRAG) ---
     LIGHTRAG_INDEX_DOCUMENT_FAILED = "Failed to index document %s: %s"
@@ -97,57 +136,11 @@ class LogMessage(StrEnum):
     CLASSICAL_BM25_SEARCH_FAILED = "BM25 search failed on %s: %s"
     CLASSICAL_BM25_INDEX_DROP_FAILED = "BM25 index drop failed on %s: %s"
 
-    # --- Bricks API adapter ---
-    BRICKS_GET = "GET %s"
-    BRICKS_GET_BYTES = "GET %s -> %d bytes (status=%s)"
-    BRICKS_GET_HTTP_ERROR = "GET %s -> HTTP %d: %s"
-    BRICKS_GET_ERROR = "GET %s -> error: %s"
-    BRICKS_POST = "POST %s (body=%d bytes)"
-    BRICKS_POST_BYTES = "POST %s -> %d bytes (status=%s)"
-    BRICKS_POST_HTTP_ERROR = "POST %s -> HTTP %d: %s"
-    BRICKS_POST_ERROR = "POST %s -> error: %s"
-    BRICKS_LISTING_DOCUMENTS = "Listing Bricks documents for project %s"
-    BRICKS_FOUND_DOCUMENTS = "Found %d Bricks documents for project %s"
-    BRICKS_DOWNLOADING_DOCUMENT = "Downloading Bricks document %s from project %s"
-    BRICKS_DOWNLOADED_DOCUMENT = (
-        "Downloaded Bricks document %s (%d bytes, mime=%s, filename=%s)"
-    )
-    BRICKS_PUBLISHING_VERSION = (
-        "Publishing section version: project=%s section=%s workflow=%s"
-    )
-    BRICKS_PUBLISH_PAYLOAD = "Publish payload: %s"
-    BRICKS_PUBLISHED_VERSION = "Published section version successfully: %s"
-    BRICKS_FILENAME_QUOTED = "Filename from Content-Disposition (quoted): %s"
-    BRICKS_FILENAME_UNQUOTED = "Filename from Content-Disposition (unquoted): %s"
-    BRICKS_FILENAME_FROM_URL = "Filename from URL path: %s (url=%s)"
-    BRICKS_FILENAME_FALLBACK = (
-        "Could not extract filename, falling back to document.bin (url=%s)"
-    )
-    BRICKS_NORMALIZED_EXTENSION = "Normalized file extension: %s -> %s (filename=%s)"
-
-    # --- MCP bricks tools ---
-    MCP_DOCUMENTS_FOUND = "Documents found : %s"
-    MCP_LIST_DOCS_AUTH_FAILED = "List documents auth failed for project %s: %s"
-    MCP_LIST_DOCS_NETWORK_ERROR = "List documents network error for project %s: %s"
-    MCP_LIST_DOCS_FAILED = "Failed to list bricks documents for project %s: %s"
-    MCP_READ_DOC_RESULT = "Result for read document use case : %s"
-    MCP_READ_DOC_AUTH_FAILED = "Read document auth failed for %s: %s"
-    MCP_READ_DOC_NETWORK_ERROR = "Read document network error for %s: %s"
-    MCP_READ_DOC_FAILED = "Failed to read bricks document: %s in project %s: %s"
-    MCP_PUBLISH_AUTH_FAILED = "Publish auth failed for project %s: %s"
-    MCP_PUBLISH_NETWORK_ERROR = "Publish network error for project %s: %s"
-    MCP_PUBLISH_FAILED = "Failed to publish section version for project %s: %s"
-
     # --- MCP file tools ---
     MCP_READ_FILE_UNEXPECTED_ERROR = "Unexpected error reading file: %s"
 
     # --- Exception handler log lines (main.py) ---
     LOG_STORAGE_ERROR = "Storage error: %s"
-    LOG_BRICKS_NOT_FOUND = "Bricks not found: %s"
-    LOG_BRICKS_PERMISSION = "Bricks permission error: %s"
-    LOG_BRICKS_CONNECTION = "Bricks connection error: %s"
-    LOG_BRICKS_TIMEOUT = "Bricks timeout: %s"
-    LOG_BRICKS_API_ERROR = "Bricks API error: %s"
     LOG_RAG_ERROR = "RAG error: %s"
     LOG_RAG_UNAVAILABLE = "RAG unavailable: %s"
     LOG_VECTOR_STORE_ERROR = "Vector store error: %s"

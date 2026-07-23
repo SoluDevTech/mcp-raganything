@@ -10,24 +10,17 @@ from application.use_cases.classical_index_folder_use_case import (
     ClassicalIndexFolderUseCase,
 )
 from application.use_cases.classical_query_use_case import ClassicalQueryUseCase
-from application.use_cases.list_bricks_documents_use_case import (
-    ListBricksDocumentsUseCase,
-)
+from application.use_cases.create_folder_use_case import CreateFolderUseCase
+from application.use_cases.delete_file_use_case import DeleteFileUseCase
+from application.use_cases.delete_folder_use_case import DeleteFolderUseCase
 from application.use_cases.list_files_use_case import ListFilesUseCase
 from application.use_cases.list_folders_use_case import ListFoldersUseCase
 from application.use_cases.liveness_check_use_case import LivenessCheckUseCase
-from application.use_cases.publish_section_version_use_case import (
-    PublishSectionVersionUseCase,
-)
-from application.use_cases.read_bricks_document_use_case import (
-    ReadBricksDocumentUseCase,
-)
 from application.use_cases.read_file_use_case import ReadFileUseCase
 from application.use_cases.upload_file_use_case import UploadFileUseCase
 from config import (
     AppConfig,
     BM25Config,
-    BricksConfig,
     ClassicalRAGConfig,
     DatabaseConfig,
     LLMConfig,
@@ -38,7 +31,6 @@ from domain.errors.messages import ErrorMessage
 from domain.ports.bm25_engine import BM25EnginePort
 from domain.ports.llm_port import LLMPort
 from domain.ports.vector_store_port import VectorStorePort
-from infrastructure.bricks.bricks_api_adapter import BricksApiAdapter
 from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
 from infrastructure.document_reader.kreuzberg_adapter import KreuzbergAdapter
 from infrastructure.rag.classical_bm25_adapter import ClassicalBM25Adapter
@@ -51,7 +43,6 @@ llm_config = LLMConfig()  # type: ignore
 minio_config = MinioConfig()  # type: ignore
 bm25_config = BM25Config()  # type: ignore
 db_config = DatabaseConfig()  # type: ignore
-bricks_config = BricksConfig()  # type: ignore
 
 os.makedirs(app_config.OUTPUT_DIR, exist_ok=True)
 
@@ -64,7 +55,6 @@ minio_adapter = MinioAdapter(
 
 kreuzberg_adapter = KreuzbergAdapter()
 postgres_health_adapter = AsyncpgHealthAdapter(db_config)
-bricks_api_adapter = BricksApiAdapter(config=bricks_config)
 
 classical_rag_config = ClassicalRAGConfig()
 
@@ -173,28 +163,29 @@ def get_upload_file_use_case() -> UploadFileUseCase:
     return UploadFileUseCase(storage=minio_adapter, bucket=minio_config.MINIO_BUCKET)
 
 
+def get_create_folder_use_case() -> CreateFolderUseCase:
+    return CreateFolderUseCase(storage=minio_adapter, bucket=minio_config.MINIO_BUCKET)
+
+
+def get_delete_file_use_case() -> DeleteFileUseCase:
+    return DeleteFileUseCase(
+        storage=minio_adapter,
+        bucket=minio_config.MINIO_BUCKET,
+        vector_store=classical_vector_store,
+    )
+
+
+def get_delete_folder_use_case() -> DeleteFolderUseCase:
+    return DeleteFolderUseCase(
+        storage=minio_adapter,
+        bucket=minio_config.MINIO_BUCKET,
+        vector_store=classical_vector_store,
+    )
+
+
 def get_liveness_check_use_case() -> LivenessCheckUseCase:
     return LivenessCheckUseCase(
         storage=minio_adapter,
         postgres_health=postgres_health_adapter,
         bucket=minio_config.MINIO_BUCKET,
-    )
-
-
-def get_list_bricks_documents_use_case() -> ListBricksDocumentsUseCase:
-    return ListBricksDocumentsUseCase(bricks_api=bricks_api_adapter)
-
-
-def get_read_bricks_document_use_case() -> ReadBricksDocumentUseCase:
-    return ReadBricksDocumentUseCase(
-        bricks_api=bricks_api_adapter,
-        document_reader=kreuzberg_adapter,
-        output_dir=app_config.OUTPUT_DIR,
-    )
-
-
-def get_publish_section_version_use_case() -> PublishSectionVersionUseCase:
-    return PublishSectionVersionUseCase(
-        bricks_api=bricks_api_adapter,
-        dry_run=bricks_config.BRICKS_PUBLISH_DRY_RUN,
     )

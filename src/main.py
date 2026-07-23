@@ -11,15 +11,9 @@ from application.api.classical_indexing_routes import classical_indexing_router
 from application.api.classical_query_routes import classical_query_router
 from application.api.file_routes import file_router
 from application.api.health_routes import health_router
-from application.api.mcp_bricks_tools import mcp_bricks
 from application.api.mcp_classical_tools import mcp_classical
 from application.api.mcp_file_tools import mcp_files
 from application.error_handlers import (
-    bricks_api_error_handler,
-    bricks_connection_handler,
-    bricks_not_found_handler,
-    bricks_permission_handler,
-    bricks_timeout_handler,
     classical_error_handler,
     config_error_handler,
     dependency_not_initialized_handler,
@@ -38,18 +32,10 @@ from application.error_handlers import (
 )
 from dependencies import (
     app_config,
-    bricks_api_adapter,
     classical_bm25_adapter,
     classical_vector_store,
 )
 from domain.errors.base import DomainError
-from domain.errors.bricks import (
-    BricksApiError,
-    BricksConnectionError,
-    BricksNotFoundError,
-    BricksPermissionError,
-    BricksTimeoutError,
-)
 from domain.errors.classical import ClassicalConfigError
 from domain.errors.config import ConfigError, DependencyNotInitializedError
 from domain.errors.document import DocumentReadError, UnsupportedFormatError
@@ -85,21 +71,15 @@ async def db_lifespan(_app: FastAPI):
             await classical_vector_store.close()
         except Exception:
             logger.exception(LogMessage.APP_CLASSICAL_VS_CLOSE_FAILED)
-    try:
-        await bricks_api_adapter.close()
-    except Exception:
-        logger.exception("Failed to close Bricks API httpx client")
     logger.info(LogMessage.APP_SHUTDOWN_COMPLETE)
 
 
 mcp_middleware = McpApiKeyMiddleware(master_key=app_config.API_KEY)
 mcp_files.add_middleware(mcp_middleware)
 mcp_classical.add_middleware(mcp_middleware)
-mcp_bricks.add_middleware(mcp_middleware)
 
 mcp_files_app = mcp_files.http_app(path="/")
 mcp_classical_app = mcp_classical.http_app(path="/")
-mcp_bricks_app = mcp_bricks.http_app(path="/")
 
 
 @asynccontextmanager
@@ -109,7 +89,6 @@ async def combined_lifespan(app: FastAPI):
         db_lifespan(app),
         mcp_files_app.lifespan(app),
         mcp_classical_app.lifespan(app),
-        mcp_bricks_app.lifespan(app),
     ):
         yield
 
@@ -140,18 +119,9 @@ app.include_router(classical_query_router, prefix=REST_PATH, dependencies=_api_k
 
 app.mount("/files/mcp", mcp_files_app)
 app.mount("/classical/mcp", mcp_classical_app)
-app.mount("/bricks/mcp", mcp_bricks_app)
 
-# Register one handler per domain error type explicitly. Each handler reads the
-# exception's own status_code/detail, so no separate error->HTTP mapping table
-# is required. Most-specific types are registered first.
 app.add_exception_handler(StorageNotFoundError, storage_not_found_handler)
 app.add_exception_handler(StorageError, storage_error_handler)
-app.add_exception_handler(BricksNotFoundError, bricks_not_found_handler)
-app.add_exception_handler(BricksPermissionError, bricks_permission_handler)
-app.add_exception_handler(BricksConnectionError, bricks_connection_handler)
-app.add_exception_handler(BricksTimeoutError, bricks_timeout_handler)
-app.add_exception_handler(BricksApiError, bricks_api_error_handler)
 app.add_exception_handler(UnsupportedFormatError, unsupported_format_handler)
 app.add_exception_handler(DocumentReadError, document_error_handler)
 app.add_exception_handler(VectorStoreConfigError, vector_bad_request_handler)

@@ -19,3 +19,27 @@ class ReadFileRequest(BaseModel):
         if os.path.isabs(normalized):
             raise ValueError("file_path must be a relative path within the bucket")
         return normalized
+
+
+class CreateFolderRequest(BaseModel):
+    """Request DTO for creating a folder in the storage bucket."""
+
+    prefix: str = Field(..., description="Folder prefix to create")
+
+    @field_validator("prefix")
+    @classmethod
+    def validate_prefix(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError(str(ErrorMessage.PREFIX_MUST_BE_RELATIVE))
+        normalized = os.path.normpath(v).replace("\\", "/")
+        if (
+            normalized in (".", "..")
+            or normalized.startswith("../")
+            or "/.." in normalized
+        ):
+            raise ValueError(str(ErrorMessage.PREFIX_MUST_BE_RELATIVE))
+        if os.path.isabs(normalized):
+            raise ValueError(str(ErrorMessage.PREFIX_MUST_BE_RELATIVE))
+        if v.endswith("/") and not normalized.endswith("/"):
+            normalized += "/"
+        return normalized

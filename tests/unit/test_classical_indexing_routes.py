@@ -74,8 +74,8 @@ class TestClassicalIndexFileRoute:
         # Assert
         assert response.status_code == 422
 
-    async def test_index_file_rejects_missing_working_dir(self) -> None:
-        """Missing working_dir should return 422."""
+    async def test_index_file_accepts_missing_working_dir(self) -> None:
+        """Missing working_dir should default to empty string and return 202."""
         # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -86,7 +86,7 @@ class TestClassicalIndexFileRoute:
             )
 
         # Assert
-        assert response.status_code == 422
+        assert response.status_code == 202
 
     async def test_index_file_accepts_optional_chunk_params(
         self,
@@ -183,8 +183,8 @@ class TestClassicalIndexFolderRoute:
         # Assert
         assert response.status_code == 202
 
-    async def test_index_folder_rejects_missing_working_dir(self) -> None:
-        """Missing working_dir should return 422."""
+    async def test_index_folder_accepts_missing_working_dir(self) -> None:
+        """Missing working_dir should default to empty string and return 202."""
         # Act
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -195,4 +195,4 @@ class TestClassicalIndexFolderRoute:
             )
 
         # Assert
-        assert response.status_code == 422
+        assert response.status_code == 202

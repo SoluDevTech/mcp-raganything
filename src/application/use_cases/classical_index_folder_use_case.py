@@ -1,4 +1,5 @@
 import contextlib
+import logging
 import os
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from domain.entities.indexing_result import (
     FolderIndexingStats,
     IndexingStatus,
 )
+from domain.logging.messages import LogMessage
 from domain.ports.storage_port import StoragePort
 from domain.ports.vector_store_port import VectorStorePort
 from domain.services.classical_helpers import (
@@ -18,6 +20,8 @@ from domain.services.classical_helpers import (
     validate_path,
 )
 from infrastructure.document_reader.kreuzberg_adapter import make_extraction_config
+
+logger = logging.getLogger(__name__)
 
 
 class ClassicalIndexFolderUseCase:
@@ -60,6 +64,7 @@ class ClassicalIndexFolderUseCase:
         Returns:
             FolderIndexingResult with per-file details and aggregated stats.
         """
+        logger.info(LogMessage.CLASSICAL_FOLDER_INDEX_STARTED, working_dir, recursive)
         await self.vector_store.ensure_table(working_dir)
 
         prefix = working_dir if working_dir.endswith("/") else f"{working_dir}/"
@@ -72,6 +77,11 @@ class ClassicalIndexFolderUseCase:
             exts = set(file_extensions)
             files = [f for f in files if Path(f).suffix in exts]
 
+        if not files:
+            logger.info(LogMessage.CLASSICAL_FOLDER_INDEX_NO_FILES, prefix)
+        else:
+            logger.info(LogMessage.CLASSICAL_FOLDER_INDEX_LISTING, len(files), prefix)
+
         processed = 0
         failed = 0
         file_results = []
@@ -82,6 +92,12 @@ class ClassicalIndexFolderUseCase:
         for file_name in files:
             local_path = None
             try:
+                logger.info(
+                    LogMessage.CLASSICAL_FOLDER_INDEX_FILE_START,
+                    processed + failed + 1,
+                    len(files),
+                    file_name,
+                )
                 data = await self.storage.get_object(self.bucket, file_name)
 
                 local_path = validate_path(self.output_dir, file_name)
@@ -99,6 +115,13 @@ class ClassicalIndexFolderUseCase:
                     )
 
                 processed += 1
+                logger.info(
+                    LogMessage.CLASSICAL_FOLDER_INDEX_FILE_DONE,
+                    processed + failed,
+                    len(files),
+                    file_name,
+                    len(documents),
+                )
                 file_results.append(
                     FileProcessingDetail(
                         file_path=file_name,
@@ -108,6 +131,13 @@ class ClassicalIndexFolderUseCase:
                 )
             except Exception as exc:
                 failed += 1
+                logger.error(
+                    LogMessage.CLASSICAL_FOLDER_INDEX_FILE_FAILED,
+                    processed + failed,
+                    len(files),
+                    file_name,
+                    str(exc),
+                )
                 file_results.append(
                     FileProcessingDetail(
                         file_path=file_name,
@@ -128,6 +158,14 @@ class ClassicalIndexFolderUseCase:
         else:
             status = IndexingStatus.SUCCESS
 
+        logger.info(
+            LogMessage.CLASSICAL_FOLDER_INDEX_DONE,
+            working_dir,
+            len(files),
+            processed,
+            failed,
+            status.value,
+        )
         return FolderIndexingResult(
             status=status,
             message="Folder indexing completed",

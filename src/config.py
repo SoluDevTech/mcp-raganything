@@ -72,8 +72,7 @@ class DatabaseConfig(BaseSettings):
             )
         if not parsed.netloc:
             raise ValueError(
-                "DATABASE_URL is missing a host component; "
-                f"got {self.DATABASE_URL!r}"
+                f"DATABASE_URL is missing a host component; got {self.DATABASE_URL!r}"
             )
 
         params = parse_qs(parsed.query)
@@ -144,7 +143,7 @@ class LLMConfig(BaseSettings):
 
 
 class KreuzbergConfig(BaseSettings):
-    """Kreuzberg extraction configuration (shared by Files, Bricks, Classical)."""
+    """Kreuzberg extraction configuration (shared by Files, Classical)."""
 
     KREUZBERG_OCR_MODE: str = Field(
         default="vlm",
@@ -216,20 +215,6 @@ class ClassicalRAGConfig(BaseSettings):
         default=60,
         ge=1,
         description="RRF constant K for hybrid BM25+vector search",
-    )
-
-
-class BricksConfig(BaseSettings):
-    """Bricks API connection and publishing configuration."""
-
-    BRICKS_API_BASE_URL: str = Field(default="https://analyse.bricks.co")
-    BRICKS_API_KEY: str = Field(default="")
-    BRICKS_BEARER_TOKEN: str = Field(default="")
-    BRICKS_PUBLISH_DRY_RUN: bool = Field(default=True)
-    BRICKS_HTTP_TIMEOUT: int = Field(
-        default=30,
-        description="Timeout en secondes pour les appels HTTP à l'API Bricks (list docs, download, publish)",
-        gt=0,
     )
 
 

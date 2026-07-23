@@ -65,6 +65,34 @@ class StoragePort(ABC):
         pass
 
     @abstractmethod
+    async def remove_object(self, bucket: str, object_path: str) -> None:
+        """
+        Remove a single object from the bucket.
+
+        Args:
+            bucket: The bucket name to remove the object from.
+            object_path: The path/key of the object to remove.
+
+        Raises:
+            StorageNotFoundError: If the bucket does not exist.
+        """
+        pass
+
+    @abstractmethod
+    async def remove_prefix(self, bucket: str, prefix: str) -> None:
+        """
+        Remove all objects under a given prefix (recursive folder delete).
+
+        Args:
+            bucket: The bucket name to remove objects from.
+            prefix: The prefix to remove all objects under.
+
+        Raises:
+            StorageNotFoundError: If the bucket does not exist.
+        """
+        pass
+
+    @abstractmethod
     async def list_files_metadata(
         self, bucket: str, prefix: str, recursive: bool = True
     ) -> list[FileInfo]:
