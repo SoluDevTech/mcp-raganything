@@ -91,3 +91,21 @@ CVE-2026-4372
 # parse D-Bus introspection XML from untrusted input.
 # Review: 2026-07-08
 CVE-2026-58016
+
+# libxml2: CVE-2026-6653 - Denial of Service via crafted XML input.
+# No fixed version available in Debian bookworm (status: fix_deferred).
+# The service does not parse untrusted XML input directly.
+# Review: 2026-07-23
+CVE-2026-6653
+
+# perl-base: CVE-2026-13221 - Silently incorrect regular expression matching.
+# No fixed version available in Debian bookworm (status: affected).
+# The service does not invoke Perl. Fix needs Perl 5.44 backport.
+# Review: 2026-07-23
+CVE-2026-13221
+
+# perl-base: CVE-2026-57433 - Storable signed integer overflow.
+# No fixed version available in Debian bookworm (status: affected).
+# The service does not invoke Perl or Storable.
+# Review: 2026-07-23
+CVE-2026-57433
