@@ -76,6 +76,22 @@ class VectorStorePort(ABC):
         pass
 
     @abstractmethod
+    async def delete_by_prefix(self, working_dir: str, file_path_prefix: str) -> int:
+        """Delete all documents whose file_path starts with the given prefix.
+
+        Note: The pgvector implementation uses PostgreSQL's ``starts_with()``
+        function for literal prefix matching (no wildcard semantics).
+
+        Args:
+            working_dir: Workspace identifier (selects the table).
+            file_path_prefix: The file path prefix to match (e.g. "docs/").
+
+        Returns:
+            Number of documents deleted.
+        """
+        pass
+
+    @abstractmethod
     async def close(self) -> None:
         """Close the vector store connection pool and cleanup resources."""
         pass

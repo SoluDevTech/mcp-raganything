@@ -11,13 +11,6 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from domain.errors.base import DomainError
-from domain.errors.bricks import (
-    BricksApiError,
-    BricksConnectionError,
-    BricksNotFoundError,
-    BricksPermissionError,
-    BricksTimeoutError,
-)
 from domain.errors.classical import ClassicalConfigError
 from domain.errors.config import ConfigError, DependencyNotInitializedError
 from domain.errors.document import DocumentReadError, UnsupportedFormatError
@@ -47,37 +40,6 @@ def storage_not_found_handler(
 
 def storage_error_handler(_request: Request, exc: StorageError) -> JSONResponse:
     logger.error(LogMessage.LOG_STORAGE_ERROR, exc.detail)
-    return _error_response(exc)
-
-
-def bricks_not_found_handler(
-    _request: Request, exc: BricksNotFoundError
-) -> JSONResponse:
-    logger.warning(LogMessage.LOG_BRICKS_NOT_FOUND, exc.detail)
-    return _error_response(exc)
-
-
-def bricks_permission_handler(
-    _request: Request, exc: BricksPermissionError
-) -> JSONResponse:
-    logger.warning(LogMessage.LOG_BRICKS_PERMISSION, exc.detail)
-    return _error_response(exc)
-
-
-def bricks_connection_handler(
-    _request: Request, exc: BricksConnectionError
-) -> JSONResponse:
-    logger.error(LogMessage.LOG_BRICKS_CONNECTION, exc.detail)
-    return _error_response(exc)
-
-
-def bricks_timeout_handler(_request: Request, exc: BricksTimeoutError) -> JSONResponse:
-    logger.error(LogMessage.LOG_BRICKS_TIMEOUT, exc.detail)
-    return _error_response(exc)
-
-
-def bricks_api_error_handler(_request: Request, exc: BricksApiError) -> JSONResponse:
-    logger.error(LogMessage.LOG_BRICKS_API_ERROR, exc.detail)
     return _error_response(exc)
 
 

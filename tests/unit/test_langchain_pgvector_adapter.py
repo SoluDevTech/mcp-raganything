@@ -6,11 +6,16 @@ All langchain internals are mocked since they are external dependencies.
 """
 
 import hashlib
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from domain.ports.vector_store_port import SearchResult, VectorStorePort
+
+
+async def _await_coro(coro: Any) -> Any:
+    return await coro
 
 
 class TestLangchainPgvectorAdapter:
@@ -123,7 +128,6 @@ class TestLangchainPgvectorAdapter:
         # Assert
         assert table_name.startswith("custom_prefix_")
 
-    # Arrange
     # ------------------------------------------------------------------
     # ensure_table
     # ------------------------------------------------------------------
@@ -159,13 +163,10 @@ class TestLangchainPgvectorAdapter:
 
         # Assert
         mock_pg_engine_cls.from_connection_string.assert_called_once_with(
-            # Arrange
             connection_string
         )
-        # Assert
         mock_pgvector_store_cls.create.assert_called_once()
 
-    # Arrange
     # ------------------------------------------------------------------
     # add_documents
     # ------------------------------------------------------------------
@@ -207,20 +208,16 @@ class TestLangchainPgvectorAdapter:
 
         # Act
         result = await adapter.add_documents(
-            # Arrange
             working_dir="/tmp/rag/project_1",
             documents=documents,
         )
 
         # Assert
         assert len(result) == 2
-        # Arrange
         for doc_id in result:
-            # Assert
             assert len(doc_id) == 36
         mock_store.aadd_documents.assert_called_once()
 
-    # Arrange
     # ------------------------------------------------------------------
     # similarity_search
     # ------------------------------------------------------------------
@@ -267,7 +264,6 @@ class TestLangchainPgvectorAdapter:
         await adapter.ensure_table(working_dir="/tmp/rag/project_1")
 
         results = await adapter.similarity_search(
-            # Arrange
             working_dir="/tmp/rag/project_1",
             query="What is machine learning?",
             top_k=10,
@@ -281,27 +277,38 @@ class TestLangchainPgvectorAdapter:
         assert results[0].score == 0.92
         mock_store.asimilarity_search_with_score.assert_called_once()
 
-    # Arrange
     # ------------------------------------------------------------------
-    # delete_documents
+    # delete_documents — SQL DELETE by file_path
     # ------------------------------------------------------------------
 
     @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGVectorStore")
     @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGEngine")
-    async def test_delete_documents_calls_adelete(
+    async def test_delete_documents_executes_sql_delete_by_file_path(
         self,
         mock_pg_engine_cls: MagicMock,
         mock_pgvector_store_cls: MagicMock,
         connection_string: str,
     ) -> None:
-        """Should call adelete on the PGVectorStore for matching file_path."""
+        """Should execute SQL DELETE WHERE langchain_metadata->>'file_path' = :file_path."""
         # Arrange
         mock_engine = MagicMock()
         mock_engine.ainit_vectorstore_table = AsyncMock()
+        mock_engine._run_as_async = AsyncMock(side_effect=_await_coro)
+
+        # Mock the SQLAlchemy async pool connection
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 3
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+        mock_conn.commit = AsyncMock()
+
+        mock_pool = MagicMock()
+        mock_pool.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_engine._pool = mock_pool
+
         mock_pg_engine_cls.from_connection_string.return_value = mock_engine
         mock_store = MagicMock()
-        mock_store.aadd_documents = AsyncMock(return_value=None)
-        mock_store.adelete = AsyncMock(return_value=None)
         mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
 
         from infrastructure.vector_store.langchain_pgvector_adapter import (
@@ -313,33 +320,246 @@ class TestLangchainPgvectorAdapter:
             table_prefix="classical_rag_",
             embedding_dimension=1536,
         )
-        # Act
-        await adapter.ensure_table(working_dir="/tmp/rag/project_1")
-
-        # Arrange
-        documents = [
-            ("chunk text 1", "/docs/report.pdf", {"page": 1}),
-        ]
-        # Act
-        await adapter.add_documents(
-            # Arrange
-            working_dir="/tmp/rag/project_1",
-            documents=documents,
-        )
+        await adapter.ensure_table(working_dir="docs/")
 
         # Act
         result = await adapter.delete_documents(
-            # Arrange
-            working_dir="/tmp/rag/project_1",
-            file_path="/docs/report.pdf",
+            working_dir="docs/",
+            file_path="docs/report.pdf",
         )
 
         # Assert
         assert isinstance(result, int)
-        assert result == 1
-        mock_store.adelete.assert_called_once()
+        assert result == 3
+        mock_conn.execute.assert_called_once()
+        # Check the SQL text contains the table name and WHERE clause
+        call_args = mock_conn.execute.call_args
+        sql_text = call_args.args[0]
+        sql_str = str(sql_text)
+        assert "DELETE FROM" in sql_str
+        assert "langchain_metadata->>'file_path'" in sql_str
+        # Check params contain the right file_path
+        params = call_args.kwargs.get("params") or (
+            call_args.args[1] if len(call_args.args) > 1 else {}
+        )
+        assert params.get("file_path") == "docs/report.pdf"
 
-    # Arrange
+    @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGVectorStore")
+    @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGEngine")
+    async def test_delete_documents_returns_count(
+        self,
+        mock_pg_engine_cls: MagicMock,
+        mock_pgvector_store_cls: MagicMock,
+        connection_string: str,
+    ) -> None:
+        """Should return the number of rows deleted as an int."""
+        # Arrange
+        mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
+        mock_engine._run_as_async = AsyncMock(side_effect=_await_coro)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 7
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+        mock_conn.commit = AsyncMock()
+
+        mock_pool = MagicMock()
+        mock_pool.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_engine._pool = mock_pool
+
+        mock_pg_engine_cls.from_connection_string.return_value = mock_engine
+        mock_store = MagicMock()
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
+
+        from infrastructure.vector_store.langchain_pgvector_adapter import (
+            LangchainPgvectorAdapter,
+        )
+
+        adapter = LangchainPgvectorAdapter(
+            connection_string=connection_string,
+            table_prefix="classical_rag_",
+            embedding_dimension=1536,
+        )
+        await adapter.ensure_table(working_dir="docs/")
+
+        # Act
+        result = await adapter.delete_documents(
+            working_dir="docs/",
+            file_path="docs/report.pdf",
+        )
+
+        # Assert
+        assert isinstance(result, int)
+        assert result == 7
+
+    @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGVectorStore")
+    @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGEngine")
+    async def test_delete_documents_ensures_table_if_not_initialized(
+        self,
+        mock_pg_engine_cls: MagicMock,
+        mock_pgvector_store_cls: MagicMock,
+        connection_string: str,
+    ) -> None:
+        """Should call ensure_table first if working_dir not in _stores."""
+        # Arrange
+        mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
+        mock_engine._run_as_async = AsyncMock(side_effect=_await_coro)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 0
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+        mock_conn.commit = AsyncMock()
+
+        mock_pool = MagicMock()
+        mock_pool.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_engine._pool = mock_pool
+
+        mock_pg_engine_cls.from_connection_string.return_value = mock_engine
+        mock_store = MagicMock()
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
+
+        from infrastructure.vector_store.langchain_pgvector_adapter import (
+            LangchainPgvectorAdapter,
+        )
+
+        adapter = LangchainPgvectorAdapter(
+            connection_string=connection_string,
+            table_prefix="classical_rag_",
+            embedding_dimension=1536,
+        )
+
+        # Act — do NOT call ensure_table beforehand; delete_documents should
+        # lazily initialize the table for this working_dir
+        result = await adapter.delete_documents(
+            working_dir="not_initialized_dir/",
+            file_path="docs/report.pdf",
+        )
+
+        # Assert — ensure_table was invoked internally
+        assert isinstance(result, int)
+        mock_pgvector_store_cls.create.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # delete_by_prefix — SQL DELETE with starts_with
+    # ------------------------------------------------------------------
+
+    @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGVectorStore")
+    @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGEngine")
+    async def test_delete_by_prefix_executes_sql_delete_with_starts_with(
+        self,
+        mock_pg_engine_cls: MagicMock,
+        mock_pgvector_store_cls: MagicMock,
+        connection_string: str,
+    ) -> None:
+        """Should execute SQL DELETE WHERE starts_with(langchain_metadata->>'file_path', :prefix)."""
+        # Arrange
+        mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
+        mock_engine._run_as_async = AsyncMock(side_effect=_await_coro)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 5
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+        mock_conn.commit = AsyncMock()
+
+        mock_pool = MagicMock()
+        mock_pool.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_engine._pool = mock_pool
+
+        mock_pg_engine_cls.from_connection_string.return_value = mock_engine
+        mock_store = MagicMock()
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
+
+        from infrastructure.vector_store.langchain_pgvector_adapter import (
+            LangchainPgvectorAdapter,
+        )
+
+        adapter = LangchainPgvectorAdapter(
+            connection_string=connection_string,
+            table_prefix="classical_rag_",
+            embedding_dimension=1536,
+        )
+        await adapter.ensure_table(working_dir="docs/")
+
+        # Act
+        result = await adapter.delete_by_prefix(
+            working_dir="docs/",
+            file_path_prefix="docs/",
+        )
+
+        # Assert
+        assert isinstance(result, int)
+        assert result == 5
+        mock_conn.execute.assert_called_once()
+        call_args = mock_conn.execute.call_args
+        sql_text = call_args.args[0]
+        sql_str = str(sql_text)
+        assert "DELETE FROM" in sql_str
+        assert "langchain_metadata->>'file_path'" in sql_str
+        assert "starts_with" in sql_str
+        # The prefix param should be the literal prefix (no % wildcard)
+        params = call_args.kwargs.get("params") or (
+            call_args.args[1] if len(call_args.args) > 1 else {}
+        )
+        assert params.get("prefix") == "docs/"
+
+    @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGVectorStore")
+    @patch("infrastructure.vector_store.langchain_pgvector_adapter.PGEngine")
+    async def test_delete_by_prefix_returns_count(
+        self,
+        mock_pg_engine_cls: MagicMock,
+        mock_pgvector_store_cls: MagicMock,
+        connection_string: str,
+    ) -> None:
+        """Should return the number of rows deleted as an int."""
+        # Arrange
+        mock_engine = MagicMock()
+        mock_engine.ainit_vectorstore_table = AsyncMock()
+        mock_engine._run_as_async = AsyncMock(side_effect=_await_coro)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 12
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+        mock_conn.commit = AsyncMock()
+
+        mock_pool = MagicMock()
+        mock_pool.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_engine._pool = mock_pool
+
+        mock_pg_engine_cls.from_connection_string.return_value = mock_engine
+        mock_store = MagicMock()
+        mock_pgvector_store_cls.create = AsyncMock(return_value=mock_store)
+
+        from infrastructure.vector_store.langchain_pgvector_adapter import (
+            LangchainPgvectorAdapter,
+        )
+
+        adapter = LangchainPgvectorAdapter(
+            connection_string=connection_string,
+            table_prefix="classical_rag_",
+            embedding_dimension=1536,
+        )
+        await adapter.ensure_table(working_dir="docs/")
+
+        # Act
+        result = await adapter.delete_by_prefix(
+            working_dir="docs/",
+            file_path_prefix="docs/",
+        )
+
+        # Assert
+        assert isinstance(result, int)
+        assert result == 12
+
     # ------------------------------------------------------------------
     # close
     # ------------------------------------------------------------------
@@ -378,7 +598,6 @@ class TestLangchainPgvectorAdapter:
         # Assert
         mock_engine.close.assert_called_once()
 
-    # Arrange
     # ------------------------------------------------------------------
     # Interface compliance
     # ------------------------------------------------------------------

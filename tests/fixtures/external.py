@@ -2,11 +2,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from domain.ports.bricks_api_port import (
-    BricksApiPort,
-    BricksDocumentInfo,
-    SectionVersionResult,
-)
 from domain.ports.document_reader_port import (
     DocumentContent,
     DocumentMetadata,
@@ -85,22 +80,4 @@ def mock_llm() -> AsyncMock:
         '["alternative query 1", "alternative query 2", "alternative query 3"]'
     )
     mock.generate_chat.return_value = "LLM generated response text"
-    return mock
-
-
-@pytest.fixture
-def mock_bricks_api() -> AsyncMock:
-    """Provide an AsyncMock of BricksApiPort for external adapter mocking."""
-    mock = AsyncMock(spec=BricksApiPort)
-    mock.list_project_documents.return_value = [
-        BricksDocumentInfo(
-            id="test-id",
-            fileName="doc.pdf",
-            url="https://s3.example.com/doc.pdf",
-        )
-    ]
-    mock.download_document.return_value = (b"pdf content", "document.pdf")
-    mock.publish_section_version.return_value = SectionVersionResult(
-        success=True, message="Published"
-    )
     return mock

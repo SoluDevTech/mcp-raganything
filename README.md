@@ -30,10 +30,14 @@ Multi-modal RAG service exposing a REST API and MCP server for document indexing
         |   ClassicalIndexFileUseCase   |
         |   ClassicalIndexFolderUseCase |
         |   ClassicalQueryUseCase       |
-        |   ListFilesUseCase           |
-        |   ListFoldersUseCase         |
-        |   ReadFileUseCase            |
-        |   ListBricksDocumentsUseCase |
+         |   ListFilesUseCase           |
+         |   ListFoldersUseCase         |
+         |   ReadFileUseCase            |
+         |   UploadFileUseCase          |
+         |   CreateFolderUseCase        |
+         |   DeleteFileUseCase          |
+         |   DeleteFolderUseCase        |
+         |   ListBricksDocumentsUseCase |
         |   ReadBricksDocumentUseCase  |
         |   PublishSectionVersionUseCase|
         | requests/ responses/         |
@@ -175,7 +179,7 @@ The `${MCP_RAGANYTHING_API_KEY}` placeholder is resolved from the environment va
 
 | Layer | Protected | Public |
 |-------|-----------|--------|
-| REST | `/api/v1/files/*`, `/api/v1/classical/*`, `/api/v1/file/*`, `/api/v1/folder/*`, `/api/v1/query` | `/api/v1/health`, `/api/v1/health/live` |
+| REST | `/api/v1/files/*`, `/api/v1/files`, `/api/v1/classical/*`, `/api/v1/file/*`, `/api/v1/folder/*`, `/api/v1/query` | `/api/v1/health`, `/api/v1/health/live` |
 | MCP | `tools/call`, `tools/list` (all 3 servers) | `initialize` |
 
 ## API Reference
@@ -356,6 +360,107 @@ Error responses:
 |--------|-----------|
 | `404` | File not found in MinIO |
 | `422` | Unsupported file format or invalid path (path traversal, absolute path) |
+
+### Create a folder
+
+Creates a folder marker in the MinIO bucket by writing a 0-byte object whose object name ends with a trailing `/`. The folder is purely a prefix — MinIO does not have a real folder concept. This endpoint does **not** index anything.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/files/folders \
+  -H "Content-Type: application/json" \
+  -d '{"prefix": "documents/reports/"}'
+```
+
+Response (`201 Created`):
+
+```json
+{"message": "Folder created", "prefix": "documents/reports/"}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `prefix` | string | yes | -- | Folder prefix to create. Must be a relative path; a trailing `/` is preserved |
+
+Error responses:
+
+| Status | Condition |
+|--------|-----------|
+| `422` | Missing, absolute, or path-traversing `prefix` |
+
+### Delete a file (cascade)
+
+Deletes a single object from the MinIO bucket **and** removes its corresponding vectors from the pgvector store. The `object_name` and `working_dir` are both required query parameters.
+
+Deletion is performed in two steps, strictly in order:
+
+1. **MinIO first** — the object is removed from the storage bucket.
+2. **pgvector second** — vectors associated with the file (scoped to `working_dir`) are deleted from the vector store.
+
+If the MinIO deletion fails, the pgvector store is **not** touched, ensuring no orphaned vectors are created from a failed storage operation.
+
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/files?object_name=documents/report.pdf&working_dir=project-alpha"
+```
+
+Response (`200 OK`):
+
+```json
+{"message": "File deleted", "object_name": "documents/report.pdf"}
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `object_name` | string | yes | -- | Object path to delete. Must be a relative path within the bucket |
+| `working_dir` | string | yes | -- | RAG workspace directory (project isolation). Used to scope the pgvector deletion |
+
+Error responses:
+
+| Status | Condition |
+|--------|-----------|
+| `422` | Missing, absolute, or path-traversing `object_name` or `working_dir` |
+
+### Delete a folder (recursive, cascade)
+
+Deletes all objects whose object names start with `prefix` from the MinIO bucket **and** removes all corresponding vectors from the pgvector store. The deletion is recursive and permanent — there is no confirmation beyond the API call. A trailing `/` is preserved so that a prefix like `documents/` does not match `documents-archive/`.
+
+The `prefix` is automatically used as the `working_dir` for the pgvector deletion — no separate `working_dir` parameter is needed on this endpoint.
+
+Deletion is performed in two steps, strictly in order:
+
+1. **MinIO first** — all objects under the prefix are removed from the storage bucket.
+2. **pgvector second** — all vectors matching the prefix are deleted from the vector store.
+
+If the MinIO deletion fails, the pgvector store is **not** touched.
+
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/files/folders?prefix=documents/reports/"
+```
+
+Response (`200 OK`):
+
+```json
+{"message": "Folder deleted", "prefix": "documents/reports/"}
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `prefix` | string | yes | -- | Folder prefix to delete. Must be a relative path; trailing `/` is preserved. Also used as the `working_dir` for pgvector cleanup |
+
+Error responses:
+
+| Status | Condition |
+|--------|-----------|
+| `422` | Missing, absolute, or path-traversing `prefix` |
+
+### Path traversal protection
+
+All delete routes (`DELETE /files`, `DELETE /files/folders`) and the create-folder route (`POST /files/folders`) validate the supplied path before touching storage. The validation rules are shared with the existing `read`/`upload`/`list` endpoints:
+
+- The value must not be empty.
+- It must be a relative path (no leading `/`, no drive prefixes).
+- After normalization it must not resolve to `.`, `..`, start with `../`, or contain a `/../` segment.
+
+Any violation returns `422 Unprocessable Entity` with a `FileValidationError` body. The `object_name` / `prefix` is normalized (backslashes converted to `/`, trailing slashes preserved) before being forwarded to the `StoragePort`.
 
 ### Query
 
@@ -949,7 +1054,7 @@ src/
       indexing_result.py             -- FileIndexingResult, FolderIndexingResult
     ports/
       rag_engine.py                  -- RAGEnginePort (abstract)
-      storage_port.py                -- StoragePort (abstract) + FileInfo
+       storage_port.py                -- StoragePort (abstract, methods: list, read, upload, create_folder, remove_object, remove_prefix) + FileInfo
       bm25_engine.py                 -- BM25EnginePort (abstract)
       document_reader_port.py        -- DocumentReaderPort (abstract) + DocumentContent
       vector_store_port.py          -- VectorStorePort (abstract) + SearchResult
@@ -960,7 +1065,7 @@ src/
       health_routes.py               -- GET /health
       indexing_routes.py              -- POST /file/index, /folder/index
       query_routes.py                 -- POST /query
-      file_routes.py                  -- GET /files/list, GET /files/folders, POST /files/read
+      file_routes.py                  -- GET /files/list, GET /files/folders, POST /files/read, POST /files/upload, POST /files/folders, DELETE /files, DELETE /files/folders
       classical_indexing_routes.py   -- POST /classical/file/index, /classical/folder/index
       classical_query_routes.py      -- POST /classical/query
       mcp_query_tools.py              -- MCP tools: query_knowledge_base, query_knowledge_base_multimodal
@@ -988,8 +1093,11 @@ src/
       list_files_use_case.py          -- Lists files with metadata from MinIO
       list_folders_use_case.py        -- Lists folder prefixes from MinIO
       read_file_use_case.py           -- Reads file from MinIO, extracts content via Kreuzberg
-      upload_file_use_case.py          -- Uploads file to MinIO storage
-      list_bricks_documents_use_case.py   -- Lists documents from Bricks API
+       upload_file_use_case.py          -- Uploads file to MinIO storage
+       create_folder_use_case.py        -- Creates a folder marker (0-byte trailing-slash object) in MinIO
+       delete_file_use_case.py          -- Deletes a single object from MinIO storage
+       delete_folder_use_case.py        -- Recursively deletes all objects under a prefix in MinIO storage
+       list_bricks_documents_use_case.py   -- Lists documents from Bricks API
       read_bricks_document_use_case.py    -- Downloads Bricks document via presigned URL, extracts via Kreuzberg
       publish_section_version_use_case.py -- Publishes section version (dry-run aware)
   infrastructure/

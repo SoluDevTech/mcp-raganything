@@ -1,10 +1,12 @@
 import contextlib
+import logging
 import os
 
 import aiofiles
 from kreuzberg import extract_file
 
 from domain.entities.indexing_result import FileIndexingResult, IndexingStatus
+from domain.logging.messages import LogMessage
 from domain.ports.storage_port import StoragePort
 from domain.ports.vector_store_port import VectorStorePort
 from domain.services.classical_helpers import (
@@ -12,6 +14,8 @@ from domain.services.classical_helpers import (
     validate_path,
 )
 from infrastructure.document_reader.kreuzberg_adapter import make_extraction_config
+
+logger = logging.getLogger(__name__)
 
 
 class ClassicalIndexFileUseCase:
@@ -54,6 +58,7 @@ class ClassicalIndexFileUseCase:
         """
         file_path = None
         try:
+            logger.info(LogMessage.CLASSICAL_FILE_INDEX_STARTED, file_name, working_dir)
             data = await self.storage.get_object(self.bucket, file_name)
 
             file_path = validate_path(self.output_dir, file_name)
@@ -75,6 +80,11 @@ class ClassicalIndexFileUseCase:
                     working_dir=working_dir, documents=documents
                 )
 
+            logger.info(
+                LogMessage.CLASSICAL_FILE_INDEX_DONE,
+                file_name,
+                IndexingStatus.SUCCESS.value,
+            )
             return FileIndexingResult(
                 status=IndexingStatus.SUCCESS,
                 message="File indexed successfully",
@@ -82,6 +92,7 @@ class ClassicalIndexFileUseCase:
                 file_name=file_name,
             )
         except Exception as e:
+            logger.error(LogMessage.CLASSICAL_FILE_INDEX_FAILED, file_name, str(e))
             return FileIndexingResult(
                 status=IndexingStatus.FAILED,
                 message="File indexing failed",

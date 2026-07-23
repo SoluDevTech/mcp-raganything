@@ -4,6 +4,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, BeforeValidator, Field
 
+from domain.constants import DEFAULT_WORKING_DIR
+
 
 def _coerce_file_extensions(v: str | list[str] | None) -> list[str] | None:
     if v is None:
@@ -16,7 +18,8 @@ def _coerce_file_extensions(v: str | list[str] | None) -> list[str] | None:
 class ClassicalIndexFileRequest(BaseModel):
     file_name: str = Field(..., description="Object path in the MinIO bucket")
     working_dir: str = Field(
-        ..., description="RAG workspace directory (project isolation)"
+        default=DEFAULT_WORKING_DIR,
+        description="RAG workspace directory (project isolation)",
     )
     chunk_size: int = Field(
         default=1000, description="Max chars per chunk", ge=100, le=10000
@@ -28,7 +31,8 @@ class ClassicalIndexFileRequest(BaseModel):
 
 class ClassicalIndexFolderRequest(BaseModel):
     working_dir: str = Field(
-        ..., description="RAG workspace directory, also used as MinIO prefix"
+        default=DEFAULT_WORKING_DIR,
+        description="RAG workspace directory, also used as MinIO prefix",
     )
     recursive: bool = Field(
         default=True, description="Process subdirectories recursively"

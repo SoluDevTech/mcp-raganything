@@ -19,12 +19,9 @@ class TestLifespan:
         with (
             patch("main.classical_bm25_adapter", mock_bm25),
             patch("main.classical_vector_store", None),
-            patch("main.bricks_api_adapter", MagicMock(close=AsyncMock())),
         ):
-            # Arrange
             async with db_lifespan(mock_app):
                 pass
-            # Assert
             mock_bm25.close.assert_called_once()
 
     @pytest.mark.asyncio
@@ -37,9 +34,7 @@ class TestLifespan:
         with (
             patch("main.classical_bm25_adapter", None),
             patch("main.classical_vector_store", None),
-            patch("main.bricks_api_adapter", MagicMock(close=AsyncMock())),
         ):
-            # Arrange
             async with db_lifespan(mock_app):
                 pass
 
@@ -55,20 +50,15 @@ class TestLifespan:
         with (
             patch("main.classical_bm25_adapter", mock_bm25),
             patch("main.classical_vector_store", None),
-            patch("main.bricks_api_adapter", MagicMock(close=AsyncMock())),
         ):
-            # Arrange
             async with db_lifespan(mock_app):
                 pass
-            # Assert
             mock_bm25.close.assert_called_once()
 
     def test_run_fastapi_starts_uvicorn(self):
         """Should start uvicorn when run_fastapi is called."""
         with patch("main.uvicorn.run") as mock_uvicorn:
-            # Arrange
             from main import run_fastapi
 
             run_fastapi()
-            # Assert
             mock_uvicorn.assert_called_once()

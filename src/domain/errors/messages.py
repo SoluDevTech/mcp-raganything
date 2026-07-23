@@ -41,29 +41,6 @@ class ErrorMessage(StrEnum):
     INVALID_TABLE_PREFIX = "Invalid table_prefix: {table_prefix!r}"
     INVALID_TEXT_CONFIG = "Invalid text_config: {text_config!r}"
 
-    # --- Bricks API ---
-    BRICKS_AUTH_FAILED = "Bricks API authentication failed (HTTP {code})"
-    BRICKS_PROJECT_NOT_FOUND = "Bricks project not found: {project_id}"
-    BRICKS_API_ERROR = "Bricks API error (HTTP {code})"
-    BRICKS_CONNECTION_FAILED = "Bricks API connection failed: {reason}"
-    BRICKS_REQUEST_TIMED_OUT = "Bricks API request timed out: {error}"
-    BRICKS_DOCUMENT_NOT_FOUND = (
-        "Document {document_id} not found in project {project_id}"
-    )
-    DOCUMENT_DOWNLOAD_AUTH_FAILED = (
-        "Document download authentication failed (HTTP {code})"
-    )
-    DOCUMENT_NOT_FOUND = "Document {document_id} not found (project {project_id})"
-    DOCUMENT_DOWNLOAD_FAILED = "Failed to download document (HTTP {code})"
-    DOCUMENT_DOWNLOAD_CONNECTION_FAILED = (
-        "Document download connection failed: {reason}"
-    )
-    DOCUMENT_DOWNLOAD_TIMED_OUT = "Document download timed out: {error}"
-    PUBLISH_AUTH_FAILED = "Publish authentication failed (HTTP {code})"
-    PUBLISH_FAILED = "Publish failed (HTTP {code})"
-    PUBLISH_CONNECTION_FAILED = "Publish connection failed: {reason}"
-    PUBLISH_TIMED_OUT = "Publish request timed out: {error}"
-
     # --- Security ---
     API_KEY_UNAUTHORIZED = "The Api Key you provided is unauthorized"
     API_KEY_EMPTY = "The Api Key is empty"
@@ -78,11 +55,7 @@ class ErrorMessage(StrEnum):
     PREFIX_MUST_BE_RELATIVE_SHORT = "prefix must be a relative path"
     FILE_TOO_LARGE = "File exceeds maximum allowed size of {max_mb} MB"
     FILE_PATH_EMPTY = "file_path must not be empty"
+    MINIO_REMOVE_PARTIAL_FAILED = "Failed to delete {count} object(s) from storage"
 
     # --- Indexing / query ---
     VECTOR_SEARCH_FAILED = "Vector search failed in hybrid+ mode: {error}"
-
-    # --- MCP tool generic failures ---
-    MCP_LIST_DOCS_FAILED_GENERIC = "Failed to list bricks documents: {error}"
-    MCP_READ_DOC_FAILED_GENERIC = "Failed to read bricks document: {error}"
-    MCP_PUBLISH_FAILED_GENERIC = "Failed to publish section version: {error}"
