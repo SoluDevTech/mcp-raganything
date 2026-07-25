@@ -43,6 +43,7 @@ from domain.ports.openapi_mcp_factory import OpenApiMcpFactory
 from domain.ports.vector_store_port import VectorStorePort
 from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
 from infrastructure.document_reader.kreuzberg_adapter import KreuzbergAdapter
+from infrastructure.mcp.tool_loader import FastMcpToolLoader
 from infrastructure.openapi_mcp.adapter import FastMcpOpenApiFactory
 from infrastructure.rag.classical_bm25_adapter import ClassicalBM25Adapter
 from infrastructure.security.crypto import FernetSecretCipher
@@ -283,18 +284,13 @@ def get_generated_mcp_runner() -> GeneratedMcpRunnerPort:
     return generated_mcp_runner
 
 
-def get_mcp_tool_loader() -> McpToolLoader | None:
-    """Return the MCP tool loader (None when only the openapi path is used).
-
-    The external-path use cases (create/update/validate with
-    ``source_type="external"``) require a concrete tool loader. This project
-    only ships the openapi generation path; callers needing the external path
-    must inject their own loader via FastAPI dependency overrides.
+def get_mcp_tool_loader() -> McpToolLoader:
+    """Return the concrete fastmcp-based MCP tool loader.
 
     Returns:
-        None (external path not wired by default).
+        The FastMcpToolLoader instance configured with ``MCP_TOOL_TIMEOUT``.
     """
-    return None
+    return FastMcpToolLoader(tool_timeout=app_config.MCP_TOOL_TIMEOUT)
 
 
 def get_create_mcp_server_use_case() -> CreateMcpServerUseCase:

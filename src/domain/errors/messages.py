@@ -68,3 +68,5 @@ class ErrorMessage(StrEnum):
     OPENAPI_FETCH_FAILED = "OpenAPI spec fetch failed for {url}: {error}"
     OPENAPI_INVALID_SPEC = "OpenAPI spec invalid for {url}: {reason}"
     MCP_ALREADY_MOUNTED = "MCP server already mounted: {name}"
+    MCP_CONNECTION_ERROR = "MCP server connection failed: {error}"
+    MCP_TOOL_LOAD_ERROR = "MCP tool loading failed: {error}"
