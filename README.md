@@ -910,6 +910,8 @@ In addition to the four built-in MCP servers above, mcp-raganything **owns the M
 
 This registry was previously hosted in the `composable-agents` brick; it has been migrated here so that the RAG service is the single owner of MCP server lifecycle (registration, generation, mounting, crash recovery).
 
+> **Schema ownership:** mcp-raganything owns the registry *service*, but the `mcp_servers` **table schema** is created and evolved by [composable-agents](https://github.com/soludev/composable-agents)' Alembic migrations (`008_create_mcp_servers_table`, `009_alter_mcp_servers_add_openapi`). This service is a consumer of the shared table and assumes it already exists — on a fresh database, composable-agents' migrations must run before the registry is used. mcp-raganything no longer self-creates the table at startup.
+
 ### What it does
 
 - **Register external MCP servers** — store a name, transport URL, optional headers and an encrypted auth token. Composable-agents reads these entries and connects to the URL at agent build time.
@@ -1162,11 +1164,15 @@ docker compose logs -f raganything-api   # Follow API logs
 docker compose down -v           # Stop and remove volumes
 ```
 
-## Database Migrations
+## Database Schema
 
-Alembic migrations run automatically at startup via the `db_lifespan` context manager in `main.py`. The migration state is tracked in the `raganything_alembic_version` table, which is separate from the `composable-agents` Alembic table to avoid conflicts.
+mcp-raganything does **not** use Alembic. Schemas are provisioned by three mechanisms:
 
-The initial migration (`001_add_bm25_support`) creates the `chunks` table with a `tsvector` column for full-text search, GIN and BM25 indexes, and an auto-update trigger.
+1. **`mcp_servers` table (shared with composable-agents)** — created and owned by composable-agents' Alembic migrations `008_create_mcp_servers_table` and `009_alter_mcp_servers_add_openapi`. This service consumes the table and assumes it already exists. Run composable-agents' migrations first on a fresh database.
+
+2. **Classical RAG tables (`classical_rag_*`)** — created at runtime by `LangchainPgvectorAdapter` (langchain-postgres `PGVectorStore`) the first time a collection is indexed. No migration is needed.
+
+3. **BM25 index** — created on demand by `ClassicalBM25Adapter._ensure_bm25_index` the first time a `classical_rag_*` table is queried, using `CREATE INDEX ... USING bm25(content)`.
 
 ### Production requirements
 
@@ -1176,7 +1182,7 @@ The PostgreSQL server must have the `pg_textsearch` extension installed and load
 
 2. **docker-compose.yml** must configure `shared_preload_libraries=pg_textsearch` for the `bricks-db` service. The local dev `docker-compose.yml` in this repository includes this by default.
 
-3. The Alembic migration `001_add_bm25_support` will fail if `pg_textsearch` is not available. Ensure the database image is built from `Dockerfile.db` and the shared library is preloaded.
+3. `ClassicalBM25Adapter` checks for the extension at pool-creation time and logs a warning if it is missing; BM25 queries will then fail at runtime. Ensure the database image is built from `Dockerfile.db` and the shared library is preloaded.
 
 ## Project Structure
 
@@ -1255,10 +1261,6 @@ src/
       langchain_openai_adapter.py    -- LangchainOpenAIAdapter (langchain-openai ChatOpenAI)
     bricks/
       bricks_api_adapter.py           -- BricksApiAdapter (httpx, Bricks REST API + section-versions)
-  alembic/
-    env.py                            -- Alembic migration environment (async)
-    versions/
-      001_add_bm25_support.py          -- BM25 table, indexes, triggers
 ```
 
 ## Deployment on Railway

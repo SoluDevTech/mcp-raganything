@@ -5,13 +5,13 @@ composable-agents service). Secrets (``headers``, ``env``, ``auth_token``) are
 encrypted with the injected :class:`SecretCipher` before being written and
 decrypted on read, so the domain entity only ever holds plaintext.
 
-Unlike a SQLAlchemy adapter, each method acquires a connection from the pool
-(``pool.acquire`` async context manager), runs a single statement, and returns.
-``ensure_schema`` runs ``CREATE TABLE IF NOT EXISTS`` with the full schema
-(name, transport, url, headers_encrypted, env_encrypted, auth_token_encrypted,
-tool_count, created_at, updated_at, source_type, openapi_url) so the table is
-guaranteed to exist even when composable-agents' alembic migrations have not
-run on this database.
+**Schema ownership:** the ``mcp_servers`` table is created and evolved by
+composable-agents' Alembic migrations ``008_create_mcp_servers_table`` and
+``009_alter_mcp_servers_add_openapi``. This store is a **consumer** of the
+shared table and does **not** create it — on a fresh database, composable-agents'
+migrations must run before the registry is used. If the table is missing at
+runtime, registry operations fail with a PostgreSQL error (surfaced by the
+lifespan's try/except, which disables the registry but keeps the service up).
 """
 
 import json
@@ -28,27 +28,6 @@ from domain.ports.secret_cipher import SecretCipher
 
 logger = logging.getLogger(__name__)
 
-#: Full table schema (CREATE TABLE IF NOT EXISTS). Mirrors composable-agents
-#: alembic migrations 008 + 009 so the table exists even without alembic. The
-#: ``source_type`` and ``openapi_url`` columns are included in the CREATE so a
-#: fresh table is complete; a pre-existing table (created by composable-agents
-#: 008/009) already has them.
-_CREATE_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS mcp_servers (
-    name                  VARCHAR(100) PRIMARY KEY,
-    transport            VARCHAR(20)  NOT NULL DEFAULT 'http',
-    url                   VARCHAR(500) NOT NULL,
-    headers_encrypted    TEXT         NOT NULL DEFAULT '{}',
-    env_encrypted        TEXT         NOT NULL DEFAULT '{}',
-    auth_token_encrypted TEXT,
-    tool_count           INTEGER      NOT NULL DEFAULT 0,
-    created_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    source_type          VARCHAR(20)  NOT NULL DEFAULT 'external',
-    openapi_url          VARCHAR(500) NULL
-);
-"""
-
 
 class McpRegistryStore(McpServerRegistryStore):
     """Asyncpg-backed MCP server registry store.
@@ -61,17 +40,6 @@ class McpRegistryStore(McpServerRegistryStore):
     def __init__(self, pool: Any, cipher: SecretCipher) -> None:
         self._pool = pool
         self._cipher = cipher
-
-    async def ensure_schema(self) -> None:
-        """Create the registry table if it does not already exist (idempotent).
-
-        Runs a single ``CREATE TABLE IF NOT EXISTS`` with the full schema. The
-        table is shared with composable-agents (whose alembic migrations 008/009
-        create it with the same columns), so this is a safety net for databases
-        where those migrations have not run.
-        """
-        async with self._pool.acquire() as conn:
-            await conn.execute(_CREATE_TABLE_SQL)
 
     async def save(self, entry: RegisteredMcpServer) -> None:
         """Insert or update (upsert) a registered MCP server by name.

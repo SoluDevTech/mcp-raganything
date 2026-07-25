@@ -12,12 +12,12 @@ from domain.entities.mcp_server_registry_entry import RegisteredMcpServer
 
 
 class McpServerRegistryStore(ABC):
-    """Outbound port: persist registered MCP servers."""
+    """Outbound port: persist registered MCP servers.
 
-    @abstractmethod
-    async def ensure_schema(self) -> None:
-        """Create the registry table if it does not already exist (idempotent)."""
-        ...
+    The ``mcp_servers`` table schema is owned by composable-agents' Alembic
+    migrations (008/009); this port does not create it. Implementations assume
+    the table already exists.
+    """
 
     @abstractmethod
     async def save(self, entry: RegisteredMcpServer) -> None:

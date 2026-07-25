@@ -110,7 +110,6 @@ async def combined_lifespan(app: FastAPI):
             )
             store = McpRegistryStore(pool=_mcp_pool, cipher=cipher)
             _deps.mcp_registry_store = store
-            await store.ensure_schema()
             if runner is not None:
                 await rehydrate_openapi_servers(
                     store=store,

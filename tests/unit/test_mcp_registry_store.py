@@ -129,31 +129,6 @@ def store(mock_pool: MagicMock, mock_cipher: AsyncMock) -> McpRegistryStore:
     return McpRegistryStore(pool=mock_pool, cipher=mock_cipher)
 
 
-# -- ensure_schema -------------------------------------------------------------
-
-
-class TestEnsureSchema:
-    """Tests for McpRegistryStore.ensure_schema (CREATE TABLE IF NOT EXISTS)."""
-
-    async def test_executes_create_table_statement(self, store: McpRegistryStore, mock_conn: AsyncMock):
-        # Act
-        await store.ensure_schema()
-
-        # Assert — at least one execute call containing CREATE TABLE
-        assert mock_conn.execute.await_count >= 1
-        sql_arg = mock_conn.execute.await_args.args[0]
-        assert "CREATE TABLE" in sql_arg.upper()
-        assert "IF NOT EXISTS" in sql_arg.upper()
-
-    async def test_is_idempotent(self, store: McpRegistryStore, mock_conn: AsyncMock):
-        # Act — calling twice should not raise
-        await store.ensure_schema()
-        await store.ensure_schema()
-
-        # Assert — IF NOT EXISTS makes it safe to call multiple times
-        assert mock_conn.execute.await_count >= 2
-
-
 # -- save ----------------------------------------------------------------------
 
 
