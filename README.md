@@ -908,9 +908,7 @@ http://localhost:8000/bricks/mcp       # RAGAnythingBricks
 
 In addition to the four built-in MCP servers above, mcp-raganything **owns the MCP server registry** — a CRUD service that lets you register external MCP servers (by URL) or generate new MCP servers on the fly from any OpenAPI/Swagger document. Registered servers are persisted in the `mcp_servers` PostgreSQL table (shared with [composable-agents](https://github.com/soludev/composable-agents)) and rehydrated at startup, so composable-agents (and other clients) only need to know the registry URL to discover and connect to every available MCP server.
 
-This registry was previously hosted in the `composable-agents` brick; it has been migrated here so that the RAG service is the single owner of MCP server lifecycle (registration, generation, mounting, crash recovery).
-
-> **Schema ownership:** mcp-raganything owns the registry *service*, but the `mcp_servers` **table schema** is created and evolved by [composable-agents](https://github.com/soludev/composable-agents)' Alembic migrations (`008_create_mcp_servers_table`, `009_alter_mcp_servers_add_openapi`). This service is a consumer of the shared table and assumes it already exists — on a fresh database, composable-agents' migrations must run before the registry is used. mcp-raganything no longer self-creates the table at startup.
+This registry was previously hosted in the `composable-agents` brick; it has been migrated here so that the RAG service is the single owner of MCP server lifecycle (registration, generation, mounting, crash recovery) **and** the `mcp_servers` table schema.
 
 ### What it does
 
@@ -1166,13 +1164,16 @@ docker compose down -v           # Stop and remove volumes
 
 ## Database Schema
 
-mcp-raganything does **not** use Alembic. Schemas are provisioned by three mechanisms:
+mcp-raganything uses Alembic for the `mcp_servers` table (the MCP server registry). Migrations live in `src/alembic/versions/` and run **automatically at startup** (via `asyncio.to_thread(_run_alembic_upgrade)` in the FastAPI lifespan). The migration state is tracked in the `raganything_alembic_version` table, which is separate from composable-agents' `alembic_version` table so both services can share the same database without colliding.
 
-1. **`mcp_servers` table (shared with composable-agents)** — created and owned by composable-agents' Alembic migrations `008_create_mcp_servers_table` and `009_alter_mcp_servers_add_openapi`. This service consumes the table and assumes it already exists. Run composable-agents' migrations first on a fresh database.
+| Migration | Description |
+|---|---|
+| `001_create_mcp_servers_table` | Creates the `mcp_servers` table (name, transport, url, Fernet-encrypted `headers`/`env`/`auth_token`, tool_count, timestamps, `source_type`, `openapi_url`). `CREATE TABLE IF NOT EXISTS` makes it safe on databases where the table was previously created by composable-agents' legacy migrations 008/009 (now removed from that brick). |
 
-2. **Classical RAG tables (`classical_rag_*`)** — created at runtime by `LangchainPgvectorAdapter` (langchain-postgres `PGVectorStore`) the first time a collection is indexed. No migration is needed.
+The classical RAG tables are **not** managed by Alembic:
 
-3. **BM25 index** — created on demand by `ClassicalBM25Adapter._ensure_bm25_index` the first time a `classical_rag_*` table is queried, using `CREATE INDEX ... USING bm25(content)`.
+- **Classical RAG tables (`classical_rag_*`)** — created at runtime by `LangchainPgvectorAdapter` (langchain-postgres `PGVectorStore`) the first time a collection is indexed.
+- **BM25 index** — created on demand by `ClassicalBM25Adapter._ensure_bm25_index` the first time a `classical_rag_*` table is queried, using `CREATE INDEX ... USING bm25(content)`.
 
 ### Production requirements
 
@@ -1261,6 +1262,10 @@ src/
       langchain_openai_adapter.py    -- LangchainOpenAIAdapter (langchain-openai ChatOpenAI)
     bricks/
       bricks_api_adapter.py           -- BricksApiAdapter (httpx, Bricks REST API + section-versions)
+  alembic/
+    env.py                            -- Alembic migration environment (async, version_table=raganything_alembic_version)
+    versions/
+      001_create_mcp_servers_table.py -- mcp_servers table (Fernet-encrypted secrets, source_type, openapi_url)
 ```
 
 ## Deployment on Railway

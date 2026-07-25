@@ -1,7 +1,9 @@
 """Main entry point for the MCP service."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import asyncpg
 import uvicorn
@@ -59,6 +61,25 @@ configure_logging(app_config)
 
 logger = logging.getLogger(__name__)
 
+
+def _run_alembic_upgrade() -> None:
+    """Run Alembic migrations to head (owns the mcp_servers table schema).
+
+    Runs in a worker thread because Alembic's online mode drives an async
+    engine via ``asyncio.run`` internally. The migration state is tracked in
+    the ``raganything_alembic_version`` table, separate from composable-agents'
+    ``alembic_version``, so both services can share the same database without
+    colliding on Alembic's bookkeeping.
+    """
+    from alembic.config import Config
+
+    from alembic import command
+
+    alembic_dir = Path(__file__).parent / "alembic"
+    cfg = Config(str(Path(__file__).parent / "alembic.ini"))
+    cfg.set_main_option("script_location", str(alembic_dir))
+    command.upgrade(cfg, "head")
+
 security = ComposableAgentsSecurity(master_key=app_config.API_KEY)
 
 #: asyncpg pool for the MCP registry store; created in the lifespan, closed on
@@ -96,7 +117,16 @@ mcp_classical_app = mcp_classical.http_app(path="/")
 @asynccontextmanager
 async def combined_lifespan(app: FastAPI):
     """Combine database lifecycle with MCP lifespans and registry rehydration."""
-    # --- MCP registry: build pool, store, ensure schema, rehydrate servers ---
+    # --- Alembic migrations: own the mcp_servers table schema ---
+    # Runs unconditionally (the schema must exist even if the registry is
+    # disabled). Runs in a worker thread because Alembic's online mode drives
+    # an async engine via asyncio.run internally.
+    try:
+        await asyncio.to_thread(_run_alembic_upgrade)
+    except Exception:
+        logger.exception("Alembic migration failed; continuing startup.")
+
+    # --- MCP registry: build pool, store, rehydrate servers ---
     global _mcp_pool
     runner = getattr(app.state, "generated_mcp_runner", None)
     cipher = None

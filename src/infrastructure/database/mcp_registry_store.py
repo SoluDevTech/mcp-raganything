@@ -1,17 +1,16 @@
 """Raw asyncpg store for the MCP server registry.
 
-Persists registered MCP servers in the ``mcp_servers`` table (shared with the
-composable-agents service). Secrets (``headers``, ``env``, ``auth_token``) are
-encrypted with the injected :class:`SecretCipher` before being written and
-decrypted on read, so the domain entity only ever holds plaintext.
+Persists registered MCP servers in the ``mcp_servers`` table. Secrets
+(``headers``, ``env``, ``auth_token``) are encrypted with the injected
+:class:`SecretCipher` before being written and decrypted on read, so the domain
+entity only ever holds plaintext.
 
-**Schema ownership:** the ``mcp_servers`` table is created and evolved by
-composable-agents' Alembic migrations ``008_create_mcp_servers_table`` and
-``009_alter_mcp_servers_add_openapi``. This store is a **consumer** of the
-shared table and does **not** create it — on a fresh database, composable-agents'
-migrations must run before the registry is used. If the table is missing at
-runtime, registry operations fail with a PostgreSQL error (surfaced by the
-lifespan's try/except, which disables the registry but keeps the service up).
+**Schema ownership:** the ``mcp_servers`` table is created and evolved by this
+service's Alembic migrations (``src/alembic/versions/001_create_mcp_servers_
+table.py``), run automatically at startup via ``_run_alembic_upgrade`` in
+``main.py``. The migration state is tracked in the ``raganything_alembic_version``
+table, separate from composable-agents' ``alembic_version`` table so both
+services can share the same database without colliding.
 """
 
 import json

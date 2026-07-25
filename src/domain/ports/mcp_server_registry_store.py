@@ -14,9 +14,8 @@ from domain.entities.mcp_server_registry_entry import RegisteredMcpServer
 class McpServerRegistryStore(ABC):
     """Outbound port: persist registered MCP servers.
 
-    The ``mcp_servers`` table schema is owned by composable-agents' Alembic
-    migrations (008/009); this port does not create it. Implementations assume
-    the table already exists.
+    The ``mcp_servers`` table schema is owned by this service's Alembic
+    migrations (``001_create_mcp_servers_table``), run at startup.
     """
 
     @abstractmethod
