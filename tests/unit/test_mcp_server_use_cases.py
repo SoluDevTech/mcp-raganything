@@ -15,10 +15,6 @@ Internal components (use cases, domain entities, domain errors) are real.
 
 The openapi create flow returns the absolute mounted URL
 ``http://raganything-api:8000/generated/{name}/mcp``.
-
-These tests are written TDD-Red: the use case classes, ports, entity, and error
-subclasses do not exist yet, so importing them raises ``ImportError`` and every
-test fails until the implementation lands.
 """
 
 from datetime import UTC, datetime
@@ -79,7 +75,7 @@ def _openapi_entry(
     openapi_url: str = "https://petstore.example.com/openapi.json",
     headers: dict | None = None,
     tool_count: int = 0,
-    url: str = "/generated/pending",
+    url: str | None = None,
 ) -> RegisteredMcpServer:
     return RegisteredMcpServer(
         name=name,
@@ -512,6 +508,25 @@ class TestUpdateMcpServerUseCase:
         mock_loader.load_tools.assert_awaited_once()
         assert result.tool_count == 2
 
+    async def test_preserves_original_created_at_on_update(
+        self, use_case, mock_store, mock_loader
+    ):
+        # Arrange — existing entry created in the past, update built with now().
+        original_created_at = datetime(2025, 1, 1, tzinfo=UTC)
+        existing = _external_entry(url="http://same:3001/mcp")
+        existing = existing.model_copy(update={"created_at": original_created_at})
+        mock_store.get.return_value = existing
+        updated = _external_entry(url="http://same:3001/mcp")
+
+        # Act
+        result = await use_case.execute("web-search", updated)
+
+        # Assert — created_at unchanged, updated_at moved forward.
+        assert result.created_at == original_created_at
+        assert result.updated_at > original_created_at
+        saved = mock_store.save.await_args.args[0]
+        assert saved.created_at == original_created_at
+
     async def test_does_not_reload_tools_when_url_unchanged(self, use_case, mock_store, mock_loader):
         # Arrange
         existing = _external_entry(url="http://same:3001/mcp")
@@ -603,6 +618,26 @@ class TestUpdateMcpServerUseCaseOpenApi:
         assert result.url == "http://raganything-api:8000/generated/petstore/mcp"
         mock_store.save.assert_awaited_once()
 
+    async def test_preserves_original_created_at_on_openapi_update(
+        self, use_case, mock_store, mock_factory, mock_runner
+    ):
+        # Arrange — existing openapi entry created in the past.
+        original_created_at = datetime(2025, 1, 1, tzinfo=UTC)
+        existing = _openapi_entry()
+        existing = existing.model_copy(update={"created_at": original_created_at})
+        mock_store.get.return_value = existing
+        mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
+        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.count_tools.return_value = 5
+        updated = _openapi_entry()
+
+        # Act
+        result = await use_case.execute("petstore", updated)
+
+        # Assert
+        assert result.created_at == original_created_at
+        assert result.updated_at > original_created_at
+
 
 # =============================================================================
 # DeleteMcpServerUseCase
@@ -633,37 +668,32 @@ class TestDeleteMcpServerUseCase:
 
 
 class TestDeleteMcpServerUseCaseOpenApi:
-    """Tests for the openapi branch of DeleteMcpServerUseCase (unmounts first)."""
+    """Tests for DeleteMcpServerUseCase when a runner is injected.
+
+    ``runner.unmount`` is called unconditionally — it is a no-op for names
+    that are not mounted (including all external servers), so the use case no
+    longer reads the entry (avoiding a secret-decrypting round-trip).
+    """
 
     @pytest.fixture
     def use_case(self, mock_store, mock_runner) -> DeleteMcpServerUseCase:
         return DeleteMcpServerUseCase(store=mock_store, runner=mock_runner)
 
-    async def test_unmounts_openapi_server_before_delete(
-        self, use_case, mock_store, mock_runner
-    ):
-        # Arrange
-        mock_store.get.return_value = _openapi_entry(name="petstore")
-
+    async def test_unmounts_before_delete(self, use_case, mock_store, mock_runner):
         # Act
         await use_case.execute("petstore")
 
-        # Assert
+        # Assert — unmount called unconditionally (no-op for absent names),
+        # then the row is deleted.
         mock_runner.unmount.assert_awaited_once_with("petstore")
         mock_store.delete.assert_awaited_once_with("petstore")
 
-    async def test_does_not_unmount_external_server(
-        self, use_case, mock_store, mock_runner
-    ):
-        # Arrange
-        mock_store.get.return_value = _external_entry(name="web-search")
-
+    async def test_does_not_read_store_before_delete(self, use_case, mock_store):
         # Act
-        await use_case.execute("web-search")
+        await use_case.execute("petstore")
 
-        # Assert
-        mock_runner.unmount.assert_not_awaited()
-        mock_store.delete.assert_awaited_once_with("web-search")
+        # Assert — no get() round-trip (secrets stay encrypted in the DB).
+        mock_store.get.assert_not_awaited()
 
 
 # =============================================================================

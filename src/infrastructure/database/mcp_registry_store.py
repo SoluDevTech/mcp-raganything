@@ -69,7 +69,7 @@ class McpRegistryStore(McpServerRegistryStore):
             env_encrypted        = EXCLUDED.env_encrypted,
             auth_token_encrypted = EXCLUDED.auth_token_encrypted,
             tool_count           = EXCLUDED.tool_count,
-            updated_at           = EXCLUDED.updated_at,
+            updated_at           = now(),
             source_type          = EXCLUDED.source_type,
             openapi_url          = EXCLUDED.openapi_url;
         """

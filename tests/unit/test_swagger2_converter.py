@@ -2,10 +2,6 @@
 
 Each test covers one mapping rule from the conversion table in the module
 docstring. The converter is a pure function (no I/O, no network).
-
-These tests are written TDD-Red: ``infrastructure.openapi_mcp.swagger2_converter``
-does not exist yet, so importing it raises ``ImportError`` and every test
-fails until the implementation lands.
 """
 
 import pytest

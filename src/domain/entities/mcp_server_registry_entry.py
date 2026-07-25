@@ -10,9 +10,8 @@ timestamps.
 """
 
 from datetime import datetime
-from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from domain.entities.mcp_server_config import McpTransportType
 
@@ -23,7 +22,12 @@ class RegisteredMcpServer(BaseModel):
     Attributes:
         name: Unique server name (1-100 chars). Acts as the primary key.
         transport: Transport type (stdio or http). Defaults to http.
-        url: Server URL. Required and must be non-empty.
+        url: Server URL. Required and non-empty for ``source_type="external"``
+            (enforced by the request validator). ``None`` for an
+            ``source_type="openapi"`` server whose mounted URL is not yet known
+            — the mounted URL is set by the use case before persistence, so a
+            persisted row always carries a non-empty ``url`` (the DB column is
+            ``NOT NULL``).
         headers: HTTP headers to send to the server (decrypted on read).
         env: Environment variables for stdio transport (decrypted on read).
         auth_token: Bearer auth token (decrypted on read, None if unset).
@@ -42,7 +46,7 @@ class RegisteredMcpServer(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100)
     transport: McpTransportType = McpTransportType.HTTP
-    url: str
+    url: str | None = None
     headers: dict[str, str] = Field(default_factory=dict)
     env: dict[str, str] = Field(default_factory=dict)
     auth_token: str | None = None
@@ -51,17 +55,3 @@ class RegisteredMcpServer(BaseModel):
     openapi_url: str | None = None
     created_at: datetime
     updated_at: datetime
-
-    @model_validator(mode="after")
-    def validate_url_required(self) -> Self:
-        """Ensure url is present and non-empty.
-
-        Returns:
-            The validated entity.
-
-        Raises:
-            ValueError: If url is empty.
-        """
-        if not self.url:
-            raise ValueError("'url' is required and must be non-empty")
-        return self

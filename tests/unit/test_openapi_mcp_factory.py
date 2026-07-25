@@ -10,10 +10,6 @@ This adapter:
 
 Only httpx + FastMCP (external libraries) are mocked; the factory adapter
 itself is exercised for real.
-
-These tests are written TDD-Red: ``domain.ports.openapi_mcp_factory`` and
-``infrastructure.openapi_mcp.adapter`` do not exist yet, so importing them
-raises ``ImportError`` and every test fails until the implementation lands.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -144,7 +140,7 @@ class TestFetchSpec:
     async def test_raises_openapi_invalid_spec_error_when_spec_exceeds_5mb(
         self, factory: FastMcpOpenApiFactory
     ):
-        # Arrange — content > 5MB
+        # Arrange — content > default 5MB cap
         mock_response = MagicMock()
         mock_response.json.return_value = _valid_spec()
         mock_response.status_code = 200
@@ -154,6 +150,20 @@ class TestFetchSpec:
             # Act & Assert
             with pytest.raises(OpenApiInvalidSpecError):
                 await factory.fetch_spec("https://huge.example.com/openapi.json", headers={})
+
+    async def test_max_spec_bytes_is_configurable(self):
+        # Arrange — a factory with a tiny cap rejects content just above it.
+        factory = FastMcpOpenApiFactory(max_spec_bytes=128)
+        mock_response = MagicMock()
+        mock_response.json.return_value = _valid_spec()
+        mock_response.status_code = 200
+        mock_response.content = b"x" * 129
+
+        with (
+            patch.object(httpx, "get", new=MagicMock(return_value=mock_response)),
+            pytest.raises(OpenApiInvalidSpecError),
+        ):
+            await factory.fetch_spec("https://huge.example.com/openapi.json", headers={})
 
     async def test_passes_headers_to_httpx_get(self, factory: FastMcpOpenApiFactory):
         # Arrange

@@ -12,20 +12,22 @@ Mocked external boundaries:
 - The FastAPI/Starlette ``app.mount`` call (ASGI mount side-effect)
 
 Internal component (the runner adapter) is exercised for real.
-
-These tests are written TDD-Red: ``infrastructure.openapi_mcp.runner`` and
-``domain.ports.generated_mcp_runner`` do not exist yet, so importing them
-raises ``ImportError`` and every test fails until the implementation lands.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import _current_http_request
+from fastmcp.server.middleware import MiddlewareContext
+from mcp.types import CallToolRequest, CallToolRequestParams, ListToolsRequest
+from starlette.requests import Request
 
 from domain.errors.mcp import McpAlreadyMountedError, OpenApiInvalidSpecError
 from domain.ports.generated_mcp_runner import GeneratedMcpRunnerPort
 from infrastructure.openapi_mcp.runner import GeneratedMcpRunner
+from security import McpApiKeyMiddleware
 
 
 def _valid_spec() -> dict:
@@ -220,6 +222,87 @@ class TestMount:
 
         # Assert — add_middleware was called with the middleware
         fake_mcp.add_middleware.assert_called_once_with(middleware)
+
+
+# -- API-key middleware enforcement -------------------------------------------
+
+
+class TestApiKeyMiddlewareEnforcement:
+    """End-to-end check that ``McpApiKeyMiddleware`` (the middleware the runner
+    registers on each generated server via ``add_middleware``) actually enforces
+    the ``X-API-Key`` at the FastMCP request-handling layer.
+
+    The runner only calls ``mcp.add_middleware(mw)`` (verified in
+    ``TestMount.test_applies_middleware_to_built_mcp``); this class confirms the
+    middleware itself rejects ``tools/list`` and ``tools/call`` when the key is
+    missing or wrong, and allows them when the key matches. Rejection surfaces
+    as a FastMCP ``ToolError`` (MCP-protocol error), not an HTTP 401.
+    """
+
+    @pytest.fixture
+    def middleware(self) -> "McpApiKeyMiddleware":
+        from security import McpApiKeyMiddleware
+
+        return McpApiKeyMiddleware(master_key="master-secret")
+
+    def _context(self, method: str):
+        if method == "tools/list":
+            message = ListToolsRequest(method="tools/list")
+        else:
+            message = CallToolRequest(
+                params=CallToolRequestParams(name="t", arguments={})
+            )
+        return MiddlewareContext(message=message, method=method)
+
+    async def _run(self, middleware, method: str, headers: dict[str, str]):
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "headers": [(k.lower().encode(), v.encode()) for k, v in headers.items()],
+            "path": "/",
+            "query_string": b"",
+        }
+        request = Request(scope)
+
+        async def call_next(_ctx):
+            return "ok"
+
+        token = _current_http_request.set(request)
+        try:
+            return await middleware(self._context(method), call_next)
+        finally:
+            _current_http_request.reset(token)
+
+    async def test_list_tools_rejected_when_key_missing(self, middleware):
+        with pytest.raises(ToolError):
+            await self._run(middleware, "tools/list", headers={})
+
+    async def test_list_tools_rejected_when_key_wrong(self, middleware):
+        with pytest.raises(ToolError):
+            await self._run(
+                middleware, "tools/list", headers={"x-api-key": "wrong"}
+            )
+
+    async def test_list_tools_allowed_when_key_matches(self, middleware):
+        result = await self._run(
+            middleware, "tools/list", headers={"x-api-key": "master-secret"}
+        )
+        assert result == "ok"
+
+    async def test_call_tool_rejected_when_key_missing(self, middleware):
+        with pytest.raises(ToolError):
+            await self._run(middleware, "tools/call", headers={})
+
+    async def test_call_tool_allowed_when_key_matches(self, middleware):
+        result = await self._run(
+            middleware, "tools/call", headers={"x-api-key": "master-secret"}
+        )
+        assert result == "ok"
+
+    async def test_auth_bypassed_when_master_key_empty(self):
+        mw = McpApiKeyMiddleware(master_key="")
+        result = await self._run(mw, "tools/list", headers={})
+        assert result == "ok"
 
 
 # -- unmount -------------------------------------------------------------------

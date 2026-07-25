@@ -214,7 +214,9 @@ def get_liveness_check_use_case() -> LivenessCheckUseCase:
 # The cipher is created lazily from ``SECRET_ENCRYPTION_KEY`` so importing this
 # module never fails when the key is unset (tests/dev override the providers).
 
-mcp_openapi_factory: OpenApiMcpFactory = FastMcpOpenApiFactory()
+mcp_openapi_factory: OpenApiMcpFactory = FastMcpOpenApiFactory(
+    max_spec_bytes=app_config.OPENAPI_MAX_SPEC_BYTES
+)
 mcp_secret_cipher: FernetSecretCipher | None = None
 mcp_registry_store: McpServerRegistryStore | None = None
 generated_mcp_runner: GeneratedMcpRunnerPort | None = None

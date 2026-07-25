@@ -174,3 +174,7 @@ class LogMessage(StrEnum):
     MCP_REHYDRATION_ENTRY_FAILED = (
         "Rehydration: failed to remount generated MCP server %s: %s"
     )
+    MCP_REHYDRATION_SKIPPED_SUMMARY = (
+        "Rehydration skipped %d generated MCP server(s) due to mount failures; "
+        "they will be retried on the next startup."
+    )

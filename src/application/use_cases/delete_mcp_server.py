@@ -39,6 +39,12 @@ class DeleteMcpServerUseCase:
     async def execute(self, name: str) -> None:
         """Delete a registered MCP server by name.
 
+        When a runner is injected, the in-process server (if any) is unmounted
+        first — ``runner.unmount`` is a no-op for names that are not mounted
+        (including all ``source_type="external"`` servers), so no prior
+        ``store.get`` round-trip (which would also needlessly decrypt secrets)
+        is required.
+
         Args:
             name: The unique server name to delete.
 
@@ -46,9 +52,7 @@ class DeleteMcpServerUseCase:
             McpServerNotFoundError: If no server exists for this name.
         """
         if self._runner is not None:
-            entry = await self._store.get(name)
-            if entry.source_type == "openapi":
-                await self._runner.unmount(name)
+            await self._runner.unmount(name)
 
         await self._store.delete(name)
         logger.info(LogMessage.MCP_SERVER_DELETED_UC, name)

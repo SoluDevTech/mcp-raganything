@@ -51,137 +51,63 @@ logger = logging.getLogger(__name__)
 
 mcp_registry_router = APIRouter(prefix="/api/v1/mcp/servers", tags=["mcp-registry"])
 
-#: Sentinel URL used for openapi servers before the mounted URL is known. The
-#: use case replaces it with the real mounted path before persisting.
-_OPENAPI_PENDING_URL = "/generated/pending"
+
+class _McpServerBaseRequest(BaseModel):
+    """Shared fields for create/update/validate request bodies.
+
+    Per-source-type required fields are enforced by
+    :meth:`validate_source_type_fields`: ``url`` is required for
+    ``source_type="external"`` (a configured remote URL) and ``openapi_url`` is
+    required for ``source_type="openapi"`` (the mounted URL is generated, so
+    ``url`` is omitted on the request).
+    """
+
+    url: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+    env: dict[str, str] = Field(default_factory=dict)
+    auth_token: str | None = None
+    source_type: str = "external"
+    openapi_url: str | None = None
+
+    @model_validator(mode="after")
+    def validate_source_type_fields(self) -> Self:
+        """Enforce per-source-type required fields.
+
+        Returns:
+            The validated request.
+
+        Raises:
+            ValueError: If ``source_type="openapi"`` without ``openapi_url``,
+                or ``source_type="external"`` without ``url``.
+        """
+        if self.source_type == "openapi":
+            if not self.openapi_url:
+                raise ValueError("'openapi_url' is required when source_type='openapi'")
+        else:  # external (default)
+            if not self.url:
+                raise ValueError("'url' is required when source_type='external'")
+        return self
 
 
-class McpServerCreateRequest(BaseModel):
+class McpServerCreateRequest(_McpServerBaseRequest):
     """Request body for creating a registered MCP server.
 
     Attributes:
         name: Unique server name (1-100 chars).
-        url: Server URL (required for ``source_type="external"``, omitted for
-            ``source_type="openapi"`` since the mounted URL is generated).
-        headers: HTTP headers to send to the server (upstream auth for openapi).
-        env: Environment variables for stdio transport.
-        auth_token: Bearer auth token (external only; None for openapi).
-        source_type: Origin of the server — ``"external"`` (default) or
-            ``"openapi"``.
-        openapi_url: URL of the OpenAPI document (required when
-            ``source_type="openapi"``).
     """
 
     name: str = Field(..., min_length=1, max_length=100)
-    url: str | None = Field(default=None, min_length=1)
-    headers: dict[str, str] = Field(default_factory=dict)
-    env: dict[str, str] = Field(default_factory=dict)
-    auth_token: str | None = None
-    source_type: str = "external"
-    openapi_url: str | None = None
-
-    @model_validator(mode="after")
-    def validate_source_type_fields(self) -> Self:
-        """Enforce per-source-type required fields.
-
-        Returns:
-            The validated request.
-
-        Raises:
-            ValueError: If ``source_type="openapi"`` without ``openapi_url``,
-                or ``source_type="external"`` without ``url``.
-        """
-        if self.source_type == "openapi":
-            if not self.openapi_url:
-                raise ValueError("'openapi_url' is required when source_type='openapi'")
-        else:  # external (default)
-            if not self.url:
-                raise ValueError("'url' is required when source_type='external'")
-        return self
 
 
-class McpServerValidateRequest(BaseModel):
-    """Request body for dry-run validation of an MCP server config.
-
-    Attributes:
-        url: Server URL (required for ``source_type="external"``, omitted for
-            ``source_type="openapi"``).
-        headers: HTTP headers to send to the server (upstream auth for openapi).
-        env: Environment variables for stdio transport.
-        auth_token: Bearer auth token (external only).
-        source_type: Origin of the server — ``"external"`` (default) or
-            ``"openapi"``.
-        openapi_url: URL of the OpenAPI document (required when
-            ``source_type="openapi"``).
-    """
-
-    url: str | None = Field(default=None, min_length=1)
-    headers: dict[str, str] = Field(default_factory=dict)
-    env: dict[str, str] = Field(default_factory=dict)
-    auth_token: str | None = None
-    source_type: str = "external"
-    openapi_url: str | None = None
-
-    @model_validator(mode="after")
-    def validate_source_type_fields(self) -> Self:
-        """Enforce per-source-type required fields.
-
-        Returns:
-            The validated request.
-
-        Raises:
-            ValueError: If ``source_type="openapi"`` without ``openapi_url``,
-                or ``source_type="external"`` without ``url``.
-        """
-        if self.source_type == "openapi":
-            if not self.openapi_url:
-                raise ValueError("'openapi_url' is required when source_type='openapi'")
-        else:  # external (default)
-            if not self.url:
-                raise ValueError("'url' is required when source_type='external'")
-        return self
+class McpServerValidateRequest(_McpServerBaseRequest):
+    """Request body for dry-run validation of an MCP server config."""
 
 
-class McpServerUpdateRequest(BaseModel):
+class McpServerUpdateRequest(_McpServerBaseRequest):
     """Request body for updating a registered MCP server.
 
-    Attributes:
-        url: Server URL (required for ``source_type="external"``, omitted for
-            ``source_type="openapi"``).
-        headers: HTTP headers to send to the server (upstream auth for openapi).
-        env: Environment variables for stdio transport.
-        auth_token: Bearer auth token (external only).
-        source_type: Origin of the server — ``"external"`` (default) or
-            ``"openapi"``.
-        openapi_url: URL of the OpenAPI document (required when
-            ``source_type="openapi"``).
+    The server ``name`` is taken from the URL path, not the body.
     """
-
-    url: str | None = Field(default=None, min_length=1)
-    headers: dict[str, str] = Field(default_factory=dict)
-    env: dict[str, str] = Field(default_factory=dict)
-    auth_token: str | None = None
-    source_type: str = "external"
-    openapi_url: str | None = None
-
-    @model_validator(mode="after")
-    def validate_source_type_fields(self) -> Self:
-        """Enforce per-source-type required fields.
-
-        Returns:
-            The validated request.
-
-        Raises:
-            ValueError: If ``source_type="openapi"`` without ``openapi_url``,
-                or ``source_type="external"`` without ``url``.
-        """
-        if self.source_type == "openapi":
-            if not self.openapi_url:
-                raise ValueError("'openapi_url' is required when source_type='openapi'")
-        else:  # external (default)
-            if not self.url:
-                raise ValueError("'url' is required when source_type='external'")
-        return self
 
 
 class McpServerValidateResponse(BaseModel):
@@ -192,6 +118,10 @@ class McpServerValidateResponse(BaseModel):
 
 def _mask(entry: RegisteredMcpServer) -> RegisteredMcpServer:
     """Return a copy of ``entry`` with secrets stripped (auth_token, headers, env).
+
+    ``auth_token`` is set to ``None`` in masked responses. This is ambiguous
+    with an entry that genuinely has no token; use the ``/reveal`` endpoint to
+    fetch the plaintext value and distinguish "no token" from "masked token".
 
     Args:
         entry: The registered server entry with plaintext secrets.
@@ -222,7 +152,7 @@ async def create_mcp_server(
     entry = RegisteredMcpServer(
         name=body.name,
         transport=McpTransportType.HTTP,
-        url=body.url or _OPENAPI_PENDING_URL,
+        url=body.url,
         headers=body.headers,
         env=body.env,
         auth_token=body.auth_token,
@@ -354,7 +284,7 @@ async def update_mcp_server(
     entry = RegisteredMcpServer(
         name=name,
         transport=McpTransportType.HTTP,
-        url=body.url or _OPENAPI_PENDING_URL,
+        url=body.url,
         headers=body.headers,
         env=body.env,
         auth_token=body.auth_token,

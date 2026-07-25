@@ -9,12 +9,9 @@ Mocked external boundaries:
 - GeneratedMcpRunnerPort (runner.mount) -> AsyncMock
 
 Internal component (the rehydration orchestrator) is exercised for real.
-
-These tests are written TDD-Red: the rehydration orchestrator function and the
-ports do not exist yet, so importing them raises ``ImportError`` and every
-test fails until the implementation lands.
 """
 
+import logging
 from unittest.mock import AsyncMock
 
 import pytest
@@ -126,6 +123,41 @@ class TestRehydrateOpenapiServers:
 
         # Assert — both were attempted, the failure was swallowed
         assert mock_runner.mount.await_count == 2
+
+    async def test_logs_error_summary_when_entries_skipped(
+        self, mock_store: AsyncMock, mock_runner: AsyncMock, caplog
+    ):
+        """When at least one entry is skipped, an ERROR-level summary is emitted."""
+        # Arrange — one broken entry, one good entry
+        mock_store.list_all.return_value = [
+            _openapi_entry("broken"),
+            _openapi_entry("good"),
+        ]
+        mock_runner.mount.side_effect = [
+            Exception("spec fetch failed"),
+            "http://raganything-api:8000/generated/good/mcp",
+        ]
+
+        # Act
+        with caplog.at_level("ERROR", logger="infrastructure.openapi_mcp.rehydration"):
+            await rehydrate_openapi_servers(store=mock_store, runner=mock_runner)
+
+        # Assert — a single ERROR summary line referencing the skipped count
+        error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+        assert any("skipped 1" in r.getMessage() for r in error_records)
+
+    async def test_does_not_log_error_summary_when_none_skipped(
+        self, mock_store: AsyncMock, mock_runner: AsyncMock, caplog
+    ):
+        """No ERROR summary when rehydration succeeds fully."""
+        mock_store.list_all.return_value = [_openapi_entry("good")]
+        mock_runner.mount.return_value = "http://raganything-api:8000/generated/good/mcp"
+
+        with caplog.at_level("ERROR", logger="infrastructure.openapi_mcp.rehydration"):
+            await rehydrate_openapi_servers(store=mock_store, runner=mock_runner)
+
+        error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+        assert error_records == []
 
     async def test_does_not_call_mount_when_no_openapi_entries(
         self, mock_store: AsyncMock, mock_runner: AsyncMock

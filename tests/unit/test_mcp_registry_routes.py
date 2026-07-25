@@ -12,10 +12,6 @@ FastAPI wiring while the persistence and external MCP boundaries are stubbed.
 CRUD endpoints under ``/api/v1/mcp/servers`` + ``/validate`` + ``/{name}/reveal``.
 Tests cover masking of secrets in responses, 404/409 errors, the openapi create
 flow, and validate dry-run.
-
-These tests are written TDD-Red: ``application.api.mcp_registry_routes`` and
-the ``get_*_mcp_server_use_case`` providers do not exist yet, so importing
-them raises ``ImportError`` and every test fails until the implementation lands.
 """
 
 from datetime import UTC, datetime

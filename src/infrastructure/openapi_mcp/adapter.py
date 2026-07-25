@@ -11,7 +11,8 @@ Validation rules (``fetch_spec``):
   Python) before being returned — see :mod:`swagger2_converter`.
 - Anything else (no version key, ``openapi: "2.x"``, unsupported version)
   -> :class:`OpenApiInvalidSpecError`.
-- ``content`` larger than 5 MB -> :class:`OpenApiInvalidSpecError`.
+- ``content`` larger than the configured max (default 5 MB) ->
+  :class:`OpenApiInvalidSpecError`.
 """
 
 import logging
@@ -28,8 +29,11 @@ from infrastructure.openapi_mcp.swagger2_converter import convert_swagger2_to_op
 
 logger = logging.getLogger(__name__)
 
-#: Maximum accepted spec size in bytes (5 MB).
-_MAX_SPEC_BYTES = 5 * 1024 * 1024
+#: Default maximum accepted spec size in bytes (5 MB). Overridable at
+#: construction time via ``FastMcpOpenApiFactory(max_spec_bytes=...)`` so
+#: operators can tune it through ``OPENAPI_MAX_SPEC_BYTES`` without a code
+#: change.
+_DEFAULT_MAX_SPEC_BYTES = 5 * 1024 * 1024
 
 #: httpx timeout for fetching an OpenAPI document (seconds).
 _FETCH_TIMEOUT = 15.0
@@ -42,7 +46,14 @@ class FastMcpOpenApiFactory(OpenApiMcpFactory):
     ``FastMCP.from_openapi`` to build the server. All HTTP errors are wrapped
     into domain errors (:class:`OpenApiFetchError` /
     :class:`OpenApiInvalidSpecError`) so callers never see httpx exceptions.
+
+    Attributes:
+        _max_spec_bytes: Maximum accepted spec size in bytes. Specs larger than
+            this are rejected before parsing.
     """
+
+    def __init__(self, max_spec_bytes: int = _DEFAULT_MAX_SPEC_BYTES) -> None:
+        self._max_spec_bytes = max_spec_bytes
 
     async def fetch_spec(self, spec_url: str, headers: dict[str, str]) -> dict:
         """Fetch and validate an OpenAPI document from ``spec_url``.
@@ -57,7 +68,8 @@ class FastMcpOpenApiFactory(OpenApiMcpFactory):
         Raises:
             OpenApiFetchError: If the document cannot be downloaded.
             OpenApiInvalidSpecError: If the document is missing the
-                ``openapi`` key, is not OpenAPI 3.x, or exceeds 5 MB.
+                ``openapi`` key, is not OpenAPI 3.x, or exceeds the configured
+                max spec size.
         """
         try:
             response = httpx.get(spec_url, headers=headers, timeout=_FETCH_TIMEOUT, follow_redirects=True)
@@ -77,8 +89,8 @@ class FastMcpOpenApiFactory(OpenApiMcpFactory):
 
         # Size guard before parsing.
         content = getattr(response, "content", b"")
-        if len(content) > _MAX_SPEC_BYTES:
-            reason = f"spec exceeds {_MAX_SPEC_BYTES} bytes"
+        if len(content) > self._max_spec_bytes:
+            reason = f"spec exceeds {self._max_spec_bytes} bytes"
             logger.warning(LogMessage.MCP_OPENAPI_SPEC_INVALID, spec_url, reason)
             raise OpenApiInvalidSpecError(
                 ErrorMessage.OPENAPI_INVALID_SPEC.format(url=spec_url, reason=reason)

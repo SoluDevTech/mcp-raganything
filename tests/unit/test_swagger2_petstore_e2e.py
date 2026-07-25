@@ -4,10 +4,6 @@ This locks in compatibility against a real-world Swagger 2.0 spec (the public
 Petstore at petstore.swagger.io/v2). The spec is stored as a fixture to avoid
 network calls in tests. The conversion + FastMCP.from_openapi chain must
 produce a non-zero tool count.
-
-These tests are written TDD-Red: the converter and adapter modules do not
-exist yet, so importing them raises ``ImportError`` and every test fails until
-the implementation lands.
 """
 
 import json

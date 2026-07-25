@@ -3,10 +3,6 @@
 Covers the ``encrypt``/``decrypt`` round-trip and the constructor validation
 (empty key raises). The cipher wraps ``cryptography.fernet.Fernet`` so secrets
 stored in the MCP server registry are encrypted at rest.
-
-These tests are written TDD-Red: ``infrastructure.security.crypto`` does not
-exist yet, so importing it raises ``ImportError`` and every test fails until
-the implementation lands.
 """
 
 import pytest
@@ -15,7 +11,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from infrastructure.security.crypto import FernetSecretCipher
 
 
-class TestFernetSecretCipherConstructor:
+class TestFernetSecretCipher:
     """Constructor validation for FernetSecretCipher."""
 
     def test_accepts_a_valid_fernet_key(self) -> None:

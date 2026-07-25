@@ -10,6 +10,7 @@ the entry is persisted with the refreshed tool count and mounted URL.
 """
 
 import logging
+from datetime import UTC, datetime
 
 from domain.entities.mcp_server_config import McpServerConfig
 from domain.entities.mcp_server_registry_entry import RegisteredMcpServer
@@ -68,6 +69,15 @@ class UpdateMcpServerUseCase:
         """
         # Confirm the entry exists (raises McpServerNotFoundError if absent).
         existing = await self._store.get(name)
+
+        # Preserve the original creation timestamp; only ``updated_at`` moves
+        # forward. The DB upsert does not touch ``created_at`` either, but we
+        # keep the entity truthful so the API response and any future write
+        # path reflect reality.
+        now = datetime.now(UTC)
+        updated = updated.model_copy(
+            update={"created_at": existing.created_at, "updated_at": now}
+        )
 
         if updated.source_type == "openapi":
             return await self._update_openapi(name, updated)

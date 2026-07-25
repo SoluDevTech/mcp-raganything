@@ -10,10 +10,6 @@ Mocked external boundaries:
 - SecretCipher (Fernet) — AsyncMock
 
 Internal component (the store adapter) is exercised for real.
-
-These tests are written TDD-Red: ``infrastructure.database.mcp_registry_store``
-does not exist yet, so importing it raises ``ImportError`` and every test
-fails until the implementation lands.
 """
 
 import json

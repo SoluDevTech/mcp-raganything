@@ -60,3 +60,6 @@ async def rehydrate_openapi_servers(
             )
 
     logger.info(LogMessage.MCP_REHYDRATION_DONE, mounted, skipped)
+
+    if skipped > 0:
+        logger.error(LogMessage.MCP_REHYDRATION_SKIPPED_SUMMARY, skipped)
