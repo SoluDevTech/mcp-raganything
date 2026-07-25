@@ -59,3 +59,12 @@ class ErrorMessage(StrEnum):
 
     # --- Indexing / query ---
     VECTOR_SEARCH_FAILED = "Vector search failed in hybrid+ mode: {error}"
+
+    # --- MCP server registry ---
+    MCP_SERVER_NOT_FOUND = "MCP server not found: {name}"
+    MCP_SERVER_ALREADY_EXISTS = "MCP server already exists: {name}"
+    MCP_SERVER_UNREACHABLE = "MCP server unreachable: {error}"
+    MCP_SERVER_STORAGE_FAILED = "MCP server storage failed for {name}: {error}"
+    OPENAPI_FETCH_FAILED = "OpenAPI spec fetch failed for {url}: {error}"
+    OPENAPI_INVALID_SPEC = "OpenAPI spec invalid for {url}: {reason}"
+    MCP_ALREADY_MOUNTED = "MCP server already mounted: {name}"

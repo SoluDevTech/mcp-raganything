@@ -2,6 +2,8 @@
 
 Multi-modal RAG service exposing a REST API and MCP server for document indexing and knowledge-base querying, powered by [RAGAnything](https://github.com/HKUDS/RAG-Anything) and [LightRAG](https://github.com/HKUDS/LightRAG). Two retrieval pathways are available: a **graph-based LightRAG pipeline** and a **classical RAG pipeline** using multi-query generation with LLM-as-judge scoring. Files are retrieved from MinIO object storage and indexed into a PostgreSQL-backed knowledge graph. Each project is isolated via its own `working_dir`.
 
+The service also hosts the **MCP server registry** — a CRUD API for registering external MCP servers and generating new MCP servers on the fly from OpenAPI/Swagger documents. The registry is persisted in PostgreSQL and rehydrated at startup, so [composable-agents](https://github.com/soludev/composable-agents) and other clients can discover all available MCP servers from a single endpoint. See [MCP Server Registry](#mcp-server-registry).
+
 ## Architecture
 
 ```
@@ -900,6 +902,138 @@ http://localhost:8000/classical/mcp    # RAGAnythingClassical
 http://localhost:8000/bricks/mcp       # RAGAnythingBricks
 ```
 
+---
+
+## MCP Server Registry
+
+In addition to the four built-in MCP servers above, mcp-raganything **owns the MCP server registry** — a CRUD service that lets you register external MCP servers (by URL) or generate new MCP servers on the fly from any OpenAPI/Swagger document. Registered servers are persisted in the `mcp_servers` PostgreSQL table (shared with [composable-agents](https://github.com/soludev/composable-agents)) and rehydrated at startup, so composable-agents (and other clients) only need to know the registry URL to discover and connect to every available MCP server.
+
+This registry was previously hosted in the `composable-agents` brick; it has been migrated here so that the RAG service is the single owner of MCP server lifecycle (registration, generation, mounting, crash recovery).
+
+### What it does
+
+- **Register external MCP servers** — store a name, transport URL, optional headers and an encrypted auth token. Composable-agents reads these entries and connects to the URL at agent build time.
+- **Generate MCP servers from OpenAPI specs** — point the registry at any OpenAPI 3.0 (or Swagger 2.0) document URL; the service fetches the spec, builds an in-process [FastMCP](https://github.com/jlowin/fastmcp) server exposing one tool per operation, and mounts it under `/generated/{name}/mcp`.
+- **Encrypt secrets at rest** — auth tokens and sensitive header values are encrypted with Fernet using the shared `SECRET_ENCRYPTION_KEY` before being written to `mcp_servers`. They are only decrypted on the `/reveal` endpoint or when the server is mounted.
+- **Crash recovery** — on startup the service reads every `openapi` row from `mcp_servers`, re-fetches the spec, rebuilds the FastMCP server, and remounts it. External `http` servers do not need rehydration (the client connects to them lazily), so only `openapi` rows are rebuilt.
+
+### Endpoints
+
+All registry endpoints live under `/api/v1/mcp/servers` and are protected by the global `API_KEY` middleware when `API_KEY` is set.
+
+| Method | Path | Description | Success Status |
+|---|---|---|---|
+| `POST` | `/api/v1/mcp/servers` | Create a registered MCP server (external or openapi). Returns the masked entry (secrets hidden). | `201` |
+| `POST` | `/api/v1/mcp/servers/validate` | Dry-run validation of a server config without persisting anything. Returns the parsed/mounted result. | `200` |
+| `GET` | `/api/v1/mcp/servers` | List all registered servers (masked). | `200` |
+| `GET` | `/api/v1/mcp/servers/{name}` | Get a single server (masked). | `200` |
+| `GET` | `/api/v1/mcp/servers/{name}/reveal` | Get a single server **with plaintext secrets**. Use with care. | `200` |
+| `PUT` | `/api/v1/mcp/servers/{name}` | Update a server (URL, headers, auth token, openapi spec). Re-mounts openapi servers. | `200` |
+| `DELETE` | `/api/v1/mcp/servers/{name}` | Delete a server and unmount it if openapi. | `204` |
+
+The request body for `POST` and `PUT` extends the `McpServerConfig` shape with two fields:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `name` | string | required | Unique server name (1–100 chars). |
+| `url` | string | `null` | Server URL. Required for `source_type="external"`, omitted for `source_type="openapi"` (the mounted URL is generated). |
+| `headers` | dict | `{}` | HTTP headers sent to the server (upstream auth for openapi). |
+| `env` | dict | `{}` | Environment variables for `stdio` transport. |
+| `auth_token` | string | `null` | Bearer auth token (external only). Encrypted at rest. |
+| `source_type` | `"external"` \| `"openapi"` | `"external"` | Origin of the server. `openapi` triggers spec fetch + FastMCP generation. |
+| `openapi_url` | string | `null` | URL of the OpenAPI document. Required when `source_type="openapi"`. |
+
+### Swagger 2.0 → OpenAPI 3.0 conversion
+
+When `source_type="openapi"` and the fetched document is a **Swagger 2.0** spec (`swagger: "2.0"`), the service converts it to OpenAPI 3.0 **in-process, in pure Python, with no external service call** (offline). The converter handles:
+
+- `swagger: "2.0"` → `openapi: "3.0.x"`
+- `host` + `basePath` + `schemes` → `servers[].url`
+- `definitions` → `components.schemas`
+- `responses` / `parameters` / `securityDefinitions` → `components.*`
+- `produces` / `consumes` → per-operation `requestBody.content` / `responses.*.content`
+- `x-...` vendor extensions are preserved
+
+After conversion, the resulting OpenAPI 3.0 document is fed to FastMCP to build the generated server. If the document is already OpenAPI 3.0, no conversion is performed. Validation errors (malformed spec, unreachable URL, unsupported version) are returned as `422` responses on `/validate` and `POST`.
+
+### Generated server mounting & lifecycle
+
+For `source_type="openapi"` servers, the service:
+
+1. Fetches the OpenAPI/Swagger document from `openapi_url` (with optional `headers` for upstream auth).
+2. Converts Swagger 2.0 → OpenAPI 3.0 if needed (see above).
+3. Builds a FastMCP server exposing one MCP tool per OpenAPI operation (operationId or method+path as the tool name).
+4. Mounts the server at **`/generated/{name}/mcp`** using streamable HTTP transport, with proper lifespan management via an `AsyncExitStack` so that HTTP clients and sessions opened by FastMCP are closed cleanly on shutdown or unmount.
+5. Persists the entry in `mcp_servers` with `url = {GENERATED_MCP_BASE_URL}/generated/{name}/mcp`.
+
+The returned `url` is built from `GENERATED_MCP_BASE_URL` so that clients outside the container can reach it. Connect an MCP client to:
+
+```
+{GENERATED_MCP_BASE_URL}/generated/{name}/mcp
+```
+
+For local development the default is `http://localhost:8020/generated/{name}/mcp`. In Docker the default is `http://raganything-api:8000/generated/{name}/mcp` (set `GENERATED_MCP_BASE_URL` to the public/ingress URL if clients are external).
+
+### Startup rehydration (crash recovery)
+
+On startup, the FastAPI lifespan reads all rows from `mcp_servers` and, for each row with `source_type="openapi"`, re-fetches the OpenAPI spec, rebuilds the FastMCP server, and remounts it at `/generated/{name}/mcp`. External `http`/`stdio` servers are **not** rebuilt (the client connects to them lazily on first tool call). If `SECRET_ENCRYPTION_KEY` is not set, the registry is disabled at startup and a warning is logged — the rest of the RAG service still starts.
+
+### Example: register an external server
+
+```bash
+curl -X POST http://localhost:8000/api/v1/mcp/servers \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -d '{
+    "name": "weather",
+    "source_type": "external",
+    "url": "https://weather.example.com/mcp",
+    "auth_token": "super-secret"
+  }'
+```
+
+Response (`201 Created`, secrets masked):
+
+```json
+{
+  "name": "weather",
+  "source_type": "external",
+  "url": "https://weather.example.com/mcp",
+  "auth_token": "***",
+  "headers": {}
+}
+```
+
+### Example: generate a server from an OpenAPI spec
+
+```bash
+curl -X POST http://localhost:8000/api/v1/mcp/servers \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -d '{
+    "name": "petstore",
+    "source_type": "openapi",
+    "openapi_url": "https://petstore.swagger.io/v2/swagger.json",
+    "headers": {"Authorization": "Bearer upstream-token"}
+  }'
+```
+
+Response (`201 Created`) — note the generated `url`:
+
+```json
+{
+  "name": "petstore",
+  "source_type": "openapi",
+  "url": "http://localhost:8020/generated/petstore/mcp",
+  "openapi_url": "https://petstore.swagger.io/v2/swagger.json",
+  "headers": {"Authorization": "***"}
+}
+```
+
+The mounted server is immediately reachable at `http://localhost:8020/generated/petstore/mcp` and will be rehydrated automatically on the next startup.
+
+---
+
 ## Configuration
 
 All configuration is via environment variables, loaded through Pydantic Settings. See `.env.example` for a complete reference.
@@ -914,6 +1048,8 @@ All configuration is via environment variables, loaded through Pydantic Settings
 | `OUTPUT_DIR` | system temp | Temporary directory for downloaded files |
 | `UVICORN_LOG_LEVEL` | `critical` | Uvicorn log level |
 | `API_KEY` | `""` (disabled) | Shared secret key for REST + MCP authentication. When non-empty, all requests must include `X-API-Key` header. Leave empty to disable authentication |
+| `SECRET_ENCRYPTION_KEY` | `""` (disabled) | Fernet key used to encrypt MCP registry secrets (auth tokens, sensitive headers) at rest in the `mcp_servers` table. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Must be **stable across restarts** to decrypt previously encrypted secrets. When empty, the MCP server registry is disabled at startup (the rest of the service still runs) |
+| `GENERATED_MCP_BASE_URL` | `http://localhost:8020` | Absolute base URL of this service, used to build the public URL returned for generated (`openapi`) MCP servers mounted under `/generated/{name}/mcp`. Set to `http://raganything-api:8000` for Docker, or to your public ingress URL for external clients |
 
 ### Database (`DatabaseConfig`)
 

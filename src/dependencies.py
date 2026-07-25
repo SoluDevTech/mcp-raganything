@@ -11,13 +11,19 @@ from application.use_cases.classical_index_folder_use_case import (
 )
 from application.use_cases.classical_query_use_case import ClassicalQueryUseCase
 from application.use_cases.create_folder_use_case import CreateFolderUseCase
+from application.use_cases.create_mcp_server import CreateMcpServerUseCase
 from application.use_cases.delete_file_use_case import DeleteFileUseCase
 from application.use_cases.delete_folder_use_case import DeleteFolderUseCase
+from application.use_cases.delete_mcp_server import DeleteMcpServerUseCase
+from application.use_cases.get_mcp_server import GetMcpServerUseCase
 from application.use_cases.list_files_use_case import ListFilesUseCase
 from application.use_cases.list_folders_use_case import ListFoldersUseCase
+from application.use_cases.list_mcp_servers import ListMcpServersUseCase
 from application.use_cases.liveness_check_use_case import LivenessCheckUseCase
 from application.use_cases.read_file_use_case import ReadFileUseCase
+from application.use_cases.update_mcp_server import UpdateMcpServerUseCase
 from application.use_cases.upload_file_use_case import UploadFileUseCase
+from application.use_cases.validate_mcp_server import ValidateMcpServerUseCase
 from config import (
     AppConfig,
     BM25Config,
@@ -29,11 +35,17 @@ from config import (
 from domain.errors.config import DependencyNotInitializedError
 from domain.errors.messages import ErrorMessage
 from domain.ports.bm25_engine import BM25EnginePort
+from domain.ports.generated_mcp_runner import GeneratedMcpRunnerPort
 from domain.ports.llm_port import LLMPort
+from domain.ports.mcp_server_registry_store import McpServerRegistryStore
+from domain.ports.mcp_tool_loader import McpToolLoader
+from domain.ports.openapi_mcp_factory import OpenApiMcpFactory
 from domain.ports.vector_store_port import VectorStorePort
 from infrastructure.database.asyncpg_health_adapter import AsyncpgHealthAdapter
 from infrastructure.document_reader.kreuzberg_adapter import KreuzbergAdapter
+from infrastructure.openapi_mcp.adapter import FastMcpOpenApiFactory
 from infrastructure.rag.classical_bm25_adapter import ClassicalBM25Adapter
+from infrastructure.security.crypto import FernetSecretCipher
 from infrastructure.storage.minio_adapter import MinioAdapter
 
 logger = logging.getLogger(__name__)
@@ -188,4 +200,136 @@ def get_liveness_check_use_case() -> LivenessCheckUseCase:
         storage=minio_adapter,
         postgres_health=postgres_health_adapter,
         bucket=minio_config.MINIO_BUCKET,
+    )
+
+
+# --- MCP server registry -----------------------------------------------------
+#
+# The store and runner are wired lazily because they depend on resources that
+# are only available after the application starts:
+# - the store needs an asyncpg pool (created in ``main.lifespan``);
+# - the runner needs the FastAPI ``app`` instance (created in ``main`` after
+#   importing this module).
+# ``main.py`` assigns these module-level singletons once the resources exist.
+# The cipher is created lazily from ``SECRET_ENCRYPTION_KEY`` so importing this
+# module never fails when the key is unset (tests/dev override the providers).
+
+mcp_openapi_factory: OpenApiMcpFactory = FastMcpOpenApiFactory()
+mcp_secret_cipher: FernetSecretCipher | None = None
+mcp_registry_store: McpServerRegistryStore | None = None
+generated_mcp_runner: GeneratedMcpRunnerPort | None = None
+
+
+def get_mcp_secret_cipher() -> FernetSecretCipher:
+    """Return the Fernet secret cipher singleton.
+
+    Created lazily from ``SECRET_ENCRYPTION_KEY``. Raises if the key is unset.
+
+    Returns:
+        The FernetSecretCipher instance.
+
+    Raises:
+        DependencyNotInitializedError: If ``SECRET_ENCRYPTION_KEY`` is empty.
+    """
+    global mcp_secret_cipher
+    if mcp_secret_cipher is None:
+        if not app_config.SECRET_ENCRYPTION_KEY:
+            raise DependencyNotInitializedError(
+                "SECRET_ENCRYPTION_KEY is not set; MCP registry secrets cannot "
+                "be encrypted. Set SECRET_ENCRYPTION_KEY in the environment."
+            )
+        mcp_secret_cipher = FernetSecretCipher(app_config.SECRET_ENCRYPTION_KEY)
+    return mcp_secret_cipher
+
+
+def get_mcp_openapi_factory() -> OpenApiMcpFactory:
+    """Return the OpenAPI MCP factory singleton."""
+    return mcp_openapi_factory
+
+
+def get_mcp_registry_store() -> McpServerRegistryStore:
+    """Return the MCP registry store singleton.
+
+    Returns:
+        The McpRegistryStore instance (wired by ``main.lifespan``).
+
+    Raises:
+        DependencyNotInitializedError: If the store has not been wired yet.
+    """
+    if mcp_registry_store is None:
+        raise DependencyNotInitializedError(
+            "MCP registry store is not initialized; the application lifespan "
+            "must create the asyncpg pool before serving requests."
+        )
+    return mcp_registry_store
+
+
+def get_generated_mcp_runner() -> GeneratedMcpRunnerPort:
+    """Return the generated MCP runner singleton.
+
+    Returns:
+        The GeneratedMcpRunner instance (wired by ``main`` after app creation).
+
+    Raises:
+        DependencyNotInitializedError: If the runner has not been wired yet.
+    """
+    if generated_mcp_runner is None:
+        raise DependencyNotInitializedError(
+            "Generated MCP runner is not initialized; the application must "
+            "create it after the FastAPI app is built."
+        )
+    return generated_mcp_runner
+
+
+def get_mcp_tool_loader() -> McpToolLoader | None:
+    """Return the MCP tool loader (None when only the openapi path is used).
+
+    The external-path use cases (create/update/validate with
+    ``source_type="external"``) require a concrete tool loader. This project
+    only ships the openapi generation path; callers needing the external path
+    must inject their own loader via FastAPI dependency overrides.
+
+    Returns:
+        None (external path not wired by default).
+    """
+    return None
+
+
+def get_create_mcp_server_use_case() -> CreateMcpServerUseCase:
+    return CreateMcpServerUseCase(
+        store=get_mcp_registry_store(),
+        tool_loader=get_mcp_tool_loader(),
+        openapi_factory=get_mcp_openapi_factory(),
+        runner=get_generated_mcp_runner(),
+    )
+
+
+def get_list_mcp_servers_use_case() -> ListMcpServersUseCase:
+    return ListMcpServersUseCase(store=get_mcp_registry_store())
+
+
+def get_get_mcp_server_use_case() -> GetMcpServerUseCase:
+    return GetMcpServerUseCase(store=get_mcp_registry_store())
+
+
+def get_update_mcp_server_use_case() -> UpdateMcpServerUseCase:
+    return UpdateMcpServerUseCase(
+        store=get_mcp_registry_store(),
+        tool_loader=get_mcp_tool_loader(),
+        openapi_factory=get_mcp_openapi_factory(),
+        runner=get_generated_mcp_runner(),
+    )
+
+
+def get_delete_mcp_server_use_case() -> DeleteMcpServerUseCase:
+    return DeleteMcpServerUseCase(
+        store=get_mcp_registry_store(),
+        runner=get_generated_mcp_runner(),
+    )
+
+
+def get_validate_mcp_server_use_case() -> ValidateMcpServerUseCase:
+    return ValidateMcpServerUseCase(
+        tool_loader=get_mcp_tool_loader(),
+        openapi_factory=get_mcp_openapi_factory(),
     )
