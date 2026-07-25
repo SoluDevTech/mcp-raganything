@@ -151,3 +151,30 @@ class LogMessage(StrEnum):
     LOG_FILE_ERROR = "File error: %s"
     LOG_UNHANDLED_DOMAIN_ERROR = "Unhandled domain error: %s"
     LOG_INVALID_API_KEY = "Invalid API key: %s"
+    LOG_MCP_ERROR = "MCP error: %s"
+
+    # --- MCP server registry (use cases / store / factory / runner) ---
+    MCP_SERVER_CREATED_UC = "MCP server created (use case): name=%s tool_count=%d"
+    MCP_SERVER_UPDATED_UC = "MCP server updated (use case): name=%s tool_count=%d"
+    MCP_SERVER_DELETED_UC = "MCP server deleted (use case): name=%s"
+    MCP_SERVER_LISTED_UC = "MCP servers listed (use case): count=%d"
+    MCP_SERVER_GET_UC = "MCP server retrieved (use case): name=%s"
+    MCP_SERVER_VALIDATED_UC = "MCP server validated (use case): name=%s tool_count=%d"
+    MCP_SERVER_SAVE_REPOSITORY = "MCP server saved to registry: name=%s"
+    MCP_SERVER_DELETE_REPOSITORY = "MCP server deleted from registry: name=%s"
+    MCP_OPENAPI_SPEC_FETCHED = "OpenAPI spec fetched: url=%s bytes=%d"
+    MCP_OPENAPI_SPEC_FETCH_FAILED = "OpenAPI spec fetch failed: url=%s error=%s"
+    MCP_OPENAPI_SPEC_INVALID = "OpenAPI spec invalid: url=%s reason=%s"
+    MCP_OPENAPI_MCP_BUILT = "OpenAPI MCP server built: name=%s tool_count=%d"
+    MCP_RUNNER_MOUNTED = "Generated MCP server mounted: name=%s url=%s tool_count=%d"
+    MCP_RUNNER_UNMOUNTED = "Generated MCP server unmounted: name=%s"
+    MCP_RUNNER_MOUNT_FAILED = "Generated MCP server mount failed: name=%s error=%s"
+    MCP_REHYDRATION_STARTED = "Rehydrating generated MCP servers from registry..."
+    MCP_REHYDRATION_DONE = "Rehydration complete: mounted=%d skipped=%d"
+    MCP_REHYDRATION_ENTRY_FAILED = (
+        "Rehydration: failed to remount generated MCP server %s: %s"
+    )
+    MCP_REHYDRATION_SKIPPED_SUMMARY = (
+        "Rehydration skipped %d generated MCP server(s) due to mount failures; "
+        "they will be retried on the next startup."
+    )

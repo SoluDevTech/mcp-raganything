@@ -29,6 +29,24 @@ class AppConfig(BaseSettings):
     API_KEY: str = Field(
         default="", description="API key for REST and MCP authentication"
     )
+    SECRET_ENCRYPTION_KEY: str = Field(
+        default="",
+        description="Fernet key used to encrypt MCP registry secrets at rest. "
+        "Generate with `python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"`. "
+        "Must be stable across restarts to decrypt previously encrypted secrets.",
+    )
+    GENERATED_MCP_BASE_URL: str = Field(
+        default="http://localhost:8020",
+        description="Absolute base URL of this service, used to build the URL "
+        "returned for generated (openapi) MCP servers mounted under "
+        "/generated/{name}/mcp. E.g. http://raganything-api:8000.",
+    )
+    OPENAPI_MAX_SPEC_BYTES: int = Field(
+        default=5 * 1024 * 1024,
+        description="Maximum accepted OpenAPI spec size in bytes when fetching "
+        "a remote document (default 5 MB). Specs larger than this are rejected "
+        "with OpenApiInvalidSpecError before parsing.",
+    )
 
 
 class DatabaseConfig(BaseSettings):

@@ -49,7 +49,7 @@ class RequestIdFilter(logging.Filter):
 def configure_logging(app_config: AppConfig) -> None:
     """Configure root logging for the application.
 
-    Idempotent: safe to call from ``main.py`` and ``alembic/env.py``.
+    Idempotent: safe to call from ``main.py`` and tests.
 
     Args:
         app_config: Application config (reads ``LOG_LEVEL``).
@@ -61,7 +61,7 @@ def configure_logging(app_config: AppConfig) -> None:
     handler.addFilter(RequestIdFilter())
 
     root = logging.getLogger()
-    # Remove existing handlers so repeated calls (tests, alembic) stay clean.
+    # Remove existing handlers so repeated calls (e.g. tests) stay clean.
     root.handlers = [handler]
     root.setLevel(level)
 

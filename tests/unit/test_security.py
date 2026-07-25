@@ -17,7 +17,6 @@ import logging
 from unittest.mock import patch
 
 import pytest
-from domain.errors.security import InvalidApiKeyError
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
@@ -26,6 +25,8 @@ from fastmcp.client.transports.memory import FastMCPTransport
 from fastmcp.exceptions import ToolError
 from httpx import ASGITransport, AsyncClient
 from mcp.shared.exceptions import McpError
+
+from domain.errors.security import InvalidApiKeyError
 from security import ComposableAgentsSecurity, McpApiKeyMiddleware
 
 # Shared master key used by the REST and MCP integration tests.
