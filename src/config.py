@@ -47,6 +47,11 @@ class AppConfig(BaseSettings):
         "a remote document (default 5 MB). Specs larger than this are rejected "
         "with OpenApiInvalidSpecError before parsing.",
     )
+    MCP_TOOL_TIMEOUT: float = Field(
+        default=60.0,
+        description="Timeout (seconds) for MCP tool loading via the FastMcpToolLoader "
+        "(connecting to external MCP servers and listing their tools).",
+    )
 
 
 class DatabaseConfig(BaseSettings):
