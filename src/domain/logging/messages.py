@@ -152,6 +152,8 @@ class LogMessage(StrEnum):
     LOG_UNHANDLED_DOMAIN_ERROR = "Unhandled domain error: %s"
     LOG_INVALID_API_KEY = "Invalid API key: %s"
     LOG_MCP_ERROR = "MCP error: %s"
+    MCP_CONNECT_FAILED = "MCP connection to %s failed: %s"
+    MCP_TOOLS_LOAD_FAILED = "MCP tool loading from %s failed: %s"
 
     # --- MCP server registry (use cases / store / factory / runner) ---
     MCP_SERVER_CREATED_UC = "MCP server created (use case): name=%s tool_count=%d"

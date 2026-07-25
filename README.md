@@ -912,7 +912,7 @@ This registry was previously hosted in the `composable-agents` brick; it has bee
 
 ### What it does
 
-- **Register external MCP servers** — store a name, transport URL, optional headers and an encrypted auth token. Composable-agents reads these entries and connects to the URL at agent build time.
+- **Register external MCP servers** — store a name, transport URL, optional headers and an encrypted auth token. On create/update, the service connects to the remote server via `fastmcp.Client`, validates reachability, and records the discovered `tool_count`. Composable-agents reads these entries and connects to the URL at agent build time.
 - **Generate MCP servers from OpenAPI specs** — point the registry at any OpenAPI 3.0 (or Swagger 2.0) document URL; the service fetches the spec, builds an in-process [FastMCP](https://github.com/jlowin/fastmcp) server exposing one tool per operation, and mounts it under `/generated/{name}/mcp`.
 - **Encrypt secrets at rest** — auth tokens and sensitive header values are encrypted with Fernet using the shared `SECRET_ENCRYPTION_KEY` before being written to `mcp_servers`. They are only decrypted on the `/reveal` endpoint or when the server is mounted.
 - **Crash recovery** — on startup the service reads every `openapi` row from `mcp_servers`, re-fetches the spec, rebuilds the FastMCP server, and remounts it. External `http` servers do not need rehydration (the client connects to them lazily), so only `openapi` rows are rebuilt.
@@ -924,7 +924,7 @@ All registry endpoints live under `/api/v1/mcp/servers` and are protected by the
 | Method | Path | Description | Success Status |
 |---|---|---|---|
 | `POST` | `/api/v1/mcp/servers` | Create a registered MCP server (external or openapi). Returns the masked entry (secrets hidden). | `201` |
-| `POST` | `/api/v1/mcp/servers/validate` | Dry-run validation of a server config without persisting anything. Returns the parsed/mounted result. | `200` |
+| `POST` | `/api/v1/mcp/servers/validate` | Dry-run validation of a server config without persisting anything. For `source_type="external"`, connects to the remote MCP server and returns the discovered tool count. For `source_type="openapi"`, fetches the spec, builds an in-process FastMCP server, and counts its tools. | `200` |
 | `GET` | `/api/v1/mcp/servers` | List all registered servers (masked). | `200` |
 | `GET` | `/api/v1/mcp/servers/{name}` | Get a single server (masked). | `200` |
 | `GET` | `/api/v1/mcp/servers/{name}/reveal` | Get a single server **with plaintext secrets**. Use with care. | `200` |
@@ -992,15 +992,16 @@ curl -X POST http://localhost:8000/api/v1/mcp/servers \
   }'
 ```
 
-Response (`201 Created`, secrets masked):
+Response (`201 Created`, secrets masked) — note the `tool_count` reflects the tools discovered by connecting to the remote server:
 
 ```json
 {
   "name": "weather",
   "source_type": "external",
   "url": "https://weather.example.com/mcp",
-  "auth_token": "***",
-  "headers": {}
+  "auth_token": null,
+  "headers": {},
+  "tool_count": 3
 }
 ```
 
@@ -1050,6 +1051,7 @@ All configuration is via environment variables, loaded through Pydantic Settings
 | `API_KEY` | `""` (disabled) | Shared secret key for REST + MCP authentication. When non-empty, all requests must include `X-API-Key` header. Leave empty to disable authentication |
 | `SECRET_ENCRYPTION_KEY` | `""` (disabled) | Fernet key used to encrypt MCP registry secrets (auth tokens, sensitive headers) at rest in the `mcp_servers` table. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Must be **stable across restarts** to decrypt previously encrypted secrets. When empty, the MCP server registry is disabled at startup (the rest of the service still runs) |
 | `GENERATED_MCP_BASE_URL` | `http://localhost:8020` | Absolute base URL of this service, used to build the public URL returned for generated (`openapi`) MCP servers mounted under `/generated/{name}/mcp`. Set to `http://raganything-api:8000` for Docker, or to your public ingress URL for external clients |
+| `MCP_TOOL_TIMEOUT` | `60.0` | Timeout (seconds) for connecting to external MCP servers and listing their tools via the `FastMcpToolLoader` (used by the external-path create/update/validate flows). Increase for slow remote servers |
 
 ### Database (`DatabaseConfig`)
 
