@@ -6,7 +6,6 @@ from application.use_cases.create_folder_use_case import CreateFolderUseCase
 
 
 class TestCreateFolderUseCase:
-
     @pytest.fixture
     def use_case(self, mock_storage: AsyncMock) -> CreateFolderUseCase:
         return CreateFolderUseCase(storage=mock_storage, bucket="test-bucket")

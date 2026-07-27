@@ -134,7 +134,9 @@ class UpdateMcpServerUseCase:
 
         # Unmount the old in-process server before mounting the new one.
         await self._runner.unmount(name)
-        mounted_url = await self._runner.mount(updated.name, spec, headers=updated.headers)
+        mounted_url = await self._runner.mount(
+            updated.name, spec, headers=updated.headers
+        )
         tool_count = await self._runner.count_tools(updated.name)
 
         to_save = updated.model_copy(

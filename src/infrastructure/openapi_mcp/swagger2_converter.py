@@ -97,7 +97,9 @@ def convert_swagger2_to_openapi3(spec: dict[str, Any]) -> dict[str, Any]:
     if components:
         out["components"] = components
 
-    out["paths"] = _convert_paths(src.pop("paths", {}) or {}, global_consumes, global_produces)
+    out["paths"] = _convert_paths(
+        src.pop("paths", {}) or {}, global_consumes, global_produces
+    )
 
     for passthrough in ("security", "tags", "externalDocs"):
         if passthrough in src:
@@ -116,7 +118,9 @@ def _build_components(src: dict[str, Any]) -> dict[str, Any]:
     if "responses" in src:
         components["responses"] = src.pop("responses")
     if "securityDefinitions" in src:
-        components["securitySchemes"] = _convert_security_definitions(src.pop("securityDefinitions"))
+        components["securitySchemes"] = _convert_security_definitions(
+            src.pop("securityDefinitions")
+        )
     return components
 
 
@@ -142,7 +146,9 @@ def _convert_security_definitions(security_defs: dict[str, Any]) -> dict[str, An
                 flow["tokenUrl"] = d.get("tokenUrl", "")
             out[name] = {
                 "type": "oauth2",
-                "flows": {_OAUTH2_FLOW_MAP.get(flow_name, flow_name or "implicit"): flow},
+                "flows": {
+                    _OAUTH2_FLOW_MAP.get(flow_name, flow_name or "implicit"): flow
+                },
             }
     return out
 
@@ -168,14 +174,18 @@ def _convert_path_item(
     new_item: dict[str, Any] = {}
     # Path-level parameters (shared across operations) are kept as-is.
     if "parameters" in item:
-        new_item["parameters"] = [_convert_non_body_parameter(p) for p in item["parameters"]]
+        new_item["parameters"] = [
+            _convert_non_body_parameter(p) for p in item["parameters"]
+        ]
 
     http_methods = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
     for method, op in item.items():
         if method not in http_methods:
             new_item[method] = op
             continue
-        new_item[method] = _convert_operation(op or {}, global_consumes, global_produces)
+        new_item[method] = _convert_operation(
+            op or {}, global_consumes, global_produces
+        )
 
     return new_item
 
@@ -256,7 +266,9 @@ def _build_request_body(
         if p.get("required"):
             required.append(name)
 
-    content_type = "multipart/form-data" if multipart else "application/x-www-form-urlencoded"
+    content_type = (
+        "multipart/form-data" if multipart else "application/x-www-form-urlencoded"
+    )
     form_schema: dict[str, Any] = {"type": "object", "properties": properties}
     if required:
         form_schema["required"] = required

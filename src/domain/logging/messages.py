@@ -155,6 +155,14 @@ class LogMessage(StrEnum):
     MCP_CONNECT_FAILED = "MCP connection to %s failed: %s"
     MCP_TOOLS_LOAD_FAILED = "MCP tool loading from %s failed: %s"
 
+    # --- Auth (dual JWT / API key) ---
+    # The enum value is a stable prefix kept verbatim in the formatted log line
+    # (no ``%s`` inside it) so tests can assert ``LogMessage.X in r.getMessage()``.
+    # No PII is interpolated here — only error type / message for diagnostics.
+    AUTH_JWT_DECODE_FAILED = "JWT decode failed"
+    AUTH_JWKS_FETCH_FAILED = "JWKS fetch failed"
+    AUTH_CREDENTIALS_VALIDATED = "Credentials validated for user_id=%s method=%s"
+
     # --- MCP server registry (use cases / store / factory / runner) ---
     MCP_SERVER_CREATED_UC = "MCP server created (use case): name=%s tool_count=%d"
     MCP_SERVER_UPDATED_UC = "MCP server updated (use case): name=%s tool_count=%d"

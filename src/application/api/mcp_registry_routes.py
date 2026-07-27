@@ -137,7 +137,9 @@ def _mask(entry: RegisteredMcpServer) -> RegisteredMcpServer:
 )
 async def create_mcp_server(
     body: McpServerCreateRequest,
-    use_case: Annotated[CreateMcpServerUseCase, Depends(get_create_mcp_server_use_case)],
+    use_case: Annotated[
+        CreateMcpServerUseCase, Depends(get_create_mcp_server_use_case)
+    ],
 ) -> RegisteredMcpServer:
     """Create a new registered MCP server.
 
@@ -172,7 +174,9 @@ async def create_mcp_server(
 )
 async def validate_mcp_server(
     body: McpServerValidateRequest,
-    use_case: Annotated[ValidateMcpServerUseCase, Depends(get_validate_mcp_server_use_case)],
+    use_case: Annotated[
+        ValidateMcpServerUseCase, Depends(get_validate_mcp_server_use_case)
+    ],
 ) -> McpServerValidateResponse:
     """Dry-run validation of an MCP server connection.
 
@@ -268,7 +272,9 @@ async def reveal_mcp_server(
 async def update_mcp_server(
     name: str,
     body: McpServerUpdateRequest,
-    use_case: Annotated[UpdateMcpServerUseCase, Depends(get_update_mcp_server_use_case)],
+    use_case: Annotated[
+        UpdateMcpServerUseCase, Depends(get_update_mcp_server_use_case)
+    ],
 ) -> RegisteredMcpServer:
     """Update an existing registered MCP server (secrets masked in response).
 
@@ -300,7 +306,9 @@ async def update_mcp_server(
 @mcp_registry_router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_mcp_server(
     name: str,
-    use_case: Annotated[DeleteMcpServerUseCase, Depends(get_delete_mcp_server_use_case)],
+    use_case: Annotated[
+        DeleteMcpServerUseCase, Depends(get_delete_mcp_server_use_case)
+    ],
 ) -> None:
     """Delete a registered MCP server by name.
 

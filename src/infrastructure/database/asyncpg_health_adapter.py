@@ -65,7 +65,9 @@ class AsyncpgHealthAdapter:
 
         if self._ssl_mode in _SSL_MODES_NO_VERIFY:
             ctx.check_hostname = False  # NOSONAR — sslmode=require/prefer means encryption without verification by PostgreSQL spec
-            ctx.verify_mode = ssl_module.CERT_NONE  # NOSONAR — see above; warning logged above
+            ctx.verify_mode = (
+                ssl_module.CERT_NONE
+            )  # NOSONAR — see above; warning logged above
         elif self._ssl_mode == "verify-ca":
             ctx.check_hostname = False
         # verify-full (and any unknown sslmode) keeps full verification defaults.

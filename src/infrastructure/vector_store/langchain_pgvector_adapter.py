@@ -27,12 +27,13 @@ class LangchainPgvectorAdapter(VectorStorePort):
         table_prefix: str,
         embedding_dimension: int,
         embedding_service=None,
+        engine=None,
     ):
         self._connection_string = connection_string
         self._table_prefix = table_prefix
         self._embedding_dimension = embedding_dimension
         self._embedding_service = embedding_service
-        self._engine = None
+        self._engine = engine
         self._stores = {}
 
     def _get_table_name(self, working_dir: str) -> str:
@@ -91,6 +92,7 @@ class LangchainPgvectorAdapter(VectorStorePort):
         query: str,
         top_k: int = 10,
         score_threshold: float | None = None,
+        metadata_filter: dict[str, str] | None = None,
     ) -> list[SearchResult]:
         if working_dir not in self._stores:
             await self.ensure_table(working_dir)
@@ -103,7 +105,10 @@ class LangchainPgvectorAdapter(VectorStorePort):
                 )
             )
 
-        lc_results = await store.asimilarity_search_with_score(query, k=top_k)
+        search_kwargs: dict = {"k": top_k}
+        if metadata_filter is not None:
+            search_kwargs["filter"] = metadata_filter
+        lc_results = await store.asimilarity_search_with_score(query, **search_kwargs)
 
         filtered = lc_results
         if score_threshold is not None:

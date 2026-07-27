@@ -212,7 +212,9 @@ class TestGet:
     ):
         # Arrange — fetchrow returns a row with encrypted headers
         mock_conn.fetchrow.return_value = _row(
-            headers_encrypted="ENC(" + json.dumps({"Authorization": "Bearer tok"}) + ")",
+            headers_encrypted="ENC("
+            + json.dumps({"Authorization": "Bearer tok"})
+            + ")",
             env_encrypted="ENC(" + json.dumps({"API_KEY": "abc"}) + ")",
             auth_token_encrypted="ENC(my-secret-token)",
         )
@@ -288,11 +290,23 @@ class TestGet:
 class TestListAll:
     """Tests for McpRegistryStore.list_all."""
 
-    async def test_returns_list_of_entries(self, store: McpRegistryStore, mock_conn: AsyncMock):
+    async def test_returns_list_of_entries(
+        self, store: McpRegistryStore, mock_conn: AsyncMock
+    ):
         # Arrange
         mock_conn.fetch.return_value = [
-            _row(name="server-a", headers_encrypted="ENC({})", env_encrypted="ENC({})", auth_token_encrypted=None),
-            _row(name="server-b", headers_encrypted="ENC({})", env_encrypted="ENC({})", auth_token_encrypted=None),
+            _row(
+                name="server-a",
+                headers_encrypted="ENC({})",
+                env_encrypted="ENC({})",
+                auth_token_encrypted=None,
+            ),
+            _row(
+                name="server-b",
+                headers_encrypted="ENC({})",
+                env_encrypted="ENC({})",
+                auth_token_encrypted=None,
+            ),
         ]
 
         # Act
@@ -304,7 +318,9 @@ class TestListAll:
         assert "server-a" in names
         assert "server-b" in names
 
-    async def test_returns_empty_list_when_no_rows(self, store: McpRegistryStore, mock_conn: AsyncMock):
+    async def test_returns_empty_list_when_no_rows(
+        self, store: McpRegistryStore, mock_conn: AsyncMock
+    ):
         # Arrange
         mock_conn.fetch.return_value = []
 
@@ -319,8 +335,18 @@ class TestListAll:
     ):
         # Arrange — the first row fails to decrypt, the second succeeds
         mock_conn.fetch.return_value = [
-            _row(name="broken", headers_encrypted="BAD-CIPHERTEXT", env_encrypted="ENC({})", auth_token_encrypted=None),
-            _row(name="good", headers_encrypted="ENC({})", env_encrypted="ENC({})", auth_token_encrypted=None),
+            _row(
+                name="broken",
+                headers_encrypted="BAD-CIPHERTEXT",
+                env_encrypted="ENC({})",
+                auth_token_encrypted=None,
+            ),
+            _row(
+                name="good",
+                headers_encrypted="ENC({})",
+                env_encrypted="ENC({})",
+                auth_token_encrypted=None,
+            ),
         ]
 
         async def _decrypt(ciphertext: str) -> str:
@@ -346,7 +372,9 @@ class TestListAll:
 class TestDelete:
     """Tests for McpRegistryStore.delete."""
 
-    async def test_executes_delete_statement(self, store: McpRegistryStore, mock_conn: AsyncMock):
+    async def test_executes_delete_statement(
+        self, store: McpRegistryStore, mock_conn: AsyncMock
+    ):
         # Arrange — fetchval returns a row id so the row exists
         mock_conn.fetchval.return_value = "web-search"
 
@@ -374,7 +402,9 @@ class TestDelete:
 class TestExists:
     """Tests for McpRegistryStore.exists."""
 
-    async def test_returns_true_when_row_exists(self, store: McpRegistryStore, mock_conn: AsyncMock):
+    async def test_returns_true_when_row_exists(
+        self, store: McpRegistryStore, mock_conn: AsyncMock
+    ):
         # Arrange
         mock_conn.fetchval.return_value = 1
 
@@ -384,7 +414,9 @@ class TestExists:
         # Assert
         assert result is True
 
-    async def test_returns_false_when_row_missing(self, store: McpRegistryStore, mock_conn: AsyncMock):
+    async def test_returns_false_when_row_missing(
+        self, store: McpRegistryStore, mock_conn: AsyncMock
+    ):
         # Arrange
         mock_conn.fetchval.return_value = None
 

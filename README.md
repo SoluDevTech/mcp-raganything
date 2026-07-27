@@ -4,6 +4,8 @@ Multi-modal RAG service exposing a REST API and MCP server for document indexing
 
 The service also hosts the **MCP server registry** — a CRUD API for registering external MCP servers and generating new MCP servers on the fly from OpenAPI/Swagger documents. The registry is persisted in PostgreSQL and rehydrated at startup, so [composable-agents](https://github.com/soludev/composable-agents) and other clients can discover all available MCP servers from a single endpoint. See [MCP Server Registry](#mcp-server-registry).
 
+> **Branch `feat/dual-auth-rls-llm-peruser`** introduces a new security model: **dual authentication** (JWT/OIDC via Logto **or** per-user API keys shared with composable-agents), **Row-Level Security on `mcp_servers`** scoped by `user_id`, **per-user LLM credentials** (decrypted from the shared `user_llm_settings` table), and **per-user RAG isolation** (metadata-level `user_id` filter on chunks). See [Authentication](#authentication), [Configuration](#configuration), and [Database Schema](#database-schema) for the details. The legacy master `API_KEY` and `OPEN_ROUTER_API_KEY` for chat/embeddings are **deprecated** (see [Breaking changes](#breaking-changes)).
+
 ## Architecture
 
 ```
@@ -81,7 +83,8 @@ The service also hosts the **MCP server registry** — a CRUD API for registerin
 
 - Python 3.13+
 - Docker and Docker Compose
-- An [OpenRouter](https://openrouter.ai/) API key (or any OpenAI-compatible provider)
+- A [Logto](https://logto.io/) instance (for JWT/OIDC authentication) — optional if you only use per-user API keys
+- Per-user LLM credentials configured in [composable-agents](https://github.com/soludev/composable-agents) (table `user_llm_settings`), **or** an [OpenRouter](https://openrouter.ai/) API key as fallback for local dev / Kreuzberg VLM
 - The `soludev-compose-apps/bricks/` stack for production deployment (provides PostgreSQL, MinIO, and this service)
 
 ## Quick Start
@@ -100,7 +103,10 @@ docker compose up -d postgres
 
 # 3. Configure environment
 cp .env.example .env
-# Edit .env: set OPEN_ROUTER_API_KEY and adjust MINIO_HOST / POSTGRES_HOST
+# Edit .env: set LOGTO_URL + JWT_AUDIENCE for JWT auth, SECRET_ENCRYPTION_KEY
+# (shared with composable-agents), and adjust MINIO_HOST / POSTGRES_HOST.
+# OPEN_ROUTER_API_KEY is only needed for the VLM and as a fallback when auth
+# is disabled (per-user LLM credentials take precedence on authenticated requests).
 
 # 4. Run the server
 uv run python src/main.py
@@ -117,44 +123,56 @@ docker compose up -d
 
 This starts all brick services including `raganything-api`, `postgres`, and `minio`.
 
-## API Key Authentication
+## Authentication
 
-The service supports optional API key authentication for both REST and MCP endpoints. A single `API_KEY` environment variable controls all layers.
+The service supports **dual authentication** on every protected REST and MCP endpoint:
+
+1. **JWT (OIDC)** — `Authorization: Bearer <jwt>` issued by a [Logto](https://logto.io/) instance. The token is validated against the Logto JWKS, the `aud` claim is checked against `JWT_AUDIENCE`, and the user identity is extracted from the JWT claims.
+2. **Per-user API key** — `X-API-Key: <user-api-key>` stored in the shared `api_keys` table (owned by [composable-agents](https://github.com/soludev/composable-agents), see [Shared tables](#shared-tables)). The key is looked up, the bound `user_id` becomes the request identity.
+
+The middleware accepts **either** header on the same request. If both are present, JWT takes precedence. The resolved `user_id` is stored in a request-scoped `contextvar` (`current_user_id`) and is used for:
+
+- **RLS scoping** on `mcp_servers` (see [MCP Server Registry](#mcp-server-registry)),
+- **Per-user LLM credentials** resolution (see [Per-user LLM](#per-user-llm-credentials)),
+- **Per-user RAG isolation** (chunks tagged with `user_id`, see [RAG isolation](#per-user-rag-isolation)).
 
 ### Enabling authentication
 
-Set `API_KEY` to a non-empty value in `.env`:
+Both modes are active as soon as the relevant env vars are set:
 
 ```env
-API_KEY=your-secret-key-here
+LOGTO_URL=https://logto.example.com
+JWT_AUDIENCE=https://raganything.soludev.tech
+SECRET_ENCRYPTION_KEY=<fernet-key-shared-with-composable-agents>
 ```
 
-When enabled, all REST endpoints (except health) and all MCP tool calls require the `X-API-Key` header. Requests without a valid key receive `401 Unauthorized` (REST) or a `ToolError` (MCP).
+`SECRET_ENCRYPTION_KEY` must be the **same Fernet key** as composable-agents, because the `api_keys` and `user_llm_settings` tables store encrypted values that this service decrypts (see [Shared tables](#shared-tables)).
 
 ### Disabling authentication
 
-Leave `API_KEY` empty (default) to disable authentication — useful for local development and testing:
-
-```env
-API_KEY=
-```
+Leave `LOGTO_URL` and `JWT_AUDIENCE` empty to disable JWT validation. Per-user API keys still work if rows exist in `api_keys`. For local development with no auth at all, leave everything empty — health endpoints are always public.
 
 ### REST usage
 
-Include the `X-API-Key` header in every request:
-
 ```bash
-curl -H "X-API-Key: your-secret-key-here" \
+# JWT (Logto OIDC)
+curl -H "Authorization: Bearer ${JWT}" \
+     -H "Content-Type: application/json" \
+     -X POST http://localhost:8000/api/v1/classical/query \
+     -d '{"working_dir": "project-alpha", "query": "test"}'
+
+# Per-user API key
+curl -H "X-API-Key: ${USER_API_KEY}" \
      -H "Content-Type: application/json" \
      -X POST http://localhost:8000/api/v1/classical/query \
      -d '{"working_dir": "project-alpha", "query": "test"}'
 ```
 
-Health endpoints (`/api/v1/health`, `/api/v1/health/live`) remain public regardless of the `API_KEY` setting.
+Health endpoints (`/api/v1/health`, `/api/v1/health/live`) remain public regardless of the auth configuration.
 
 ### MCP usage
 
-MCP clients must send the `X-API-Key` header in their HTTP transport configuration. For [composable-agents](https://github.com/soludev/composable-agents), add it to the `headers` field of each MCP server config:
+The `McpApiKeyMiddleware` accepts both `X-API-Key` and `Authorization: Bearer` via FastMCP's `get_http_headers`. MCP clients must send one of them in their HTTP transport configuration. For [composable-agents](https://github.com/soludev/composable-agents), add the header to the `headers` field of each MCP server config:
 
 ```yaml
 mcp_servers:
@@ -162,27 +180,61 @@ mcp_servers:
     transport: http
     url: https://raganything.soludev.tech/bricks/mcp
     headers:
-      X-API-Key: "${MCP_RAGANYTHING_API_KEY}"
+      Authorization: "Bearer ${LOGTO_USER_TOKEN}"   # or
+      # X-API-Key: "${MCP_RAGANYTHING_API_KEY}"
   - name: files
     transport: http
     url: https://raganything.soludev.tech/files/mcp
     headers:
-      X-API-Key: "${MCP_RAGANYTHING_API_KEY}"
+      Authorization: "Bearer ${LOGTO_USER_TOKEN}"
   - name: classical
     transport: http
     url: https://raganything.soludev.tech/classical/mcp
     headers:
-      X-API-Key: "${MCP_RAGANYTHING_API_KEY}"
+      Authorization: "Bearer ${LOGTO_USER_TOKEN}"
 ```
-
-The `${MCP_RAGANYTHING_API_KEY}` placeholder is resolved from the environment variable of the same name. Set it to the same value as the server's `API_KEY`.
 
 ### Protected endpoints
 
 | Layer | Protected | Public |
 |-------|-----------|--------|
-| REST | `/api/v1/files/*`, `/api/v1/files`, `/api/v1/classical/*`, `/api/v1/file/*`, `/api/v1/folder/*`, `/api/v1/query` | `/api/v1/health`, `/api/v1/health/live` |
-| MCP | `tools/call`, `tools/list` (all 3 servers) | `initialize` |
+| REST | `/api/v1/files/*`, `/api/v1/files`, `/api/v1/classical/*`, `/api/v1/file/*`, `/api/v1/folder/*`, `/api/v1/query`, `/api/v1/mcp/servers*` | `/api/v1/health`, `/api/v1/health/live` |
+| MCP | `tools/call`, `tools/list` (all 4 servers + generated servers) | `initialize` |
+
+### Per-user LLM credentials
+
+When the `current_user_id` contextvar is set (i.e. the request was authenticated), the LLM/embeddings factories resolve credentials from the shared `user_llm_settings` table (owned by composable-agents) instead of the static `LLMConfig` env vars:
+
+- `get_chat_llm_for_user(current_user_id)` — returns a `ChatOpenAI` configured with the user's decrypted `api_key`, `base_url`, and `model`.
+- `get_embedding_for_user(current_user_id)` — returns an `OpenAIEmbeddings` configured with the user's credentials.
+- `get_vector_store_for_user(current_user_id, working_dir)` — returns a `PGVectorStore` bound to the user's embedding model + dimension.
+
+Decryption is done by `AsyncpgUserLlmReader` using the existing `FernetSecretCipher` and the shared `SECRET_ENCRYPTION_KEY`. If the user has no row in `user_llm_settings`, the request returns **`422 LlmNotConfiguredError`** with a message telling the user to configure their LLM credentials in composable-agents.
+
+When `current_user_id` is `None` (e.g. local dev with auth disabled), the factories fall back to the static `LLMConfig` env vars (`OPEN_ROUTER_API_KEY`, `CHAT_MODEL`, `EMBEDDING_MODEL`, etc.). This preserves the legacy local-dev workflow.
+
+### Per-user RAG isolation
+
+Classical RAG chunks are tagged with `user_id` in their `langchain_metadata` at index time. At query time, the langchain-postgres metadata filter `{"user_id": current_user_id}` is applied so a user only retrieves their own chunks. This is an **application-level** filter — RLS is **not** applied on the dynamic `classical_rag_*` tables because `PGVectorStore` uses its own connection pool and the `app.user_id` GUC is not propagated there (same conclusion as the LangGraph store in composable-agents).
+
+### Shared tables
+
+Two tables are **owned by composable-agents** (created by its Alembic migrations) and **read by mcp-raganything**:
+
+| Table | Owner | Purpose | mcp-raganything access |
+|---|---|---|---|
+| `api_keys` | composable-agents | Per-user API keys (hashed) + `user_id` binding | Read (auth lookup) with `SET LOCAL row_security = off` |
+| `user_llm_settings` | composable-agents | Per-user LLM credentials (Fernet-encrypted) | Read (credential resolution) with `SET LOCAL row_security = off` |
+
+mcp-raganything reads these tables as a **privileged auth/credential-resolution operation**: the asyncpg connection sets `SET LOCAL row_security = off` for the duration of the lookup, then the connection is returned to the pool. RLS on these tables is enforced by composable-agents for its own writes.
+
+The two services share the same PostgreSQL database (`raganything`) but use **separate Alembic version tables**: composable-agents uses `alembic_version`, mcp-raganything uses `raganything_alembic_version` (see [Database Schema](#database-schema)). This lets both services evolve their schemas independently without colliding.
+
+### Breaking changes
+
+- **`API_KEY` (master key) deprecated.** The single shared `X-API-Key: <master>` mode is no longer the primary auth path. The env var is still read for backward compatibility but **per-user API keys** (from the shared `api_keys` table) are the recommended replacement. Migrate by creating per-user keys in composable-agents.
+- **`OPEN_ROUTER_API_KEY` deprecated for chat + embeddings.** When a request is authenticated (`current_user_id` set), the per-user `user_llm_settings` row is used instead. `OPEN_ROUTER_API_KEY` is **still used for the Kreuzberg VLM** (vision model OCR in the LightRAG pipeline) because the VLM is not user-scoped — this is a documented limitation. To fully deprecate `OPEN_ROUTER_API_KEY`, the VLM must be made user-scoped too (future work).
+- **`mcp_servers` is now per-user.** A user can only see, create, update, and delete their own MCP servers. Cross-user create with the same name returns **`409 Conflict`** (BUG-001 fix: `ON CONFLICT DO UPDATE` is scoped by `user_id`, so a same-name server from another user is not silently overwritten).
 
 ## API Reference
 
@@ -212,6 +264,7 @@ Downloads the file identified by `file_name` from the configured MinIO bucket, t
 ```bash
 curl -X POST http://localhost:8000/api/v1/file/index \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "file_name": "project-alpha/report.pdf",
     "working_dir": "project-alpha"
@@ -236,6 +289,7 @@ Lists all objects under the `working_dir` prefix in MinIO, downloads them, then 
 ```bash
 curl -X POST http://localhost:8000/api/v1/folder/index \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "working_dir": "project-alpha",
     "recursive": true,
@@ -281,10 +335,12 @@ Browse and read files directly from MinIO without indexing them into the RAG kno
 
 ```bash
 # List all files in the bucket
-curl http://localhost:8000/api/v1/files/list
+curl -H "Authorization: Bearer ${JWT}" \
+     http://localhost:8000/api/v1/files/list
 
 # List files under a specific prefix
-curl "http://localhost:8000/api/v1/files/list?prefix=documents/&recursive=true"
+curl -H "Authorization: Bearer ${JWT}" \
+     "http://localhost:8000/api/v1/files/list?prefix=documents/&recursive=true"
 ```
 
 Response (`200 OK`):
@@ -310,6 +366,7 @@ Uploads a file directly to the MinIO bucket. The file is stored at `{prefix}{fil
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/files/upload \
+  -H "Authorization: Bearer ${JWT}" \
   -F "file=@report.pdf" \
   -F "prefix=documents/"
 ```
@@ -339,6 +396,7 @@ Downloads the file from MinIO, extracts its text content using Kreuzberg, and re
 ```bash
 curl -X POST http://localhost:8000/api/v1/files/read \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{"file_path": "documents/report.pdf"}'
 ```
 
@@ -370,6 +428,7 @@ Creates a folder marker in the MinIO bucket by writing a 0-byte object whose obj
 ```bash
 curl -X POST http://localhost:8000/api/v1/files/folders \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{"prefix": "documents/reports/"}'
 ```
 
@@ -401,7 +460,8 @@ Deletion is performed in two steps, strictly in order:
 If the MinIO deletion fails, the pgvector store is **not** touched, ensuring no orphaned vectors are created from a failed storage operation.
 
 ```bash
-curl -X DELETE "http://localhost:8000/api/v1/files?object_name=documents/report.pdf&working_dir=project-alpha"
+curl -X DELETE "http://localhost:8000/api/v1/files?object_name=documents/report.pdf&working_dir=project-alpha" \
+  -H "Authorization: Bearer ${JWT}"
 ```
 
 Response (`200 OK`):
@@ -435,7 +495,8 @@ Deletion is performed in two steps, strictly in order:
 If the MinIO deletion fails, the pgvector store is **not** touched.
 
 ```bash
-curl -X DELETE "http://localhost:8000/api/v1/files/folders?prefix=documents/reports/"
+curl -X DELETE "http://localhost:8000/api/v1/files/folders?prefix=documents/reports/" \
+  -H "Authorization: Bearer ${JWT}"
 ```
 
 Response (`200 OK`):
@@ -471,6 +532,7 @@ Query the indexed knowledge base. The RAG engine is initialized for the given `w
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "working_dir": "project-alpha",
     "query": "What are the main findings of the report?",
@@ -519,6 +581,7 @@ Returns results ranked by PostgreSQL full-text search using `pg_textsearch`. Eac
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "working_dir": "project-alpha",
     "query": "quarterly revenue growth",
@@ -561,6 +624,7 @@ Runs BM25 and vector search in parallel, then merges results using Reciprocal Ra
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "working_dir": "project-alpha",
     "query": "quarterly revenue growth",
@@ -624,6 +688,7 @@ Downloads the file from MinIO, extracts text with Kreuzberg chunking, and embeds
 ```bash
 curl -X POST http://localhost:8000/api/v1/classical/file/index \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "file_name": "project-alpha/report.pdf",
     "working_dir": "project-alpha",
@@ -652,6 +717,7 @@ Lists all objects under the `working_dir` prefix in MinIO, downloads them, and i
 ```bash
 curl -X POST http://localhost:8000/api/v1/classical/folder/index \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "working_dir": "project-alpha",
     "recursive": true,
@@ -686,6 +752,7 @@ The LLM generates query variations, runs vector similarity search for each, dedu
 ```bash
 curl -X POST http://localhost:8000/api/v1/classical/query \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "working_dir": "project-alpha",
     "query": "What are the main findings of the report?",
@@ -703,6 +770,7 @@ Runs BM25 full-text search and multi-query vector search in parallel, merges res
 ```bash
 curl -X POST http://localhost:8000/api/v1/classical/query \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "working_dir": "project-alpha",
     "query": "What are the main findings of the report?",
@@ -910,6 +978,17 @@ In addition to the four built-in MCP servers above, mcp-raganything **owns the M
 
 This registry was previously hosted in the `composable-agents` brick; it has been migrated here so that the RAG service is the single owner of MCP server lifecycle (registration, generation, mounting, crash recovery) **and** the `mcp_servers` table schema.
 
+### Row-Level Security (per user)
+
+Since branch `feat/dual-auth-rls-llm-peruser`, the `mcp_servers` table is **row-level isolated by `user_id`**:
+
+- **Migration 002** adds the `user_id` column.
+- **Migration 003** runs `ALTER TABLE mcp_servers ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` and creates a policy `mcp_servers_user_isolation` that restricts rows to `user_id = current_setting('app.user_id')`.
+
+`McpRegistryStore` sets the GUC `app.user_id = <current_user_id>` on the asyncpg connection before any query, so every read/write is automatically scoped to the authenticated user. The middleware resolves `current_user_id` from JWT or per-user API key (see [Authentication](#authentication)).
+
+**BUG-001 fix:** the `ON CONFLICT (name) DO UPDATE` upsert is scoped by `user_id`. If user A creates a server named `weather` and user B tries to create another `weather`, the conflict check only matches A's row through RLS, so B's insert is **not** a conflict — it creates a new row. If B already has a `weather` row, the upsert updates B's own row. There is **no silent cross-user overwrite**. A duplicate-name conflict within the same user returns `409 Conflict`.
+
 ### What it does
 
 - **Register external MCP servers** — store a name, transport URL, optional headers and an encrypted auth token. On create/update, the service connects to the remote server via `fastmcp.Client`, validates reachability, and records the discovered `tool_count`. Composable-agents reads these entries and connects to the URL at agent build time.
@@ -919,17 +998,19 @@ This registry was previously hosted in the `composable-agents` brick; it has bee
 
 ### Endpoints
 
-All registry endpoints live under `/api/v1/mcp/servers` and are protected by the global `API_KEY` middleware when `API_KEY` is set.
+All registry endpoints live under `/api/v1/mcp/servers` and are protected by the dual-auth middleware (JWT `Authorization: Bearer` **or** per-user `X-API-Key`). All reads/writes are **scoped to the authenticated `user_id`** via RLS — a user only sees and manages their own servers.
 
 | Method | Path | Description | Success Status |
 |---|---|---|---|
-| `POST` | `/api/v1/mcp/servers` | Create a registered MCP server (external or openapi). Returns the masked entry (secrets hidden). | `201` |
-| `POST` | `/api/v1/mcp/servers/validate` | Dry-run validation of a server config without persisting anything. For `source_type="external"`, connects to the remote MCP server and returns the discovered tool count. For `source_type="openapi"`, fetches the spec, builds an in-process FastMCP server, and counts its tools. | `200` |
-| `GET` | `/api/v1/mcp/servers` | List all registered servers (masked). | `200` |
-| `GET` | `/api/v1/mcp/servers/{name}` | Get a single server (masked). | `200` |
+| `POST` | `/api/v1/mcp/servers` | Create a registered MCP server (external or openapi) scoped to the current user. Returns the masked entry (secrets hidden). | `201` |
+| `POST` | `/api/v1/mcp/servers/validate` | Dry-run validation of a server config without persisting anything. Returns the parsed/mounted result. | `200` |
+| `GET` | `/api/v1/mcp/servers` | List all registered servers **owned by the current user** (masked). | `200` |
+| `GET` | `/api/v1/mcp/servers/{name}` | Get a single server owned by the current user (masked). | `200` |
 | `GET` | `/api/v1/mcp/servers/{name}/reveal` | Get a single server **with plaintext secrets**. Use with care. | `200` |
 | `PUT` | `/api/v1/mcp/servers/{name}` | Update a server (URL, headers, auth token, openapi spec). Re-mounts openapi servers. | `200` |
 | `DELETE` | `/api/v1/mcp/servers/{name}` | Delete a server and unmount it if openapi. | `204` |
+
+A `GET`/`PUT`/`DELETE` on a `{name}` that exists but is owned by **another user** returns `404 Not Found` (RLS hides the row). A `POST` with a `name` already used by the **same user** returns `409 Conflict`.
 
 The request body for `POST` and `PUT` extends the `McpServerConfig` shape with two fields:
 
@@ -981,9 +1062,21 @@ On startup, the FastAPI lifespan reads all rows from `mcp_servers` and, for each
 ### Example: register an external server
 
 ```bash
+# JWT (Logto OIDC)
 curl -X POST http://localhost:8000/api/v1/mcp/servers \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: ${API_KEY}" \
+  -H "Authorization: Bearer ${JWT}" \
+  -d '{
+    "name": "weather",
+    "source_type": "external",
+    "url": "https://weather.example.com/mcp",
+    "auth_token": "super-secret"
+  }'
+
+# Per-user API key
+curl -X POST http://localhost:8000/api/v1/mcp/servers \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${USER_API_KEY}" \
   -d '{
     "name": "weather",
     "source_type": "external",
@@ -1010,7 +1103,7 @@ Response (`201 Created`, secrets masked) — note the `tool_count` reflects the 
 ```bash
 curl -X POST http://localhost:8000/api/v1/mcp/servers \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: ${API_KEY}" \
+  -H "Authorization: Bearer ${JWT}" \
   -d '{
     "name": "petstore",
     "source_type": "openapi",
@@ -1048,8 +1141,10 @@ All configuration is via environment variables, loaded through Pydantic Settings
 | `ALLOWED_ORIGINS` | `["*"]` | CORS allowed origins |
 | `OUTPUT_DIR` | system temp | Temporary directory for downloaded files |
 | `UVICORN_LOG_LEVEL` | `critical` | Uvicorn log level |
-| `API_KEY` | `""` (disabled) | Shared secret key for REST + MCP authentication. When non-empty, all requests must include `X-API-Key` header. Leave empty to disable authentication |
-| `SECRET_ENCRYPTION_KEY` | `""` (disabled) | Fernet key used to encrypt MCP registry secrets (auth tokens, sensitive headers) at rest in the `mcp_servers` table. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Must be **stable across restarts** to decrypt previously encrypted secrets. When empty, the MCP server registry is disabled at startup (the rest of the service still runs) |
+| `API_KEY` | `""` (**deprecated**) | Legacy master shared secret. When non-empty, requests may authenticate with `X-API-Key: <API_KEY>`. **Deprecated** in favor of per-user API keys from the shared `api_keys` table (see [Authentication](#authentication)). Still read for backward compatibility but no longer the primary auth path |
+| `LOGTO_URL` | `""` (JWT disabled) | Base URL of the [Logto](https://logto.io/) OIDC instance used to validate `Authorization: Bearer <jwt>` tokens. When empty, JWT authentication is disabled. Example: `https://logto.example.com` |
+| `JWT_AUDIENCE` | `""` | Expected `aud` claim for JWT validation. Should match the audience configured in Logto for this service (e.g. `https://raganything.soludev.tech`). Required when `LOGTO_URL` is set |
+| `SECRET_ENCRYPTION_KEY` | `""` (registry disabled) | Fernet key **shared with composable-agents**. Used to (a) encrypt MCP registry secrets (auth tokens, sensitive headers) at rest in `mcp_servers`, and (b) decrypt per-user LLM credentials in `user_llm_settings` and per-user API keys in `api_keys`. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Must be **stable across restarts** and **identical to composable-agents' key**. When empty, the MCP server registry and per-user LLM resolution are disabled at startup (the rest of the service still runs) |
 | `GENERATED_MCP_BASE_URL` | `http://localhost:8020` | Absolute base URL of this service, used to build the public URL returned for generated (`openapi`) MCP servers mounted under `/generated/{name}/mcp`. Set to `http://raganything-api:8000` for Docker, or to your public ingress URL for external clients |
 | `MCP_TOOL_TIMEOUT` | `60.0` | Timeout (seconds) for connecting to external MCP servers and listing their tools via the `FastMcpToolLoader` (used by the external-path create/update/validate flows). Increase for slow remote servers |
 
@@ -1065,16 +1160,18 @@ All configuration is via environment variables, loaded through Pydantic Settings
 
 ### LLM (`LLMConfig`)
 
+> **Deprecated for chat + embeddings on authenticated requests.** When `current_user_id` is set (JWT or per-user API key), the per-user `user_llm_settings` row (decrypted via `SECRET_ENCRYPTION_KEY`) takes precedence over these env vars. The env vars remain the **fallback** when `current_user_id` is `None` (local dev, auth disabled) and are **still required for the Kreuzberg VLM** (vision OCR in the LightRAG pipeline), which is not user-scoped — see [Per-user LLM credentials](#per-user-llm-credentials) and [Breaking changes](#breaking-changes).
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPEN_ROUTER_API_KEY` | -- | **Required.** OpenRouter API key |
-| `OPEN_ROUTER_API_URL` | `https://openrouter.ai/api/v1` | OpenRouter base URL |
-| `BASE_URL` | -- | Override base URL (takes precedence over `OPEN_ROUTER_API_URL`) |
-| `CHAT_MODEL` | `openai/gpt-4o-mini` | Chat completion model |
-| `EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
-| `EMBEDDING_DIM` | `1536` | Embedding vector dimension |
+| `OPEN_ROUTER_API_KEY` | -- | **Deprecated for chat + embeddings** (per-user `user_llm_settings` takes precedence on authenticated requests). Still **required** for the Kreuzberg VLM (vision OCR) and as the fallback when auth is disabled. OpenRouter API key |
+| `OPEN_ROUTER_API_URL` | `https://openrouter.ai/api/v1` | OpenRouter base URL (fallback) |
+| `BASE_URL` | -- | Override base URL (takes precedence over `OPEN_ROUTER_API_URL`, fallback only) |
+| `CHAT_MODEL` | `openai/gpt-4o-mini` | Chat completion model (fallback) |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model (fallback) |
+| `EMBEDDING_DIM` | `1536` | Embedding vector dimension (fallback) |
 | `MAX_TOKEN_SIZE` | `8192` | Max token size for embeddings |
-| `VISION_MODEL` | `openai/gpt-4o` | Vision model for image processing |
+| `VISION_MODEL` | `openai/gpt-4o` | Vision model for image processing (VLM — **not** user-scoped, always uses `OPEN_ROUTER_API_KEY`) |
 
 ### RAG (`RAGConfig`)
 
@@ -1111,7 +1208,7 @@ When `BM25_ENABLED` is `false` or the pg_textsearch extension is not available, 
 | `CLASSICAL_LLM_TEMPERATURE` | `0.0` | Temperature for LLM calls (multi-query generation + judge scoring) |
 | `CLASSICAL_RRF_K` | `60` | RRF constant K for hybrid BM25+vector search (must be >= 1) |
 
-The classical RAG adapters share the same `OPEN_ROUTER_API_KEY`, `OPEN_ROUTER_API_URL`/`BASE_URL`, `CHAT_MODEL`, `EMBEDDING_MODEL`, and `EMBEDDING_DIM` settings from the LLM config. If initialization fails (e.g. missing API key), the classical endpoints return `503 Service Unavailable` with a descriptive error.
+The classical RAG adapters resolve LLM/embeddings **per user** via `get_chat_llm_for_user` / `get_embedding_for_user` / `get_vector_store_for_user` when `current_user_id` is set (see [Per-user LLM credentials](#per-user-llm-credentials)). If the user has no row in `user_llm_settings`, the request returns **`422 LlmNotConfiguredError`**. When auth is disabled (`current_user_id` is `None`), the adapters fall back to the static `LLMConfig` env vars (`OPEN_ROUTER_API_KEY`, `CHAT_MODEL`, `EMBEDDING_MODEL`, `EMBEDDING_DIM`). If initialization fails (e.g. missing API key in fallback mode), the classical endpoints return `503 Service Unavailable` with a descriptive error. Chunks are tagged with `user_id` in `langchain_metadata` at index time and filtered by `{"user_id": current_user_id}` at query time (see [Per-user RAG isolation](#per-user-rag-isolation)).
 
 ### MinIO (`MinioConfig`)
 
@@ -1150,10 +1247,20 @@ The classical RAG adapters share the same `OPEN_ROUTER_API_KEY`, `OPEN_ROUTER_AP
 ```bash
 uv sync                          # Install all dependencies (including dev)
 uv run python src/main.py        # Run the server locally
-uv run pytest                    # Run tests with coverage
+uv run pytest tests/unit -q      # Run unit tests (557 pass on feat/dual-auth-rls-llm-peruser)
 uv run ruff check src/           # Lint
 uv run ruff format src/          # Format
 uv run mypy src/                 # Type checking
+```
+
+### QA via docker stack
+
+The `soludev-compose-apps/bricks/` stack auto-seeds the shared `api_keys` and `user_llm_settings` tables (the same seed data is used by composable-agents), so end-to-end QA of dual-auth + per-user LLM + RAG isolation can be run without manual seeding:
+
+```bash
+cd soludev-compose-apps/bricks/
+docker compose up -d
+# Then exercise the API with a JWT or a seeded per-user API key.
 ```
 
 ### Docker (local)
@@ -1171,11 +1278,15 @@ mcp-raganything uses Alembic for the `mcp_servers` table (the MCP server registr
 | Migration | Description |
 |---|---|
 | `001_create_mcp_servers_table` | Creates the `mcp_servers` table (name, transport, url, Fernet-encrypted `headers`/`env`/`auth_token`, tool_count, timestamps, `source_type`, `openapi_url`). `CREATE TABLE IF NOT EXISTS` makes it safe on databases where the table was previously created by composable-agents' legacy migrations 008/009 (now removed from that brick). |
+| `002_add_user_id_to_mcp_servers` | Adds the `user_id` column to `mcp_servers` (nullable for backward compatibility, populated on new writes by `McpRegistryStore` from `current_user_id`). |
+| `003_enable_rls_mcp_servers` | Runs `ALTER TABLE mcp_servers ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` and creates the `mcp_servers_user_isolation` policy restricting rows to `user_id = current_setting('app.user_id')`. `McpRegistryStore` sets `app.user_id` on the asyncpg connection before every query. |
 
 The classical RAG tables are **not** managed by Alembic:
 
-- **Classical RAG tables (`classical_rag_*`)** — created at runtime by `LangchainPgvectorAdapter` (langchain-postgres `PGVectorStore`) the first time a collection is indexed.
+- **Classical RAG tables (`classical_rag_*`)** — created at runtime by `LangchainPgvectorAdapter` (langchain-postgres `PGVectorStore`) the first time a collection is indexed. RLS is **not** applied on these tables (PGVectorStore uses its own connection pool and the `app.user_id` GUC is not propagated); isolation is enforced at the application level via the `{"user_id": current_user_id}` langchain-postgres metadata filter (see [Per-user RAG isolation](#per-user-rag-isolation)).
 - **BM25 index** — created on demand by `ClassicalBM25Adapter._ensure_bm25_index` the first time a `classical_rag_*` table is queried, using `CREATE INDEX ... USING bm25(content)`.
+
+The **shared tables** `api_keys` and `user_llm_settings` are **not** managed by this service's Alembic — they are created by composable-agents' Alembic. mcp-raganything only **reads** them with `SET LOCAL row_security = off` (see [Shared tables](#shared-tables)).
 
 ### Production requirements
 
@@ -1316,7 +1427,10 @@ Railway project
    | `MINIO_SECRET` | `********` | MinIO secret key |
    | `MINIO_BUCKET` | `raganything` | MinIO bucket name |
    | `MINIO_SECURE` | `true` | Use HTTPS in production |
-   | `API_KEY` | `your-shared-secret` | API key for REST + MCP auth (empty = disabled) |
+   | `API_KEY` | `""` | **Deprecated** legacy master key. Prefer per-user API keys from `api_keys` |
+   | `LOGTO_URL` | `https://logto.example.com` | Logto OIDC base URL for JWT validation |
+   | `JWT_AUDIENCE` | `https://raganything.soludev.tech` | Expected `aud` claim for JWTs |
+   | `SECRET_ENCRYPTION_KEY` | `********` | Fernet key **shared with composable-agents** (encrypts `mcp_servers` secrets, decrypts `api_keys` + `user_llm_settings`) |
    | `ALLOWED_ORIGINS` | `["https://composable-agents.xxx.railway.app"]` | CORS origins |
 
 5. **MinIO**: Railway does not offer managed MinIO. Options:
@@ -1329,7 +1443,7 @@ Railway project
    curl https://mcp-raganything.xxx.up.railway.app/api/v1/health
    ```
 
-7. **Connect composable-agents** to this Railway deployment by setting `MCP_RAGANYTHING_API_KEY` to the same value as `API_KEY` and pointing agent MCP URLs to the Railway domain.
+7. **Connect composable-agents** to this Railway deployment by pointing agent MCP URLs to the Railway domain and authenticating with either a Logto user JWT (`Authorization: Bearer`) or a per-user API key from the shared `api_keys` table (`X-API-Key`). The legacy `MCP_RAGANYTHING_API_KEY` env var (master `API_KEY`) still works but is deprecated.
 
 ### Notes
 

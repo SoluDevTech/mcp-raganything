@@ -32,7 +32,7 @@ class AppConfig(BaseSettings):
     SECRET_ENCRYPTION_KEY: str = Field(
         default="",
         description="Fernet key used to encrypt MCP registry secrets at rest. "
-        "Generate with `python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"`. "
+        'Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. '
         "Must be stable across restarts to decrypt previously encrypted secrets.",
     )
     GENERATED_MCP_BASE_URL: str = Field(
@@ -51,6 +51,18 @@ class AppConfig(BaseSettings):
         default=60.0,
         description="Timeout (seconds) for MCP tool loading via the FastMcpToolLoader "
         "(connecting to external MCP servers and listing their tools).",
+    )
+    LOGTO_URL: str = Field(
+        default="",
+        description="Base URL of the Logto IdP instance. The JWKS endpoint is "
+        "derived as {LOGTO_URL}/oidc/jwks for JWT verification. When empty, "
+        "JWT verification is disabled (only per-user API keys are accepted).",
+    )
+    JWT_AUDIENCE: str = Field(
+        default="",
+        description="Expected JWT ``aud`` claim. Passed to ``jwt.decode`` for "
+        "audience validation. When empty, no audience check is performed "
+        "(PyJWT treats an empty string as 'no audience expected').",
     )
 
 

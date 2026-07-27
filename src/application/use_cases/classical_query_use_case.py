@@ -13,6 +13,7 @@ from domain.logging.messages import LogMessage
 from domain.ports.bm25_engine import BM25EnginePort
 from domain.ports.llm_port import LLMPort
 from domain.ports.vector_store_port import SearchResult, VectorStorePort
+from infrastructure.database.rls_context import current_user_id
 from infrastructure.rag.rrf_combiner import RRFCombiner
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,15 @@ class ClassicalQueryUseCase:
         """
         working_dir = working_dir if working_dir.endswith("/") else f"{working_dir}/"
 
+        # Per-user RAG isolation: when the RLS contextvar is set, filter the
+        # vector search by ``user_id`` metadata so a user only retrieves their
+        # own chunks. When None (legacy/tests, no auth wired), no filter is
+        # applied — the legacy behaviour is preserved.
+        user_id = current_user_id.get()
+        metadata_filter: dict[str, str] | None = (
+            {"user_id": user_id} if user_id is not None else None
+        )
+
         if num_variations is None:
             num_variations = self.config.CLASSICAL_NUM_QUERY_VARIATIONS
         if relevance_threshold is None:
@@ -120,6 +130,7 @@ class ClassicalQueryUseCase:
                 relevance_threshold=relevance_threshold,
                 vector_distance_threshold=vector_distance_threshold,
                 enable_llm_judge=enable_llm_judge,
+                metadata_filter=metadata_filter,
             )
 
         if mode == "hybrid" and self.bm25_engine is None:
@@ -133,6 +144,7 @@ class ClassicalQueryUseCase:
             relevance_threshold=relevance_threshold,
             vector_distance_threshold=vector_distance_threshold,
             enable_llm_judge=enable_llm_judge,
+            metadata_filter=metadata_filter,
         )
 
     async def _execute_vector(
@@ -144,6 +156,7 @@ class ClassicalQueryUseCase:
         relevance_threshold: float,
         vector_distance_threshold: float | None,
         enable_llm_judge: bool,
+        metadata_filter: dict[str, str] | None = None,
     ) -> ClassicalQueryResponse:
         variations = (
             await self._generate_variations(query, num_variations)
@@ -159,6 +172,7 @@ class ClassicalQueryUseCase:
                 query=q,
                 top_k=top_k,
                 score_threshold=vector_distance_threshold,
+                metadata_filter=metadata_filter,
             )
             for q in queries
         ]
@@ -191,6 +205,7 @@ class ClassicalQueryUseCase:
         relevance_threshold: float,
         vector_distance_threshold: float | None,
         enable_llm_judge: bool,
+        metadata_filter: dict[str, str] | None = None,
     ) -> ClassicalQueryResponse:
         variations = (
             await self._generate_variations(query, num_variations)
@@ -205,6 +220,7 @@ class ClassicalQueryUseCase:
                 query=q,
                 top_k=top_k,
                 score_threshold=vector_distance_threshold,
+                metadata_filter=metadata_filter,
             )
             for q in queries
         ]

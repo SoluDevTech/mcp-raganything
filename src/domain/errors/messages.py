@@ -20,6 +20,10 @@ class ErrorMessage(StrEnum):
     CLASSICAL_RAG_UNAVAILABLE_VECTOR_LLM = (
         "Classical RAG unavailable: vector store or LLM not initialized"
     )
+    LLM_NOT_CONFIGURED = (
+        "No LLM provider configured for the authenticated user. "
+        "Configure your provider via the user LLM settings endpoint."
+    )
 
     # --- Storage (MinIO) ---
     OBJECT_NOT_FOUND = "Object not found: bucket={bucket}, path={path}"
@@ -45,6 +49,7 @@ class ErrorMessage(StrEnum):
     API_KEY_UNAUTHORIZED = "The Api Key you provided is unauthorized"
     API_KEY_EMPTY = "The Api Key is empty"
     API_KEY_DISABLED = "Auth by Api key is disabled"
+    AUTH_INVALID_CREDENTIALS = "Invalid or missing credentials"
 
     # --- File routes ---
     FILENAME_REQUIRED = "Filename is required"

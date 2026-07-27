@@ -82,7 +82,9 @@ class TestMount:
         fake_mcp = _fake_mcp()
 
         with (
-            patch("fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=fake_mcp)) as mock_from_openapi,
+            patch(
+                "fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=fake_mcp)
+            ) as mock_from_openapi,
             patch.object(httpx, "AsyncClient", new=MagicMock()),
         ):
             # Act
@@ -103,7 +105,9 @@ class TestMount:
 
         with (
             patch("fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=fake_mcp)),
-            patch.object(httpx, "AsyncClient", new=MagicMock()) as mock_async_client_cls,
+            patch.object(
+                httpx, "AsyncClient", new=MagicMock()
+            ) as mock_async_client_cls,
         ):
             # Act
             await runner.mount("petstore", spec, headers=upstream_headers)
@@ -192,7 +196,9 @@ class TestMount:
         spec = {"openapi": "3.0.3", "info": {"title": "x", "version": "1"}, "paths": {}}
 
         with (
-            patch("fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=_fake_mcp())),
+            patch(
+                "fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=_fake_mcp())
+            ),
             patch.object(httpx, "AsyncClient", new=MagicMock()),
         ):
             # Act & Assert
@@ -279,9 +285,7 @@ class TestApiKeyMiddlewareEnforcement:
 
     async def test_list_tools_rejected_when_key_wrong(self, middleware):
         with pytest.raises(ToolError):
-            await self._run(
-                middleware, "tools/list", headers={"x-api-key": "wrong"}
-            )
+            await self._run(middleware, "tools/list", headers={"x-api-key": "wrong"})
 
     async def test_list_tools_allowed_when_key_matches(self, middleware):
         result = await self._run(
@@ -346,7 +350,9 @@ class TestUnmount:
         spec = _valid_spec()
 
         with (
-            patch("fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=_fake_mcp())),
+            patch(
+                "fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=_fake_mcp())
+            ),
             patch.object(httpx, "AsyncClient", new=MagicMock()),
         ):
             # Act — mount, unmount, then mount again (should not raise 409)
