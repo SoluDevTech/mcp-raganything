@@ -105,7 +105,10 @@ class TestFernetSecretCipherRoundTrip:
         recovered = await cipher.decrypt(await cipher.encrypt(payload))
 
         # Assert
-        assert json.loads(recovered) == {"Authorization": "Bearer tok", "X-Api-Key": "abc"}
+        assert json.loads(recovered) == {
+            "Authorization": "Bearer tok",
+            "X-Api-Key": "abc",
+        }
 
     async def test_encrypt_then_decrypt_empty_string(self) -> None:
         # Arrange

@@ -41,7 +41,9 @@ class TestFetchSpec:
     def factory(self) -> FastMcpOpenApiFactory:
         return FastMcpOpenApiFactory()
 
-    async def test_returns_spec_dict_on_successful_get(self, factory: FastMcpOpenApiFactory):
+    async def test_returns_spec_dict_on_successful_get(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange
         spec = _valid_spec()
         mock_response = MagicMock()
@@ -50,27 +52,43 @@ class TestFetchSpec:
         mock_response.status_code = 2000
         mock_response.status_code = 200
 
-        with patch.object(httpx, "get", new=MagicMock(return_value=mock_response)) as mock_get:
+        with patch.object(
+            httpx, "get", new=MagicMock(return_value=mock_response)
+        ) as mock_get:
             # Act
-            result = await factory.fetch_spec("https://petstore.example.com/openapi.json", headers={})
+            result = await factory.fetch_spec(
+                "https://petstore.example.com/openapi.json", headers={}
+            )
 
         # Assert
         assert result == spec
         mock_get.assert_called_once()
 
-    async def test_raises_openapi_fetch_error_on_connection_error(self, factory: FastMcpOpenApiFactory):
+    async def test_raises_openapi_fetch_error_on_connection_error(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange
-        with patch.object(httpx, "get", new=MagicMock(side_effect=httpx.ConnectError("refused"))):
+        with patch.object(
+            httpx, "get", new=MagicMock(side_effect=httpx.ConnectError("refused"))
+        ):
             # Act & Assert
             with pytest.raises(OpenApiFetchError):
-                await factory.fetch_spec("https://unreachable.example.com/openapi.json", headers={})
+                await factory.fetch_spec(
+                    "https://unreachable.example.com/openapi.json", headers={}
+                )
 
-    async def test_raises_openapi_fetch_error_on_timeout(self, factory: FastMcpOpenApiFactory):
+    async def test_raises_openapi_fetch_error_on_timeout(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange
-        with patch.object(httpx, "get", new=MagicMock(side_effect=httpx.TimeoutException("timeout"))):
+        with patch.object(
+            httpx, "get", new=MagicMock(side_effect=httpx.TimeoutException("timeout"))
+        ):
             # Act & Assert
             with pytest.raises(OpenApiFetchError):
-                await factory.fetch_spec("https://slow.example.com/openapi.json", headers={})
+                await factory.fetch_spec(
+                    "https://slow.example.com/openapi.json", headers={}
+                )
 
     async def test_raises_openapi_invalid_spec_error_when_openapi_key_missing(
         self, factory: FastMcpOpenApiFactory
@@ -87,7 +105,9 @@ class TestFetchSpec:
             with pytest.raises(OpenApiInvalidSpecError):
                 await factory.fetch_spec("https://example.com/openapi.json", headers={})
 
-    async def test_converts_swagger2_spec_to_openapi3(self, factory: FastMcpOpenApiFactory):
+    async def test_converts_swagger2_spec_to_openapi3(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange — a Swagger 2.0 doc that fetch_spec should convert to 3.0
         swagger2_spec = {
             "swagger": "2.0",
@@ -99,12 +119,20 @@ class TestFetchSpec:
                 "/pet": {
                     "post": {
                         "operationId": "addPet",
-                        "parameters": [{"in": "body", "name": "body", "schema": {"$ref": "#/definitions/Pet"}}],
+                        "parameters": [
+                            {
+                                "in": "body",
+                                "name": "body",
+                                "schema": {"$ref": "#/definitions/Pet"},
+                            }
+                        ],
                         "responses": {"200": {"description": "ok"}},
                     }
                 }
             },
-            "definitions": {"Pet": {"type": "object", "properties": {"id": {"type": "integer"}}}},
+            "definitions": {
+                "Pet": {"type": "object", "properties": {"id": {"type": "integer"}}}
+            },
         }
         mock_response = MagicMock()
         mock_response.json.return_value = swagger2_spec
@@ -113,7 +141,9 @@ class TestFetchSpec:
 
         with patch.object(httpx, "get", new=MagicMock(return_value=mock_response)):
             # Act
-            result = await factory.fetch_spec("https://petstore.example.com/v2/swagger.json", headers={})
+            result = await factory.fetch_spec(
+                "https://petstore.example.com/v2/swagger.json", headers={}
+            )
 
         # Assert — converted to OpenAPI 3.0
         assert result["openapi"].startswith("3.")
@@ -121,12 +151,20 @@ class TestFetchSpec:
         assert "components" in result and "schemas" in result["components"]
         assert "Pet" in result["components"]["schemas"]
         # $ref rewritten
-        body_schema = result["paths"]["/pet"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+        body_schema = result["paths"]["/pet"]["post"]["requestBody"]["content"][
+            "application/json"
+        ]["schema"]
         assert body_schema == {"$ref": "#/components/schemas/Pet"}
 
-    async def test_raises_openapi_invalid_spec_error_when_version_is_2x(self, factory: FastMcpOpenApiFactory):
+    async def test_raises_openapi_invalid_spec_error_when_version_is_2x(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange — fake "openapi" key but a 2.x version
-        bad_spec = {"openapi": "2.0.0", "info": {"title": "x", "version": "1"}, "paths": {}}
+        bad_spec = {
+            "openapi": "2.0.0",
+            "info": {"title": "x", "version": "1"},
+            "paths": {},
+        }
         mock_response = MagicMock()
         mock_response.json.return_value = bad_spec
         mock_response.content = b"x" * 10
@@ -149,7 +187,9 @@ class TestFetchSpec:
         with patch.object(httpx, "get", new=MagicMock(return_value=mock_response)):
             # Act & Assert
             with pytest.raises(OpenApiInvalidSpecError):
-                await factory.fetch_spec("https://huge.example.com/openapi.json", headers={})
+                await factory.fetch_spec(
+                    "https://huge.example.com/openapi.json", headers={}
+                )
 
     async def test_max_spec_bytes_is_configurable(self):
         # Arrange — a factory with a tiny cap rejects content just above it.
@@ -163,7 +203,9 @@ class TestFetchSpec:
             patch.object(httpx, "get", new=MagicMock(return_value=mock_response)),
             pytest.raises(OpenApiInvalidSpecError),
         ):
-            await factory.fetch_spec("https://huge.example.com/openapi.json", headers={})
+            await factory.fetch_spec(
+                "https://huge.example.com/openapi.json", headers={}
+            )
 
     async def test_passes_headers_to_httpx_get(self, factory: FastMcpOpenApiFactory):
         # Arrange
@@ -174,9 +216,13 @@ class TestFetchSpec:
         mock_response.status_code = 200
         upstream_headers = {"Authorization": "Bearer upstream-token"}
 
-        with patch.object(httpx, "get", new=MagicMock(return_value=mock_response)) as mock_get:
+        with patch.object(
+            httpx, "get", new=MagicMock(return_value=mock_response)
+        ) as mock_get:
             # Act
-            await factory.fetch_spec("https://petstore.example.com/openapi.json", headers=upstream_headers)
+            await factory.fetch_spec(
+                "https://petstore.example.com/openapi.json", headers=upstream_headers
+            )
 
         # Assert
         _, kwargs = mock_get.call_args
@@ -193,7 +239,9 @@ class TestBuildMcp:
     def factory(self) -> FastMcpOpenApiFactory:
         return FastMcpOpenApiFactory()
 
-    async def test_returns_object_with_http_app_method(self, factory: FastMcpOpenApiFactory):
+    async def test_returns_object_with_http_app_method(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange
         spec = _valid_spec()
         base_url = "https://petstore.example.com"
@@ -202,8 +250,12 @@ class TestBuildMcp:
         fake_mcp.http_app = MagicMock(return_value=MagicMock())
 
         with (
-            patch("fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=fake_mcp)) as mock_from_openapi,
-            patch.object(httpx, "AsyncClient", new=MagicMock()) as mock_async_client_cls,
+            patch(
+                "fastmcp.FastMCP.from_openapi", new=MagicMock(return_value=fake_mcp)
+            ) as mock_from_openapi,
+            patch.object(
+                httpx, "AsyncClient", new=MagicMock()
+            ) as mock_async_client_cls,
         ):
             # Act
             result = await factory.build_mcp(spec, base_url, upstream_headers)
@@ -214,7 +266,9 @@ class TestBuildMcp:
         mock_from_openapi.assert_called_once()
         mock_async_client_cls.assert_called_once()
 
-    async def test_calls_from_openapi_with_spec_and_client(self, factory: FastMcpOpenApiFactory):
+    async def test_calls_from_openapi_with_spec_and_client(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange
         spec = _valid_spec()
         base_url = "https://petstore.example.com"
@@ -226,8 +280,12 @@ class TestBuildMcp:
             return fake_mcp
 
         with (
-            patch("fastmcp.FastMCP.from_openapi", new=MagicMock(side_effect=_from_openapi)) as mock_from_openapi,
-            patch.object(httpx, "AsyncClient", new=MagicMock(return_value=fake_client)) as mock_async_client_cls,
+            patch(
+                "fastmcp.FastMCP.from_openapi", new=MagicMock(side_effect=_from_openapi)
+            ) as mock_from_openapi,
+            patch.object(
+                httpx, "AsyncClient", new=MagicMock(return_value=fake_client)
+            ) as mock_async_client_cls,
         ):
             # Act
             await factory.build_mcp(spec, base_url, upstream_headers)
@@ -242,7 +300,9 @@ class TestBuildMcp:
         assert call_kwargs["openapi_spec"] is spec
         assert call_kwargs["client"] is fake_client
 
-    async def test_raises_openapi_invalid_spec_error_when_no_servers(self, factory: FastMcpOpenApiFactory):
+    async def test_raises_openapi_invalid_spec_error_when_no_servers(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange — spec without servers
         spec = {
             "openapi": "3.0.3",
@@ -272,7 +332,9 @@ class TestCountTools:
     def factory(self) -> FastMcpOpenApiFactory:
         return FastMcpOpenApiFactory()
 
-    async def test_returns_number_of_tools_from_mcp_server(self, factory: FastMcpOpenApiFactory):
+    async def test_returns_number_of_tools_from_mcp_server(
+        self, factory: FastMcpOpenApiFactory
+    ):
         # Arrange
         fake_mcp = MagicMock()
         fake_mcp.list_tools = AsyncMock(return_value=["a", "b", "c"])

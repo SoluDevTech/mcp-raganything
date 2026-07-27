@@ -44,7 +44,9 @@ class OpenApiMcpFactory(ABC):
         ...
 
     @abstractmethod
-    async def build_mcp(self, spec: dict, base_url: str, headers: dict[str, str]) -> Any:
+    async def build_mcp(
+        self, spec: dict, base_url: str, headers: dict[str, str]
+    ) -> Any:
         """Build an in-process FastMCP server from an OpenAPI document.
 
         The upstream base URL is derived from ``spec["servers"][0]["url"]``

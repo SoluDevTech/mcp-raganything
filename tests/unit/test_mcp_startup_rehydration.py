@@ -80,7 +80,9 @@ class TestRehydrateOpenapiServers:
             _openapi_entry("server-a"),
             _openapi_entry("server-b"),
         ]
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/server-a/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/server-a/mcp"
+        )
 
         # Act
         await rehydrate_openapi_servers(store=mock_store, runner=mock_runner)
@@ -88,13 +90,17 @@ class TestRehydrateOpenapiServers:
         # Assert — runner.mount called for each openapi entry
         assert mock_runner.mount.await_count == 2
 
-    async def test_skips_external_entries(self, mock_store: AsyncMock, mock_runner: AsyncMock):
+    async def test_skips_external_entries(
+        self, mock_store: AsyncMock, mock_runner: AsyncMock
+    ):
         # Arrange — mix of external and openapi entries
         mock_store.list_all.return_value = [
             _external_entry("web-search"),
             _openapi_entry("petstore"),
         ]
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
 
         # Act
         await rehydrate_openapi_servers(store=mock_store, runner=mock_runner)
@@ -151,7 +157,9 @@ class TestRehydrateOpenapiServers:
     ):
         """No ERROR summary when rehydration succeeds fully."""
         mock_store.list_all.return_value = [_openapi_entry("good")]
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/good/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/good/mcp"
+        )
 
         with caplog.at_level("ERROR", logger="infrastructure.openapi_mcp.rehydration"):
             await rehydrate_openapi_servers(store=mock_store, runner=mock_runner)
@@ -222,7 +230,9 @@ class TestRehydrateOpenapiServers:
             updated_at=datetime.now(UTC),
         )
         mock_store.list_all.return_value = [entry]
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
 
         # Act
         await rehydrate_openapi_servers(store=mock_store, runner=mock_runner)

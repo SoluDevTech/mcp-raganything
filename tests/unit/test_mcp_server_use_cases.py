@@ -92,7 +92,9 @@ def _openapi_entry(
     )
 
 
-def _config(name: str = "web-search", url: str = "http://localhost:3001/mcp") -> McpServerConfig:
+def _config(
+    name: str = "web-search", url: str = "http://localhost:3001/mcp"
+) -> McpServerConfig:
     return McpServerConfig(
         name=name,
         transport=McpTransportType.HTTP,
@@ -140,7 +142,9 @@ class TestCreateMcpServerUseCase:
             tool_loader=mock_loader,
         )
 
-    async def test_returns_entry_with_tool_count_from_loader(self, use_case, mock_store, mock_loader):
+    async def test_returns_entry_with_tool_count_from_loader(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         mock_store.exists.return_value = False
         mock_loader.load_tools.return_value = ["tool-a", "tool-b"]
@@ -164,7 +168,9 @@ class TestCreateMcpServerUseCase:
         # Assert
         assert result.name == "my-server"
 
-    async def test_checks_existence_before_creating(self, use_case, mock_store, mock_loader):
+    async def test_checks_existence_before_creating(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         mock_store.exists.return_value = False
         mock_loader.load_tools.return_value = []
@@ -175,7 +181,9 @@ class TestCreateMcpServerUseCase:
         # Assert
         mock_store.exists.assert_awaited_once_with("web-search")
 
-    async def test_raises_already_exists_when_server_present(self, use_case, mock_store):
+    async def test_raises_already_exists_when_server_present(
+        self, use_case, mock_store
+    ):
         # Arrange
         mock_store.exists.return_value = True
 
@@ -183,7 +191,9 @@ class TestCreateMcpServerUseCase:
         with pytest.raises(McpServerAlreadyExistsError):
             await use_case.execute(_external_entry("web-search"))
 
-    async def test_does_not_call_loader_when_already_exists(self, use_case, mock_store, mock_loader):
+    async def test_does_not_call_loader_when_already_exists(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         mock_store.exists.return_value = True
 
@@ -194,7 +204,9 @@ class TestCreateMcpServerUseCase:
         # Assert
         mock_loader.load_tools.assert_not_awaited()
 
-    async def test_calls_loader_to_validate_connection(self, use_case, mock_store, mock_loader):
+    async def test_calls_loader_to_validate_connection(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         mock_store.exists.return_value = False
         mock_loader.load_tools.return_value = ["tool-a"]
@@ -218,7 +230,9 @@ class TestCreateMcpServerUseCase:
         saved_entry = mock_store.save.await_args.args[0]
         assert saved_entry.tool_count == 2
 
-    async def test_raises_unreachable_on_connection_error(self, use_case, mock_store, mock_loader):
+    async def test_raises_unreachable_on_connection_error(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         mock_store.exists.return_value = False
         mock_loader.load_tools.side_effect = McpConnectionError("connection refused")
@@ -227,7 +241,9 @@ class TestCreateMcpServerUseCase:
         with pytest.raises(McpServerUnreachableError):
             await use_case.execute(_external_entry("web-search"))
 
-    async def test_raises_unreachable_on_tool_load_error(self, use_case, mock_store, mock_loader):
+    async def test_raises_unreachable_on_tool_load_error(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         mock_store.exists.return_value = False
         mock_loader.load_tools.side_effect = McpToolLoadError("load failed")
@@ -236,7 +252,9 @@ class TestCreateMcpServerUseCase:
         with pytest.raises(McpServerUnreachableError):
             await use_case.execute(_external_entry("web-search"))
 
-    async def test_does_not_save_when_validation_fails(self, use_case, mock_store, mock_loader):
+    async def test_does_not_save_when_validation_fails(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         mock_store.exists.return_value = False
         mock_loader.load_tools.side_effect = McpConnectionError("connection refused")
@@ -253,7 +271,9 @@ class TestCreateMcpServerUseCaseOpenApi:
     """Tests for the openapi source_type branch of CreateMcpServerUseCase."""
 
     @pytest.fixture
-    def use_case(self, mock_store, mock_loader, mock_factory, mock_runner) -> CreateMcpServerUseCase:
+    def use_case(
+        self, mock_store, mock_loader, mock_factory, mock_runner
+    ) -> CreateMcpServerUseCase:
         return CreateMcpServerUseCase(
             store=mock_store,
             tool_loader=mock_loader,
@@ -267,7 +287,9 @@ class TestCreateMcpServerUseCaseOpenApi:
         # Arrange
         mock_store.exists.return_value = False
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 2
         entry = _openapi_entry()
 
@@ -284,9 +306,14 @@ class TestCreateMcpServerUseCaseOpenApi:
     ):
         # Arrange
         mock_store.exists.return_value = False
-        spec = {"openapi": "3.0.3", "servers": [{"url": "https://petstore.example.com"}]}
+        spec = {
+            "openapi": "3.0.3",
+            "servers": [{"url": "https://petstore.example.com"}],
+        }
         mock_factory.fetch_spec.return_value = spec
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 2
         entry = _openapi_entry()
 
@@ -305,7 +332,9 @@ class TestCreateMcpServerUseCaseOpenApi:
         # Arrange
         mock_store.exists.return_value = False
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 5
         entry = _openapi_entry(name="petstore")
 
@@ -321,7 +350,9 @@ class TestCreateMcpServerUseCaseOpenApi:
         # Arrange
         mock_store.exists.return_value = False
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 7
         entry = _openapi_entry()
 
@@ -338,7 +369,9 @@ class TestCreateMcpServerUseCaseOpenApi:
         # Arrange
         mock_store.exists.return_value = False
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 3
         entry = _openapi_entry()
 
@@ -494,7 +527,9 @@ class TestUpdateMcpServerUseCase:
         # Assert
         mock_store.save.assert_awaited_once()
 
-    async def test_revalidates_when_url_changes(self, use_case, mock_store, mock_loader):
+    async def test_revalidates_when_url_changes(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         existing = _external_entry(url="http://old:3001/mcp")
         mock_store.get.return_value = existing
@@ -527,7 +562,9 @@ class TestUpdateMcpServerUseCase:
         saved = mock_store.save.await_args.args[0]
         assert saved.created_at == original_created_at
 
-    async def test_does_not_reload_tools_when_url_unchanged(self, use_case, mock_store, mock_loader):
+    async def test_does_not_reload_tools_when_url_unchanged(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         existing = _external_entry(url="http://same:3001/mcp")
         mock_store.get.return_value = existing
@@ -547,7 +584,9 @@ class TestUpdateMcpServerUseCase:
         with pytest.raises(McpServerNotFoundError):
             await use_case.execute("missing", _external_entry())
 
-    async def test_raises_unreachable_on_connection_error(self, use_case, mock_store, mock_loader):
+    async def test_raises_unreachable_on_connection_error(
+        self, use_case, mock_store, mock_loader
+    ):
         # Arrange
         existing = _external_entry(url="http://old:3001/mcp")
         mock_store.get.return_value = existing
@@ -563,7 +602,9 @@ class TestUpdateMcpServerUseCaseOpenApi:
     """Tests for the openapi source_type branch of UpdateMcpServerUseCase."""
 
     @pytest.fixture
-    def use_case(self, mock_store, mock_loader, mock_factory, mock_runner) -> UpdateMcpServerUseCase:
+    def use_case(
+        self, mock_store, mock_loader, mock_factory, mock_runner
+    ) -> UpdateMcpServerUseCase:
         return UpdateMcpServerUseCase(
             store=mock_store,
             tool_loader=mock_loader,
@@ -571,11 +612,15 @@ class TestUpdateMcpServerUseCaseOpenApi:
             runner=mock_runner,
         )
 
-    async def test_fetches_spec_via_factory(self, use_case, mock_store, mock_factory, mock_runner):
+    async def test_fetches_spec_via_factory(
+        self, use_case, mock_store, mock_factory, mock_runner
+    ):
         # Arrange
         mock_store.get.return_value = _openapi_entry()
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 3
         updated = _openapi_entry()
 
@@ -585,11 +630,15 @@ class TestUpdateMcpServerUseCaseOpenApi:
         # Assert
         mock_factory.fetch_spec.assert_awaited_once()
 
-    async def test_unmounts_old_before_mounting_new(self, use_case, mock_store, mock_factory, mock_runner):
+    async def test_unmounts_old_before_mounting_new(
+        self, use_case, mock_store, mock_factory, mock_runner
+    ):
         # Arrange
         mock_store.get.return_value = _openapi_entry()
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 3
         updated = _openapi_entry()
 
@@ -606,7 +655,9 @@ class TestUpdateMcpServerUseCaseOpenApi:
         # Arrange
         mock_store.get.return_value = _openapi_entry()
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 5
         updated = _openapi_entry()
 
@@ -627,7 +678,9 @@ class TestUpdateMcpServerUseCaseOpenApi:
         existing = existing.model_copy(update={"created_at": original_created_at})
         mock_store.get.return_value = existing
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
-        mock_runner.mount.return_value = "http://raganything-api:8000/generated/petstore/mcp"
+        mock_runner.mount.return_value = (
+            "http://raganything-api:8000/generated/petstore/mcp"
+        )
         mock_runner.count_tools.return_value = 5
         updated = _openapi_entry()
 
@@ -762,19 +815,25 @@ class TestValidateMcpServerUseCaseOpenApi:
         # Assert
         mock_factory.build_mcp.assert_awaited_once()
 
-    async def test_returns_tool_count_from_factory_count_tools(self, use_case, mock_factory):
+    async def test_returns_tool_count_from_factory_count_tools(
+        self, use_case, mock_factory
+    ):
         # Arrange
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
         mock_factory.build_mcp.return_value = MagicMock()
         mock_factory.count_tools.return_value = 6
 
         # Act
-        result = await use_case.execute_openapi("https://x.example.com/openapi.json", headers={})
+        result = await use_case.execute_openapi(
+            "https://x.example.com/openapi.json", headers={}
+        )
 
         # Assert
         assert result == 6
 
-    async def test_does_not_mount_or_persist(self, use_case, mock_factory, mock_store, mock_runner):
+    async def test_does_not_mount_or_persist(
+        self, use_case, mock_factory, mock_store, mock_runner
+    ):
         # Arrange
         mock_factory.fetch_spec.return_value = {"openapi": "3.0.3"}
         mock_factory.build_mcp.return_value = MagicMock()
@@ -793,4 +852,6 @@ class TestValidateMcpServerUseCaseOpenApi:
 
         # Act & Assert
         with pytest.raises(OpenApiFetchError):
-            await use_case.execute_openapi("https://x.example.com/openapi.json", headers={})
+            await use_case.execute_openapi(
+                "https://x.example.com/openapi.json", headers={}
+            )

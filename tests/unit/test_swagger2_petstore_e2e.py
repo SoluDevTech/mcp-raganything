@@ -16,7 +16,10 @@ from infrastructure.openapi_mcp.adapter import FastMcpOpenApiFactory
 from infrastructure.openapi_mcp.swagger2_converter import convert_swagger2_to_openapi3
 
 _FIXTURE = (
-    Path(__file__).resolve().parent.parent / "fixtures" / "openapi" / "petstore_swagger2.json"
+    Path(__file__).resolve().parent.parent
+    / "fixtures"
+    / "openapi"
+    / "petstore_swagger2.json"
 )
 
 
@@ -47,7 +50,9 @@ class TestPetstoreEndToEnd:
         body_schema = add_pet_op["requestBody"]["content"]["application/json"]["schema"]
         assert body_schema == {"$ref": "#/components/schemas/Pet"}
 
-    async def test_fastmcp_builds_tools_from_converted_spec(self, petstore_swagger2_spec: dict):
+    async def test_fastmcp_builds_tools_from_converted_spec(
+        self, petstore_swagger2_spec: dict
+    ):
         # Convert
         spec3 = convert_swagger2_to_openapi3(petstore_swagger2_spec)
 

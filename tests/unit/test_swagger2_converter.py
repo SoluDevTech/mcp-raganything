@@ -41,12 +41,16 @@ class TestServers:
     """host + basePath + schemes -> servers[{url}]."""
 
     def test_derives_server_url_from_host_basepath_schemes(self):
-        spec = _minimal_swagger2(host="api.example.com", basePath="/v2", schemes=["https", "http"])
+        spec = _minimal_swagger2(
+            host="api.example.com", basePath="/v2", schemes=["https", "http"]
+        )
         result = convert_swagger2_to_openapi3(spec)
         assert result["servers"] == [{"url": "https://api.example.com/v2"}]
 
     def test_uses_first_scheme_when_multiple(self):
-        spec = _minimal_swagger2(host="api.example.com", basePath="/v1", schemes=["http", "https"])
+        spec = _minimal_swagger2(
+            host="api.example.com", basePath="/v1", schemes=["http", "https"]
+        )
         result = convert_swagger2_to_openapi3(spec)
         assert result["servers"] == [{"url": "http://api.example.com/v1"}]
 
@@ -69,7 +73,11 @@ class TestComponents:
         assert result["components"]["schemas"] == {"Pet": {"type": "object"}}
 
     def test_top_level_parameters_become_components_parameters(self):
-        spec = _minimal_swagger2(parameters={"limitParam": {"name": "limit", "in": "query", "type": "integer"}})
+        spec = _minimal_swagger2(
+            parameters={
+                "limitParam": {"name": "limit", "in": "query", "type": "integer"}
+            }
+        )
         result = convert_swagger2_to_openapi3(spec)
         assert "limitParam" in result["components"]["parameters"]
 
@@ -93,19 +101,29 @@ class TestRefRewriting:
                 "/pet": {
                     "post": {
                         "operationId": "addPet",
-                        "parameters": [{"in": "body", "name": "body", "schema": {"$ref": "#/definitions/Pet"}}],
+                        "parameters": [
+                            {
+                                "in": "body",
+                                "name": "body",
+                                "schema": {"$ref": "#/definitions/Pet"},
+                            }
+                        ],
                         "responses": {"200": {"description": "ok"}},
                     }
                 }
             },
         )
         result = convert_swagger2_to_openapi3(spec)
-        schema = result["paths"]["/pet"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+        schema = result["paths"]["/pet"]["post"]["requestBody"]["content"][
+            "application/json"
+        ]["schema"]
         assert schema == {"$ref": "#/components/schemas/Pet"}
 
     def test_parameters_ref_rewritten(self):
         spec = _minimal_swagger2(
-            parameters={"limitParam": {"name": "limit", "in": "query", "type": "integer"}},
+            parameters={
+                "limitParam": {"name": "limit", "in": "query", "type": "integer"}
+            },
             paths={
                 "/pets": {
                     "get": {
@@ -117,7 +135,9 @@ class TestRefRewriting:
             },
         )
         result = convert_swagger2_to_openapi3(spec)
-        assert result["paths"]["/pets"]["get"]["parameters"][0] == {"$ref": "#/components/parameters/limitParam"}
+        assert result["paths"]["/pets"]["get"]["parameters"][0] == {
+            "$ref": "#/components/parameters/limitParam"
+        }
 
     def test_responses_ref_rewritten(self):
         spec = _minimal_swagger2(
@@ -132,12 +152,17 @@ class TestRefRewriting:
             },
         )
         result = convert_swagger2_to_openapi3(spec)
-        assert result["paths"]["/pets"]["get"]["responses"]["404"] == {"$ref": "#/components/responses/NotFound"}
+        assert result["paths"]["/pets"]["get"]["responses"]["404"] == {
+            "$ref": "#/components/responses/NotFound"
+        }
 
     def test_refs_rewritten_in_nested_definitions(self):
         spec = _minimal_swagger2(
             definitions={
-                "Order": {"type": "object", "properties": {"pet": {"$ref": "#/definitions/Pet"}}},
+                "Order": {
+                    "type": "object",
+                    "properties": {"pet": {"$ref": "#/definitions/Pet"}},
+                },
                 "Pet": {"type": "object"},
             },
         )
@@ -156,7 +181,12 @@ class TestBodyParameter:
                     "post": {
                         "operationId": "addPet",
                         "parameters": [
-                            {"in": "body", "name": "body", "required": True, "schema": {"type": "object"}}
+                            {
+                                "in": "body",
+                                "name": "body",
+                                "required": True,
+                                "schema": {"type": "object"},
+                            }
                         ],
                         "responses": {"200": {"description": "ok"}},
                     }
@@ -175,14 +205,19 @@ class TestBodyParameter:
                     "post": {
                         "operationId": "addPet",
                         "consumes": ["application/xml"],
-                        "parameters": [{"in": "body", "name": "body", "schema": {"type": "object"}}],
+                        "parameters": [
+                            {"in": "body", "name": "body", "schema": {"type": "object"}}
+                        ],
                         "responses": {"200": {"description": "ok"}},
                     }
                 }
             }
         )
         result = convert_swagger2_to_openapi3(spec)
-        assert "application/xml" in result["paths"]["/pet"]["post"]["requestBody"]["content"]
+        assert (
+            "application/xml"
+            in result["paths"]["/pet"]["post"]["requestBody"]["content"]
+        )
 
     def test_body_param_uses_global_consumes(self):
         spec = _minimal_swagger2(
@@ -191,14 +226,19 @@ class TestBodyParameter:
                 "/pet": {
                     "post": {
                         "operationId": "addPet",
-                        "parameters": [{"in": "body", "name": "body", "schema": {"type": "object"}}],
+                        "parameters": [
+                            {"in": "body", "name": "body", "schema": {"type": "object"}}
+                        ],
                         "responses": {"200": {"description": "ok"}},
                     }
                 }
             },
         )
         result = convert_swagger2_to_openapi3(spec)
-        assert "application/xml" in result["paths"]["/pet"]["post"]["requestBody"]["content"]
+        assert (
+            "application/xml"
+            in result["paths"]["/pet"]["post"]["requestBody"]["content"]
+        )
 
 
 class TestFormDataParameters:
@@ -211,7 +251,12 @@ class TestFormDataParameters:
                     "post": {
                         "operationId": "upload",
                         "parameters": [
-                            {"in": "formData", "name": "name", "type": "string", "required": True},
+                            {
+                                "in": "formData",
+                                "name": "name",
+                                "type": "string",
+                                "required": True,
+                            },
                             {"in": "formData", "name": "age", "type": "integer"},
                         ],
                         "responses": {"200": {"description": "ok"}},
@@ -260,7 +305,13 @@ class TestResponses:
                         "operationId": "listPets",
                         "produces": ["application/xml"],
                         "responses": {
-                            "200": {"description": "ok", "schema": {"type": "array", "items": {"type": "string"}}}
+                            "200": {
+                                "description": "ok",
+                                "schema": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            }
                         },
                     }
                 }
@@ -268,7 +319,10 @@ class TestResponses:
         )
         result = convert_swagger2_to_openapi3(spec)
         resp = result["paths"]["/pets"]["get"]["responses"]["200"]
-        assert resp["content"]["application/xml"]["schema"] == {"type": "array", "items": {"type": "string"}}
+        assert resp["content"]["application/xml"]["schema"] == {
+            "type": "array",
+            "items": {"type": "string"},
+        }
 
     def test_response_without_schema_has_no_content(self):
         spec = _minimal_swagger2(
@@ -291,13 +345,17 @@ class TestResponses:
                     "get": {
                         "operationId": "download",
                         "produces": ["application/octet-stream"],
-                        "responses": {"200": {"description": "file", "schema": {"type": "file"}}},
+                        "responses": {
+                            "200": {"description": "file", "schema": {"type": "file"}}
+                        },
                     }
                 }
             }
         )
         result = convert_swagger2_to_openapi3(spec)
-        schema = result["paths"]["/download"]["get"]["responses"]["200"]["content"]["application/octet-stream"]["schema"]
+        schema = result["paths"]["/download"]["get"]["responses"]["200"]["content"][
+            "application/octet-stream"
+        ]["schema"]
         assert schema == {"type": "string", "format": "binary"}
 
 
@@ -307,11 +365,16 @@ class TestSecurityDefinitions:
     def test_basic_auth(self):
         spec = _minimal_swagger2(securityDefinitions={"basicAuth": {"type": "basic"}})
         result = convert_swagger2_to_openapi3(spec)
-        assert result["components"]["securitySchemes"]["basicAuth"] == {"type": "http", "scheme": "basic"}
+        assert result["components"]["securitySchemes"]["basicAuth"] == {
+            "type": "http",
+            "scheme": "basic",
+        }
 
     def test_api_key(self):
         spec = _minimal_swagger2(
-            securityDefinitions={"apiKey": {"type": "apiKey", "name": "X-API-Key", "in": "header"}}
+            securityDefinitions={
+                "apiKey": {"type": "apiKey", "name": "X-API-Key", "in": "header"}
+            }
         )
         result = convert_swagger2_to_openapi3(spec)
         assert result["components"]["securitySchemes"]["apiKey"] == {
@@ -334,7 +397,10 @@ class TestSecurityDefinitions:
         result = convert_swagger2_to_openapi3(spec)
         scheme = result["components"]["securitySchemes"]["petstore_auth"]
         assert scheme["type"] == "oauth2"
-        assert scheme["flows"]["implicit"]["authorizationUrl"] == "https://example.com/auth"
+        assert (
+            scheme["flows"]["implicit"]["authorizationUrl"]
+            == "https://example.com/auth"
+        )
         assert scheme["flows"]["implicit"]["scopes"] == {"read:pets": "read pets"}
 
     def test_oauth2_access_code(self):
@@ -350,23 +416,47 @@ class TestSecurityDefinitions:
             }
         )
         result = convert_swagger2_to_openapi3(spec)
-        flow = result["components"]["securitySchemes"]["auth"]["flows"]["authorizationCode"]
+        flow = result["components"]["securitySchemes"]["auth"]["flows"][
+            "authorizationCode"
+        ]
         assert flow["authorizationUrl"] == "https://example.com/auth"
         assert flow["tokenUrl"] == "https://example.com/token"
 
     def test_oauth2_password(self):
         spec = _minimal_swagger2(
-            securityDefinitions={"pwd": {"type": "oauth2", "flow": "password", "tokenUrl": "https://example.com/token", "scopes": {}}}
+            securityDefinitions={
+                "pwd": {
+                    "type": "oauth2",
+                    "flow": "password",
+                    "tokenUrl": "https://example.com/token",
+                    "scopes": {},
+                }
+            }
         )
         result = convert_swagger2_to_openapi3(spec)
-        assert result["components"]["securitySchemes"]["pwd"]["flows"]["password"]["tokenUrl"] == "https://example.com/token"
+        assert (
+            result["components"]["securitySchemes"]["pwd"]["flows"]["password"][
+                "tokenUrl"
+            ]
+            == "https://example.com/token"
+        )
 
     def test_oauth2_application(self):
         spec = _minimal_swagger2(
-            securityDefinitions={"app": {"type": "oauth2", "flow": "application", "tokenUrl": "https://example.com/token", "scopes": {}}}
+            securityDefinitions={
+                "app": {
+                    "type": "oauth2",
+                    "flow": "application",
+                    "tokenUrl": "https://example.com/token",
+                    "scopes": {},
+                }
+            }
         )
         result = convert_swagger2_to_openapi3(spec)
-        assert "clientCredentials" in result["components"]["securitySchemes"]["app"]["flows"]
+        assert (
+            "clientCredentials"
+            in result["components"]["securitySchemes"]["app"]["flows"]
+        )
 
 
 class TestNonBodyParameters:
@@ -379,7 +469,12 @@ class TestNonBodyParameters:
                     "get": {
                         "operationId": "list",
                         "parameters": [
-                            {"name": "limit", "in": "query", "type": "integer", "collectionFormat": "multi"}
+                            {
+                                "name": "limit",
+                                "in": "query",
+                                "type": "integer",
+                                "collectionFormat": "multi",
+                            }
                         ],
                         "responses": {"200": {"description": "ok"}},
                     }
@@ -396,8 +491,18 @@ class TestNonBodyParameters:
         spec = _minimal_swagger2(
             paths={
                 "/pets/{id}": {
-                    "parameters": [{"name": "id", "in": "path", "type": "integer", "required": True}],
-                    "get": {"operationId": "getPet", "responses": {"200": {"description": "ok"}}},
+                    "parameters": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "type": "integer",
+                            "required": True,
+                        }
+                    ],
+                    "get": {
+                        "operationId": "getPet",
+                        "responses": {"200": {"description": "ok"}},
+                    },
                 }
             }
         )
@@ -410,7 +515,9 @@ class TestPassthrough:
 
     def test_security_passthrough(self):
         spec = _minimal_swagger2(
-            securityDefinitions={"apiKey": {"type": "apiKey", "name": "X-Key", "in": "header"}},
+            securityDefinitions={
+                "apiKey": {"type": "apiKey", "name": "X-Key", "in": "header"}
+            },
             security=[{"apiKey": []}],
         )
         result = convert_swagger2_to_openapi3(spec)
@@ -444,7 +551,13 @@ class TestPassthrough:
                 "/pet": {
                     "post": {
                         "operationId": "add",
-                        "parameters": [{"in": "body", "name": "body", "schema": {"$ref": "#/definitions/Pet"}}],
+                        "parameters": [
+                            {
+                                "in": "body",
+                                "name": "body",
+                                "schema": {"$ref": "#/definitions/Pet"},
+                            }
+                        ],
                         "responses": {"200": {"description": "ok"}},
                     }
                 }
@@ -453,4 +566,6 @@ class TestPassthrough:
         convert_swagger2_to_openapi3(spec)
         # Input untouched
         assert spec["swagger"] == "2.0"
-        assert spec["paths"]["/pet"]["post"]["parameters"][0]["schema"] == {"$ref": "#/definitions/Pet"}
+        assert spec["paths"]["/pet"]["post"]["parameters"][0]["schema"] == {
+            "$ref": "#/definitions/Pet"
+        }

@@ -36,7 +36,7 @@ async def classical_query(
         enable_llm_judge: Enable LLM-as-judge scoring.
         mode: Query mode - 'vector' for vector-only, 'hybrid' for BM25+vector combined.
     """
-    use_case = get_classical_query_use_case()
+    use_case = await get_classical_query_use_case()
     response = await use_case.execute(
         working_dir=working_dir,
         query=query,

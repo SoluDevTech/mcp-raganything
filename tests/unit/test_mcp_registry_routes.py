@@ -188,12 +188,20 @@ def _wire_router_and_overrides(
     if not any(p.startswith(BASE_URL) for p in existing_paths):
         app.include_router(mcp_registry_router)
 
-    app.dependency_overrides[get_create_mcp_server_use_case] = lambda: mock_create_use_case
-    app.dependency_overrides[get_validate_mcp_server_use_case] = lambda: mock_validate_use_case
+    app.dependency_overrides[get_create_mcp_server_use_case] = lambda: (
+        mock_create_use_case
+    )
+    app.dependency_overrides[get_validate_mcp_server_use_case] = lambda: (
+        mock_validate_use_case
+    )
     app.dependency_overrides[get_list_mcp_servers_use_case] = lambda: mock_list_use_case
     app.dependency_overrides[get_get_mcp_server_use_case] = lambda: mock_get_use_case
-    app.dependency_overrides[get_update_mcp_server_use_case] = lambda: mock_update_use_case
-    app.dependency_overrides[get_delete_mcp_server_use_case] = lambda: mock_delete_use_case
+    app.dependency_overrides[get_update_mcp_server_use_case] = lambda: (
+        mock_update_use_case
+    )
+    app.dependency_overrides[get_delete_mcp_server_use_case] = lambda: (
+        mock_delete_use_case
+    )
 
     yield
 
@@ -211,7 +219,9 @@ def client() -> AsyncClient:
 class TestCreateMcpServerRoute:
     """Tests for POST /api/v1/mcp/servers (external source_type)."""
 
-    async def test_returns_201_with_name(self, client: AsyncClient, mock_create_use_case: AsyncMock):
+    async def test_returns_201_with_name(
+        self, client: AsyncClient, mock_create_use_case: AsyncMock
+    ):
         # Arrange
         mock_create_use_case.execute = AsyncMock(
             return_value=_masked_entry("web-search", tool_count=2)
@@ -231,7 +241,9 @@ class TestCreateMcpServerRoute:
         assert resp.status_code == 201
         assert resp.json()["name"] == "web-search"
 
-    async def test_returns_201_with_tool_count(self, client: AsyncClient, mock_create_use_case: AsyncMock):
+    async def test_returns_201_with_tool_count(
+        self, client: AsyncClient, mock_create_use_case: AsyncMock
+    ):
         # Arrange
         mock_create_use_case.execute = AsyncMock(
             return_value=_masked_entry("web-search", tool_count=2)
@@ -245,7 +257,9 @@ class TestCreateMcpServerRoute:
         assert resp.status_code == 201
         assert resp.json()["tool_count"] == 2
 
-    async def test_masks_auth_token_in_response(self, client: AsyncClient, mock_create_use_case: AsyncMock):
+    async def test_masks_auth_token_in_response(
+        self, client: AsyncClient, mock_create_use_case: AsyncMock
+    ):
         # Arrange — the route must NOT return the plaintext auth_token
         mock_create_use_case.execute = AsyncMock(
             return_value=_masked_entry("web-search")
@@ -263,7 +277,9 @@ class TestCreateMcpServerRoute:
         assert resp.status_code == 201
         assert resp.json()["auth_token"] is None
 
-    async def test_masks_headers_in_response(self, client: AsyncClient, mock_create_use_case: AsyncMock):
+    async def test_masks_headers_in_response(
+        self, client: AsyncClient, mock_create_use_case: AsyncMock
+    ):
         # Arrange
         mock_create_use_case.execute = AsyncMock(
             return_value=_masked_entry("web-search")
@@ -281,7 +297,9 @@ class TestCreateMcpServerRoute:
         assert resp.status_code == 201
         assert resp.json()["headers"] == {}
 
-    async def test_masks_env_in_response(self, client: AsyncClient, mock_create_use_case: AsyncMock):
+    async def test_masks_env_in_response(
+        self, client: AsyncClient, mock_create_use_case: AsyncMock
+    ):
         # Arrange
         mock_create_use_case.execute = AsyncMock(
             return_value=_masked_entry("web-search")
@@ -299,7 +317,9 @@ class TestCreateMcpServerRoute:
         assert resp.status_code == 201
         assert resp.json()["env"] == {}
 
-    async def test_returns_409_when_already_exists(self, client: AsyncClient, mock_create_use_case: AsyncMock):
+    async def test_returns_409_when_already_exists(
+        self, client: AsyncClient, mock_create_use_case: AsyncMock
+    ):
         # Arrange
         mock_create_use_case.execute = AsyncMock(
             side_effect=McpServerAlreadyExistsError("already exists")
@@ -312,7 +332,9 @@ class TestCreateMcpServerRoute:
         # Assert
         assert resp.status_code == 409
 
-    async def test_returns_422_when_unreachable(self, client: AsyncClient, mock_create_use_case: AsyncMock):
+    async def test_returns_422_when_unreachable(
+        self, client: AsyncClient, mock_create_use_case: AsyncMock
+    ):
         # Arrange
         mock_create_use_case.execute = AsyncMock(
             side_effect=McpServerUnreachableError("unreachable")
@@ -389,7 +411,9 @@ class TestCreateMcpServerRouteOpenApi:
 
         # Assert
         assert resp.status_code == 201
-        assert resp.json()["url"] == "http://raganything-api:8000/generated/petstore/mcp"
+        assert (
+            resp.json()["url"] == "http://raganything-api:8000/generated/petstore/mcp"
+        )
 
     async def test_rejects_openapi_without_openapi_url(self, client: AsyncClient):
         # Act
@@ -428,7 +452,9 @@ class TestCreateMcpServerRouteOpenApi:
 class TestValidateMcpServerRoute:
     """Tests for POST /api/v1/mcp/servers/validate (dry-run)."""
 
-    async def test_returns_200_with_tool_count(self, client: AsyncClient, mock_validate_use_case: AsyncMock):
+    async def test_returns_200_with_tool_count(
+        self, client: AsyncClient, mock_validate_use_case: AsyncMock
+    ):
         # Arrange
         mock_validate_use_case.execute = AsyncMock(return_value=5)
         body = {"url": "http://localhost:3001/mcp"}
@@ -440,7 +466,9 @@ class TestValidateMcpServerRoute:
         assert resp.status_code == 200
         assert resp.json()["tool_count"] == 5
 
-    async def test_returns_422_when_unreachable(self, client: AsyncClient, mock_validate_use_case: AsyncMock):
+    async def test_returns_422_when_unreachable(
+        self, client: AsyncClient, mock_validate_use_case: AsyncMock
+    ):
         # Arrange
         mock_validate_use_case.execute = AsyncMock(
             side_effect=McpServerUnreachableError("unreachable")
@@ -494,7 +522,9 @@ class TestValidateMcpServerRoute:
 class TestListMcpServersRoute:
     """Tests for GET /api/v1/mcp/servers."""
 
-    async def test_returns_200_with_list(self, client: AsyncClient, mock_list_use_case: AsyncMock):
+    async def test_returns_200_with_list(
+        self, client: AsyncClient, mock_list_use_case: AsyncMock
+    ):
         # Act
         resp = await client.get(BASE_URL)
 
@@ -503,7 +533,9 @@ class TestListMcpServersRoute:
         assert isinstance(resp.json(), list)
         assert len(resp.json()) == 2
 
-    async def test_masks_secrets_in_list_response(self, client: AsyncClient, mock_list_use_case: AsyncMock):
+    async def test_masks_secrets_in_list_response(
+        self, client: AsyncClient, mock_list_use_case: AsyncMock
+    ):
         # Act
         resp = await client.get(BASE_URL)
 
@@ -520,7 +552,9 @@ class TestListMcpServersRoute:
 class TestGetMcpServerRoute:
     """Tests for GET /api/v1/mcp/servers/{name}."""
 
-    async def test_returns_200_with_entry(self, client: AsyncClient, mock_get_use_case: AsyncMock):
+    async def test_returns_200_with_entry(
+        self, client: AsyncClient, mock_get_use_case: AsyncMock
+    ):
         # Arrange
         mock_get_use_case.execute = AsyncMock(return_value=_masked_entry("web-search"))
         # Act
@@ -530,7 +564,9 @@ class TestGetMcpServerRoute:
         assert resp.status_code == 200
         assert resp.json()["name"] == "web-search"
 
-    async def test_masks_secrets_in_get_response(self, client: AsyncClient, mock_get_use_case: AsyncMock):
+    async def test_masks_secrets_in_get_response(
+        self, client: AsyncClient, mock_get_use_case: AsyncMock
+    ):
         # Arrange
         mock_get_use_case.execute = AsyncMock(return_value=_masked_entry("web-search"))
 
@@ -541,7 +577,9 @@ class TestGetMcpServerRoute:
         assert resp.json()["auth_token"] is None
         assert resp.json()["headers"] == {}
 
-    async def test_returns_404_when_not_found(self, client: AsyncClient, mock_get_use_case: AsyncMock):
+    async def test_returns_404_when_not_found(
+        self, client: AsyncClient, mock_get_use_case: AsyncMock
+    ):
         # Arrange
         mock_get_use_case.execute = AsyncMock(
             side_effect=McpServerNotFoundError("not found")
@@ -564,7 +602,9 @@ class TestRevealMcpServerRoute:
         self, client: AsyncClient, mock_get_use_case: AsyncMock
     ):
         # Arrange — reveal returns the entry with secrets intact
-        mock_get_use_case.execute = AsyncMock(return_value=_entry("web-search", auth_token="secret"))
+        mock_get_use_case.execute = AsyncMock(
+            return_value=_entry("web-search", auth_token="secret")
+        )
 
         # Act
         resp = await client.get(f"{BASE_URL}/web-search/reveal")
@@ -574,7 +614,9 @@ class TestRevealMcpServerRoute:
         assert resp.json()["auth_token"] == "secret"
         assert resp.json()["headers"] == {"Authorization": "Bearer tok"}
 
-    async def test_returns_404_when_not_found(self, client: AsyncClient, mock_get_use_case: AsyncMock):
+    async def test_returns_404_when_not_found(
+        self, client: AsyncClient, mock_get_use_case: AsyncMock
+    ):
         # Arrange
         mock_get_use_case.execute = AsyncMock(
             side_effect=McpServerNotFoundError("not found")
@@ -624,7 +666,9 @@ class TestUpdateMcpServerRoute:
         # Assert
         assert resp.json()["auth_token"] is None
 
-    async def test_returns_404_when_not_found(self, client: AsyncClient, mock_update_use_case: AsyncMock):
+    async def test_returns_404_when_not_found(
+        self, client: AsyncClient, mock_update_use_case: AsyncMock
+    ):
         # Arrange
         mock_update_use_case.execute = AsyncMock(
             side_effect=McpServerNotFoundError("not found")
@@ -644,14 +688,18 @@ class TestUpdateMcpServerRoute:
 class TestDeleteMcpServerRoute:
     """Tests for DELETE /api/v1/mcp/servers/{name}."""
 
-    async def test_returns_204_on_success(self, client: AsyncClient, mock_delete_use_case: AsyncMock):
+    async def test_returns_204_on_success(
+        self, client: AsyncClient, mock_delete_use_case: AsyncMock
+    ):
         # Act
         resp = await client.delete(f"{BASE_URL}/web-search")
 
         # Assert
         assert resp.status_code == 204
 
-    async def test_returns_404_when_not_found(self, client: AsyncClient, mock_delete_use_case: AsyncMock):
+    async def test_returns_404_when_not_found(
+        self, client: AsyncClient, mock_delete_use_case: AsyncMock
+    ):
         # Arrange
         mock_delete_use_case.execute = AsyncMock(
             side_effect=McpServerNotFoundError("not found")

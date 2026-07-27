@@ -72,7 +72,9 @@ class FastMcpOpenApiFactory(OpenApiMcpFactory):
                 max spec size.
         """
         try:
-            response = httpx.get(spec_url, headers=headers, timeout=_FETCH_TIMEOUT, follow_redirects=True)
+            response = httpx.get(
+                spec_url, headers=headers, timeout=_FETCH_TIMEOUT, follow_redirects=True
+            )
         except httpx.HTTPError as e:
             logger.warning(LogMessage.MCP_OPENAPI_SPEC_FETCH_FAILED, spec_url, e)
             raise OpenApiFetchError(
@@ -107,7 +109,9 @@ class FastMcpOpenApiFactory(OpenApiMcpFactory):
 
         return _normalise_spec_version(spec, spec_url)
 
-    async def build_mcp(self, spec: dict, base_url: str, headers: dict[str, str]) -> Any:
+    async def build_mcp(
+        self, spec: dict, base_url: str, headers: dict[str, str]
+    ) -> Any:
         """Build an in-process FastMCP server from an OpenAPI document.
 
         The upstream base URL is taken from ``spec["servers"][0]["url"]``.

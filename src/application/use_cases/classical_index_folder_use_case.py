@@ -6,6 +6,7 @@ from pathlib import Path
 import aiofiles
 from kreuzberg import extract_file
 
+from application.use_cases._user_id_tag import tag_documents_with_user_id
 from domain.entities.indexing_result import (
     FileProcessingDetail,
     FolderIndexingResult,
@@ -108,6 +109,8 @@ class ClassicalIndexFolderUseCase:
                 result = await extract_file(local_path, config=config)
 
                 documents = build_documents_from_extraction(result, file_name)
+
+                documents = tag_documents_with_user_id(documents)
 
                 if documents:
                     await self.vector_store.add_documents(

@@ -39,7 +39,7 @@ class TestClassicalQueryTool:
         # Act
         with patch(
             "application.api.mcp_classical_tools.get_classical_query_use_case",
-            return_value=mock_use_case,
+            new=AsyncMock(return_value=mock_use_case),
         ):
             from application.api.mcp_classical_tools import classical_query
 
@@ -73,7 +73,7 @@ class TestClassicalQueryTool:
         # Act
         with patch(
             "application.api.mcp_classical_tools.get_classical_query_use_case",
-            return_value=mock_use_case,
+            new=AsyncMock(return_value=mock_use_case),
         ):
             from application.api.mcp_classical_tools import classical_query
 
@@ -112,7 +112,7 @@ class TestClassicalQueryTool:
         # Act
         with patch(
             "application.api.mcp_classical_tools.get_classical_query_use_case",
-            return_value=mock_use_case,
+            new=AsyncMock(return_value=mock_use_case),
         ):
             from application.api.mcp_classical_tools import classical_query
 
@@ -137,7 +137,7 @@ class TestClassicalQueryTool:
         with (
             patch(
                 "application.api.mcp_classical_tools.get_classical_query_use_case",
-                return_value=mock_use_case,
+                new=AsyncMock(return_value=mock_use_case),
             ),
             pytest.raises(RuntimeError, match="LLM unavailable"),
         ):

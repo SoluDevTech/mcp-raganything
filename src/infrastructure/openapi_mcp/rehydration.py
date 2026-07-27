@@ -48,16 +48,16 @@ async def rehydrate_openapi_servers(
         try:
             spec: Any
             if factory is not None:
-                spec = await factory.fetch_spec(entry.openapi_url or "", headers=entry.headers)
+                spec = await factory.fetch_spec(
+                    entry.openapi_url or "", headers=entry.headers
+                )
             else:
                 spec = entry.openapi_url
             await runner.mount(entry.name, spec, headers=entry.headers)
             mounted += 1
         except Exception as e:  # noqa: BLE001 — one broken spec must not block startup
             skipped += 1
-            logger.warning(
-                LogMessage.MCP_REHYDRATION_ENTRY_FAILED, entry.name, e
-            )
+            logger.warning(LogMessage.MCP_REHYDRATION_ENTRY_FAILED, entry.name, e)
 
     logger.info(LogMessage.MCP_REHYDRATION_DONE, mounted, skipped)
 

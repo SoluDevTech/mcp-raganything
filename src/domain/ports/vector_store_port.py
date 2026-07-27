@@ -47,6 +47,7 @@ class VectorStorePort(ABC):
         query: str,
         top_k: int = 10,
         score_threshold: float | None = None,
+        metadata_filter: dict[str, str] | None = None,
     ) -> list[SearchResult]:
         """Search for similar documents using vector similarity.
 
@@ -56,6 +57,9 @@ class VectorStorePort(ABC):
             top_k: Maximum number of results to return.
             score_threshold: Maximum cosine distance threshold. Results with
                 distance > threshold are excluded. None disables filtering.
+            metadata_filter: Optional metadata equality filter (e.g.
+                ``{"user_id": "user-A"}``) for per-user RAG isolation. When
+                ``None``, no metadata filter is applied (legacy/tests path).
 
         Returns:
             List of SearchResult objects sorted by relevance.
